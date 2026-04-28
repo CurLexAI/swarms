@@ -40,23 +40,19 @@ jobs:
       # 3. Build the diff against the base branch
       - name: Generate PR diff
         id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch origin ${{ github.base_ref }}
-          git diff origin/${{ github.base_ref }}...HEAD > /tmp/pr.diff
+          git fetch origin "$BASE_REF"
+          git diff "origin/$BASE_REF"...HEAD > /tmp/pr.diff
           LINES=$(wc -l < /tmp/pr.diff)
           echo "lines=$LINES" >> "$GITHUB_OUTPUT"
           echo "Diff size: $LINES lines"
 
-      # 4. Skip if diff is empty or too large (>2000 lines)
-      - name: Check diff size
-        if: steps.diff.outputs.lines == '0'
-        run: |
-          echo "Empty diff — nothing to review."
-          exit 0
-
       # 5. Call Bayyinah via Modal web endpoint
       - name: Run Bayyinah review
         id: review
+        if: steps.diff.outputs.lines != '0' && steps.diff.outputs.lines < '2000'
         env:
           BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
           AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
@@ -96,9 +92,11 @@ jobs:
         run: pip install --quiet requests pyyaml
 
       - name: Generate PR diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch origin ${{ github.base_ref }}
-          git diff origin/${{ github.base_ref }}...HEAD > /tmp/pr.diff
+          git fetch origin "$BASE_REF"
+          git diff "origin/$BASE_REF"...HEAD > /tmp/pr.diff
 
       - name: Run Mihwar fix suggestions
         env:

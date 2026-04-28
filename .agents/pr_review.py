@@ -35,6 +35,7 @@ import json
 import os
 import sys
 import textwrap
+import uuid
 from pathlib import Path
 
 import requests
@@ -294,8 +295,9 @@ def _truncate(text: str, max_chars: int) -> str:
 def _set_output(name: str, value: str) -> None:
     github_output = os.environ.get("GITHUB_OUTPUT", "")
     if github_output:
+        delimiter = f"ghadelimiter_{uuid.uuid4().hex}"
         with open(github_output, "a") as f:
-            f.write(f"{name}<<EOF\n{value}\nEOF\n")
+            f.write(f"{name}<<{delimiter}\n{value}\n{delimiter}\n")
 
 
 def _parse_args() -> argparse.Namespace:
