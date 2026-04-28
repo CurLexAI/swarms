@@ -94,12 +94,12 @@ def _run_bayyinah(diff: str, args: argparse.Namespace) -> None:
     report = result.get("report", "No report returned.")
     model = result.get("model", "Qwen2.5-Coder-32B-Instruct")
 
-    comment = _bayyinah_comment(verdict, report, model, args)
-    _post_comment(args, comment)
-
-    # Export verdict for the mihwar-fix job condition
+    # Export verdict before posting comment so outputs are always written
     _set_output("verdict", verdict)
     _set_output("report", report[:4000])
+
+    comment = _bayyinah_comment(verdict, report, model, args)
+    _post_comment(args, comment)
 
     print(f"Bayyinah verdict: {verdict}")
     if verdict == "REQUEST_CHANGES":
@@ -155,57 +155,57 @@ def _bayyinah_comment(
     verdict_icon = "✅" if verdict == "APPROVE" else "🔴"
     verdict_label = "APPROVED" if verdict == "APPROVE" else "CHANGES REQUESTED"
 
-    return textwrap.dedent(f"""\
-        ## {verdict_icon} Bayyinah Code Review — {verdict_label}
-
-        > **Agent:** Bayyinah (البيّنة) — Private Coding Agent
-        > **Model:** `{model}`
-        > **PR:** #{args.pr} · **Commit:** `{args.head_sha[:8]}`
-
-        ---
-
-        {_truncate(report, MAX_COMMENT_CHARS - 400)}
-
-        ---
-
-        <details>
-        <summary>About this review</summary>
-
-        This review was performed automatically by **Bayyinah**, a private code-review
-        agent running `{model}` on Modal cloud infrastructure.
-        Bayyinah reviews every PR for bugs, security issues, and correctness.
-
-        If Bayyinah requested changes and you believe the findings are incorrect,
-        tag a human reviewer for a second opinion.
-        </details>
-    """)
+    return (
+        f"## {verdict_icon} Bayyinah Code Review — {verdict_label}\n"
+        f"\n"
+        f"> **Agent:** Bayyinah (البيّنة) — Private Coding Agent\n"
+        f"> **Model:** `{model}`\n"
+        f"> **PR:** #{args.pr} · **Commit:** `{args.head_sha[:8]}`\n"
+        f"\n"
+        f"---\n"
+        f"\n"
+        f"{_truncate(report, MAX_COMMENT_CHARS - 400)}\n"
+        f"\n"
+        f"---\n"
+        f"\n"
+        f"<details>\n"
+        f"<summary>About this review</summary>\n"
+        f"\n"
+        f"This review was performed automatically by **Bayyinah**, a private code-review\n"
+        f"agent running `{model}` on Modal cloud infrastructure.\n"
+        f"Bayyinah reviews every PR for bugs, security issues, and correctness.\n"
+        f"\n"
+        f"If Bayyinah requested changes and you believe the findings are incorrect,\n"
+        f"tag a human reviewer for a second opinion.\n"
+        f"</details>\n"
+    )
 
 
 def _mihwar_comment(response: str, model: str, args: argparse.Namespace) -> str:
-    return textwrap.dedent(f"""\
-        ## 🔧 Mihwar Fix Suggestions
-
-        > **Agent:** Mihwar (المحور) — Private Coding Agent
-        > **Model:** `{model}`
-        > **PR:** #{args.pr} · **Commit:** `{args.head_sha[:8]}`
-        > **Triggered by:** Bayyinah requested changes
-
-        ---
-
-        {_truncate(response, MAX_COMMENT_CHARS - 400)}
-
-        ---
-
-        <details>
-        <summary>About these suggestions</summary>
-
-        These fix suggestions were generated automatically by **Mihwar**, a private
-        code-generation agent running `{model}` on Modal cloud infrastructure.
-        Mihwar produced these suggestions based on Bayyinah's review findings.
-
-        Apply fixes at your discretion. Always verify before committing.
-        </details>
-    """)
+    return (
+        f"## 🔧 Mihwar Fix Suggestions\n"
+        f"\n"
+        f"> **Agent:** Mihwar (المحور) — Private Coding Agent\n"
+        f"> **Model:** `{model}`\n"
+        f"> **PR:** #{args.pr} · **Commit:** `{args.head_sha[:8]}`\n"
+        f"> **Triggered by:** Bayyinah requested changes\n"
+        f"\n"
+        f"---\n"
+        f"\n"
+        f"{_truncate(response, MAX_COMMENT_CHARS - 400)}\n"
+        f"\n"
+        f"---\n"
+        f"\n"
+        f"<details>\n"
+        f"<summary>About these suggestions</summary>\n"
+        f"\n"
+        f"These fix suggestions were generated automatically by **Mihwar**, a private\n"
+        f"code-generation agent running `{model}` on Modal cloud infrastructure.\n"
+        f"Mihwar produced these suggestions based on Bayyinah's review findings.\n"
+        f"\n"
+        f"Apply fixes at your discretion. Always verify before committing.\n"
+        f"</details>\n"
+    )
 
 
 def _error_comment(error: str) -> str:
@@ -265,7 +265,8 @@ def _call_endpoint(url: str, payload: dict) -> dict:
     except requests.exceptions.Timeout:
         return {"error": "Agent timed out after 300s"}
     except requests.exceptions.RequestException as e:
-        return {"error": str(e)}
+        # Sanitize the exception message to avoid leaking secret endpoint URLs
+        return {"error": type(e).__name__ + ": request to agent endpoint failed"}
 
 
 # ── Utilities ──────────────────────────────────────────────────────────────

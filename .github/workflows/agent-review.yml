@@ -52,7 +52,7 @@ jobs:
       # 5. Call Bayyinah via Modal web endpoint
       - name: Run Bayyinah review
         id: review
-        if: steps.diff.outputs.lines != '0' && steps.diff.outputs.lines < '2000'
+        if: steps.diff.outputs.lines != '0' && fromJSON(steps.diff.outputs.lines) < 2000
         env:
           BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
           AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
