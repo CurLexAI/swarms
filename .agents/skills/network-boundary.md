@@ -24,14 +24,27 @@ and the request falls within the allowed categories below.
 
 ---
 
-## Allowed Network Access
+## Scope of This Policy
+
+This policy governs **code-editing agents** (Codex, Claude Code, automated PR agents)
+making network calls **during task execution** — i.e., while reading/writing files,
+running commands, or generating code.
+
+This policy does NOT govern:
+- GitHub Actions runners calling authorized Modal endpoints (that is CI infrastructure, not agent activity)
+- The Modal inference containers themselves (governed by `.agents/modal_app.py`)
+
+---
+
+## Allowed Network Access (for code-editing agents)
 
 | Category | Allowed | Conditions |
 |---|---|---|
 | Package registry | Yes | During install only (`npm ci`, `yarn install --frozen-lockfile`, `pnpm install --frozen-lockfile`, `bun install --frozen-lockfile`) |
 | Package registry domains | Yes | `registry.npmjs.org`, `registry.yarnpkg.com`, `pypi.org` only |
-| HTTP methods for allowed domains | `GET` / `HEAD` only | No `POST`, `PUT`, `PATCH`, `DELETE` |
+| HTTP methods for allowed domains | `GET` / `HEAD` only | No `POST`, `PUT`, `PATCH`, `DELETE` from agent code editing sessions |
 | Git operations to `github.com` | Yes | Push/pull to `CurLexAI/swarms` only |
+| Modal inference endpoints | Yes | `POST` from GitHub Actions only — `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT` — authenticated with `AGENT_API_TOKEN` |
 
 ---
 
