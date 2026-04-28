@@ -104,14 +104,13 @@ Layer 0 — Repository State: BLOCKED
 Layer 1 — Validation Infrastructure: UNVERIFIED
   - Cannot assess until Layer 0 is unblocked
 
-Layer 2 — Governance: PARTIAL
-  - AGENTS.md: VERIFIED (just created)
-  - .agents/skills/: VERIFIED (just created)
+Layer 2 — Governance: UNVERIFIED
   - CI/CD workflows: UNVERIFIED
   - CODEOWNERS: UNVERIFIED
 
 Layer 3 — Agent/Swarm Configuration: PARTIAL
-  - Core skills documented
+  - AGENTS.md: VERIFIED (just created)
+  - .agents/skills/: VERIFIED (just created)
   - Agent identity map not yet created
 
 Layer 4 — Domain Readiness: BLOCKED

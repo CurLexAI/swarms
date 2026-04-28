@@ -28,7 +28,7 @@ and the request falls within the allowed categories below.
 
 | Category | Allowed | Conditions |
 |---|---|---|
-| Package registry | Yes | During install only (`npm ci`, `pnpm install --frozen-lockfile`) |
+| Package registry | Yes | During install only (`npm ci`, `yarn install --frozen-lockfile`, `pnpm install --frozen-lockfile`, `bun install --frozen-lockfile`) |
 | Package registry domains | Yes | `registry.npmjs.org`, `registry.yarnpkg.com`, `pypi.org` only |
 | HTTP methods for allowed domains | `GET` / `HEAD` only | No `POST`, `PUT`, `PATCH`, `DELETE` |
 | Git operations to `github.com` | Yes | Push/pull to `CurLexAI/swarms` only |
