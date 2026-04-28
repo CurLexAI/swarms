@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
 import { randomUUID } from "crypto";
-import { v4 as uuidv4 } from "uuid";
 import logger from "../utils/logger.js";
 import { AuditService } from "./AuditService.ts";
 import {
@@ -73,7 +72,7 @@ const MAX_TENANT_ID_LENGTH = 128;
 const MAX_INPUT_LENGTH = 8000;
 const DEFAULT_PYTHON_ENGINE_TIMEOUT_MS = 15000;
 const CLIENT_SAFE_PYTHON_ENGINE_ERROR_PATTERN =
-  /^Python engine request failed with status \d+\. Please try again later \(ref: [0-9a-f]{8}\)\.$/i;
+  /^Python engine request failed with status \d+\. Please try again later(?: \(ref: [0-9a-f]{8}\))?\.$/i;
 
 // ── P0: Capability enforcement ─────────────────────────────────────────────
 // Maps agent runtime to the required declared capability.
@@ -408,10 +407,7 @@ export class UnifiedAgentAdapter {
     // P0: Capability enforcement — scope alone is not sufficient.
     // Agent must declare the required capability for its runtime in .agents/config/agents.yaml.
     const requiredCapability = RUNTIME_CAPABILITY_MAP[agent.runtime];
-    if (
-      agent.capabilities !== undefined &&
-      !agent.capabilities.includes(requiredCapability)
-    ) {
+    if (!agent.capabilities?.includes(requiredCapability)) {
       await AuditService.logSecurityViolation(userId, agentId, "CAPABILITY_DENIED", {
         required_capability: requiredCapability,
         agent_capabilities: agent.capabilities,
@@ -422,8 +418,7 @@ export class UnifiedAgentAdapter {
 
     if (
       agent.enable_reasoning &&
-      agent.capabilities !== undefined &&
-      !agent.capabilities.includes("reasoning")
+      !agent.capabilities?.includes("reasoning")
     ) {
       await AuditService.logSecurityViolation(userId, agentId, "CAPABILITY_DENIED", {
         required_capability: "reasoning",
@@ -433,7 +428,7 @@ export class UnifiedAgentAdapter {
       throw new Error(`CAPABILITY_DENIED: Agent ${agentId} lacks required capability: reasoning`);
     }
 
-    const taskId = uuidv4();
+    const taskId = randomUUID();
     const safePayload = validation.safePayload;
 
     if (agent.enable_reasoning) {
