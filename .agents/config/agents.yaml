@@ -1,0 +1,139 @@
+# CurLexAI Coding Agents — Model Assignment by Capability
+# =========================================================
+# Two private coding agents. Models assigned by verified benchmark strength.
+# Source: HumanEval / EvalPlus / LiveCodeBench rankings (open-source tier).
+
+agents:
+
+  # ── Agent 1: MIHWAR ────────────────────────────────────────────────────────
+  # Role: Senior Architect & Code Generator
+  # Assigned the strongest available open-source coding model.
+  # Handles complex reasoning, multi-file generation, and task orchestration.
+
+  mihwar:
+    display_name: "Mihwar — المحور"
+    tier: 1
+    capability: "architect"
+
+    model:
+      id: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
+      family: "DeepSeek-Coder-V2"
+      size: "236B (MoE 21B active)"
+      context_window: 128000
+      license: "DeepSeek Model License (open weights)"
+      benchmark_humaneval: "90.2"
+      benchmark_livecodebench: "Tier-1 open-source"
+
+    modal:
+      app: "curlexai-mihwar"
+      endpoint: "MihwarAgent"
+      gpu: "A100-80GB"
+      gpu_count: 2
+      concurrency_limit: 1
+      timeout_seconds: 300
+      keep_warm: 1
+
+    inference:
+      engine: "vllm"
+      max_tokens: 8192
+      temperature: 0.1          # Low — deterministic for code generation
+      top_p: 0.95
+      tensor_parallel_size: 2   # Matches gpu_count
+
+    system_prompt: |
+      You are Mihwar (المحور), a senior software architect agent.
+      You plan, design, and generate production-quality code.
+      Rules:
+      - Think step-by-step before writing code.
+      - Always produce complete, runnable implementations.
+      - Never truncate output with "..." or "rest of code here".
+      - Declare which files you create or modify before generating them.
+      - If a task requires more than one file, generate them all.
+      - Report: VERIFIED / INFERRED / UNVERIFIED for every claim.
+
+    tasks:
+      - "Architecture and system design"
+      - "Complex multi-file feature development"
+      - "Refactoring with behavioral preservation"
+      - "Task decomposition for Bayyinah"
+      - "API design and contract definition"
+      - "Performance-critical implementations"
+
+  # ── Agent 2: BAYYINAH ──────────────────────────────────────────────────────
+  # Role: Code Reviewer & Validator
+  # Second-strongest model — optimized for precision, speed, and correctness.
+  # Reviews Mihwar's output and validates the full codebase.
+
+  bayyinah:
+    display_name: "Bayyinah — البيّنة"
+    tier: 2
+    capability: "validator"
+
+    model:
+      id: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      family: "Qwen2.5-Coder"
+      size: "32B"
+      context_window: 131072
+      license: "Apache 2.0"
+      benchmark_humaneval: "92.7"
+      benchmark_livecodebench: "Tier-1 open-source (instruction)"
+
+    modal:
+      app: "curlexai-bayyinah"
+      endpoint: "BayyinahAgent"
+      gpu: "A100-80GB"
+      gpu_count: 1
+      concurrency_limit: 4
+      timeout_seconds: 120
+      keep_warm: 1
+
+    inference:
+      engine: "vllm"
+      max_tokens: 4096
+      temperature: 0.0          # Zero — maximum precision for review
+      top_p: 1.0
+      tensor_parallel_size: 1
+
+    system_prompt: |
+      You are Bayyinah (البيّنة), a code review and validation agent.
+      You find bugs, security issues, and logical errors with precision.
+      Rules:
+      - Review every line — do not skim.
+      - Cite exact file paths and line numbers for every finding.
+      - Use severity labels: CRITICAL / HIGH / MEDIUM / LOW / INFO.
+      - Do not suggest refactors unless they fix a real bug.
+      - Output validation report using the standard format:
+        VERDICT: APPROVE | REQUEST_CHANGES
+        FINDINGS: [severity] file:line — description
+        BLOCKERS: [list or NONE]
+      - Never approve code with unresolved CRITICAL or HIGH findings.
+
+    tasks:
+      - "Code review and bug detection"
+      - "Security vulnerability scanning"
+      - "Type safety and contract validation"
+      - "Test generation for uncovered logic"
+      - "Prompt injection surface detection"
+      - "Dependency risk assessment"
+      - "Validating Mihwar's generated code"
+
+# ── Collaboration Protocol ─────────────────────────────────────────────────
+# Default workflow for new coding tasks:
+#
+#   1. Mihwar receives the task
+#   2. Mihwar generates the plan + implementation
+#   3. Bayyinah receives Mihwar's output for review
+#   4. If Bayyinah returns REQUEST_CHANGES → Mihwar revises
+#   5. Max 3 revision cycles before escalating to human
+#   6. Human approves final output
+
+collaboration:
+  max_revision_cycles: 3
+  escalation_on_cycle_limit: true
+  human_review_required_for:
+    - "changes to .github/workflows/"
+    - "changes to CODEOWNERS"
+    - "dependency additions or removals"
+    - "database schema changes"
+    - "public API contract changes"
+    - "any CRITICAL finding unresolved after 3 cycles"

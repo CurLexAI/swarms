@@ -1,0 +1,118 @@
+name: Agent Code Review (Mihwar + Bayyinah)
+
+# ── Triggers ────────────────────────────────────────────────────────────────
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+# ── Permissions ─────────────────────────────────────────────────────────────
+permissions:
+  pull-requests: write   # post review comments
+  contents: read         # read the diff
+
+# ── Jobs ────────────────────────────────────────────────────────────────────
+jobs:
+  bayyinah-review:
+    name: "Bayyinah Review (Qwen2.5-Coder-32B)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      verdict: ${{ steps.review.outputs.verdict }}
+      report: ${{ steps.review.outputs.report }}
+
+    steps:
+      # 1. Checkout with enough history to produce a clean diff
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Python + dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install --quiet requests pyyaml
+
+      # 3. Build the diff against the base branch
+      - name: Generate PR diff
+        id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF"
+          git diff "origin/$BASE_REF"...HEAD > /tmp/pr.diff
+          LINES=$(wc -l < /tmp/pr.diff)
+          echo "lines=$LINES" >> "$GITHUB_OUTPUT"
+          echo "Diff size: $LINES lines"
+
+      # 5. Call Bayyinah via Modal web endpoint
+      - name: Run Bayyinah review
+        id: review
+        if: steps.diff.outputs.lines != '0' && fromJSON(steps.diff.outputs.lines) < 2000
+        env:
+          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.number }}
+          REPO: ${{ github.repository }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python .agents/pr_review.py \
+            --diff /tmp/pr.diff \
+            --pr "$PR_NUMBER" \
+            --repo "$REPO" \
+            --head-sha "$HEAD_SHA" \
+            --agent bayyinah
+
+  mihwar-fix:
+    name: "Mihwar Fix Suggestions (DeepSeek-Coder-V2)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: bayyinah-review
+    # Only run if Bayyinah found CRITICAL or HIGH issues
+    if: always() && needs.bayyinah-review.outputs.verdict == 'REQUEST_CHANGES'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install --quiet requests pyyaml
+
+      - name: Generate PR diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF"
+          git diff "origin/$BASE_REF"...HEAD > /tmp/pr.diff
+
+      - name: Run Mihwar fix suggestions
+        env:
+          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
+          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.number }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BAYYINAH_REPORT: ${{ needs.bayyinah-review.outputs.report }}
+        run: |
+          python .agents/pr_review.py \
+            --diff /tmp/pr.diff \
+            --pr "$PR_NUMBER" \
+            --repo "$REPO" \
+            --head-sha "$HEAD_SHA" \
+            --agent mihwar \
+            --bayyinah-report "$BAYYINAH_REPORT"
