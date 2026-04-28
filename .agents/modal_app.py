@@ -8,10 +8,15 @@ Agent 2 — Bayyinah: Qwen2.5-Coder-32B-Instruct (32B) on 1x A100-80GB
 
 Usage:
     modal deploy .agents/modal_app.py          # deploy both agents
-    modal run .agents/modal_app.py::test       # smoke test both endpoints
+    modal run .agents/modal_app.py             # smoke test both endpoints
+
+Web endpoints (after deploy):
+    POST <BAYYINAH_ENDPOINT>/review            # called by GitHub Actions
+    POST <MIHWAR_ENDPOINT>/generate            # called by GitHub Actions
 
 Environment secrets required in Modal dashboard:
-    HF_TOKEN — Hugging Face token for model downloads
+    huggingface-secret  →  HF_TOKEN
+    agent-api-secret    →  AGENT_API_TOKEN   (shared token for GitHub Actions auth)
 """
 
 import modal
@@ -239,6 +244,67 @@ def _build_chat_prompt(system: str, user: str, model_family: str) -> str:
         )
     else:
         return f"### System:\n{system}\n\n### User:\n{user}\n\n### Assistant:\n"
+
+
+# ── Web endpoints (called by GitHub Actions) ───────────────────────────────
+#
+# After `modal deploy .agents/modal_app.py`, Modal provides stable HTTPS URLs.
+# Copy those URLs into GitHub repository secrets:
+#   BAYYINAH_ENDPOINT  →  the URL for bayyinah-review
+#   MIHWAR_ENDPOINT    →  the URL for mihwar-generate
+#   AGENT_API_TOKEN    →  any strong random string (openssl rand -hex 32)
+
+api_secret = modal.Secret.from_name("agent-api-secret")
+
+
+@bayyinah_app.function(
+    image=vllm_image,
+    secrets=[hf_secret, api_secret],
+    timeout=180,
+    keep_warm=1,
+)
+@modal.web_endpoint(method="POST", label="bayyinah-review")
+def bayyinah_review_web(payload: dict) -> dict:
+    """
+    HTTP POST endpoint for Bayyinah.
+    Body: { "token": "...", "code": "...", "context": "..." }
+    Called by GitHub Actions on every PR.
+    """
+    import os
+
+    if payload.get("token") != os.environ.get("AGENT_API_TOKEN", ""):
+        return {"error": "unauthorized", "verdict": "BLOCKED", "report": ""}
+
+    agent = BayyinahAgent()
+    return agent.review.remote(
+        payload.get("code", ""),
+        payload.get("context", ""),
+    )
+
+
+@mihwar_app.function(
+    image=vllm_image,
+    secrets=[hf_secret, api_secret],
+    timeout=360,
+    keep_warm=1,
+)
+@modal.web_endpoint(method="POST", label="mihwar-generate")
+def mihwar_generate_web(payload: dict) -> dict:
+    """
+    HTTP POST endpoint for Mihwar.
+    Body: { "token": "...", "task": "...", "context_files": {} }
+    Called by GitHub Actions when Bayyinah requests changes.
+    """
+    import os
+
+    if payload.get("token") != os.environ.get("AGENT_API_TOKEN", ""):
+        return {"error": "unauthorized", "response": ""}
+
+    agent = MihwarAgent()
+    return agent.review_and_generate.remote(
+        payload.get("task", ""),
+        payload.get("context_files", {}),
+    )
 
 
 # ── Smoke test ─────────────────────────────────────────────────────────────
