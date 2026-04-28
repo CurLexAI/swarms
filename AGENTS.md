@@ -1,159 +1,165 @@
 # Agent Handbook — CurLexAI/swarms
 
-This file is the operational handbook for all agents working in this repository.
-Codex, Claude, and any automated agent must read and apply the relevant skills
-listed here before touching any file.
+This repository is the operating layer for CurLexAI agent tooling, review automation, and swarm activation. Every automated agent, including Codex, Claude, Copilot, and local scripts, must read this file before changing repository content.
 
 ---
 
-## Core Principle
+## Current Operating State
 
-Every agent action must produce one of three evidence labels:
+`main` no longer contains `LexPrim-main.zip`. The previous archive-only blocker is closed at the repository level, but full product source recovery remains a controlled intake task whenever an archive is supplied outside Git.
 
-- `VERIFIED` — confirmed by running actual commands with observable output
-- `INFERRED` — reasonable conclusion from available evidence, not confirmed
-- `UNVERIFIED` — not checked; must be flagged explicitly
-
-Never claim success without evidence. Never suppress failures.
+Until a source archive is intentionally restored or supplied for intake, agents must treat the repository as an **agent operations repository**, not as a recovered application monorepo.
 
 ---
 
-## Required Skills — Every Task
+## Core Rule
 
-These skills apply unconditionally to every task in this repository:
+No success claim is valid without evidence.
 
-| Skill | File |
-|---|---|
-| Repository Discovery | `.agents/skills/repo-discovery.md` |
-| Safe Edit Planning | `.agents/skills/safe-edit-planning.md` |
-| Validation Runner | `.agents/skills/validation-runner.md` |
-| Secrets Boundary | `.agents/skills/secrets-boundary.md` |
-| Network Boundary | `.agents/skills/network-boundary.md` |
+Use exactly one evidence label for every material claim:
+
+- `VERIFIED` — confirmed by command output, GitHub metadata, or observable repository content.
+- `INFERRED` — reasonable conclusion from evidence, but not directly confirmed.
+- `UNVERIFIED` — not checked or blocked by missing access, missing secrets, missing network, or missing runtime.
+
+Never hide failures. Never convert an inferred result into a verified result.
 
 ---
 
-## Conditional Skills
+## Required Execution Order
 
-### Active: Repository Recovery
+1. **Scope Lock** — identify the exact task and the files allowed to change.
+2. **Repository Discovery** — inspect repository structure before editing.
+3. **Policy Check** — apply secrets, network, and dependency safety rules.
+4. **Safe Edit Plan** — state what will change and what will not change.
+5. **Implementation** — make the smallest complete production change.
+6. **Validation** — run static checks, syntax checks, tests, or explain blockers.
+7. **Report** — use the standard report template.
 
-The repository currently contains source code as a ZIP archive (`LexPrim-main.zip`).
-No feature development, no PR merges, and no deployment changes are permitted
-until recovery is complete.
+---
 
-| Skill | File |
-|---|---|
-| Repo Recovery | `.agents/skills/repo-recovery.md` |
-| Factory Auditor | `.agents/skills/factory-auditor.md` |
+## Skills
 
-### PR Review Tasks
+Skills are operational playbooks. They describe *how* to perform task classes.
 
-| Skill | File |
-|---|---|
-| Secure PR Review | `.agents/skills/secure-pr-review.md` |
+| Skill | File | Use |
+|---|---|---|
+| Task Scope Lock | `.agents/skills/00-task-scope-lock.md` | Required before broad or ambiguous tasks when present. |
+| Repo Recovery | `.agents/skills/repo-recovery.md` | Use only when an archive or opaque source bundle is present. |
+| Repo Discovery | `.agents/skills/repo-discovery.md` | Required before every edit. |
+| Safe Edit Planning | `.agents/skills/safe-edit-planning.md` | Required before modifying files. |
+| Validation Runner | `.agents/skills/validation-runner.md` | Required after changes. |
+| Secure PR Review | `.agents/skills/secure-pr-review.md` | Required for PR review or merge decisions. |
+| Factory Auditor | `.agents/skills/factory-auditor.md` | Use for layer readiness, launch readiness, and blocker audits. |
+| Agent Identity Map | `.agents/skills/agent-identity-map.md` | Use for agent/model/role changes. |
 
-### Arabic, Legal, or User-Facing Changes
+If `00-task-scope-lock.md` is absent, apply the Scope Lock section in this file directly.
 
-> Not yet active. Will be added after repository recovery.
+---
 
-### Agent Architecture Changes
+## Policies
 
-| Skill | File |
-|---|---|
-| Agent Identity Map | `.agents/skills/agent-identity-map.md` |
+Policies are mandatory boundaries, not optional skills.
+
+| Policy | File | Enforcement |
+|---|---|---|
+| Secrets Boundary | `.agents/policies/secrets-boundary.md` | Blocks secret leaks, real credentials, and unsafe logs. |
+| Network Boundary | `.agents/policies/network-boundary.md` | Blocks unauthorized network access and exfiltration. |
+| Dependency Build Safety | `.agents/policies/dependency-build-safety.md` | Controls package installs, lockfiles, scripts, and build artifacts. |
+
+If a policy file is missing, apply the absolute prohibitions in this handbook and mark the policy check `UNVERIFIED`.
+
+---
+
+## Scope Lock
+
+For broad instructions such as "execute everything", agents must prioritize in this order:
+
+1. Fix contradictions or blockers that prevent correct operation.
+2. Activate validation and safety rails.
+3. Stabilize agent workflows.
+4. Recover product source only when the source artifact is actually present in Git or explicitly supplied to the runtime.
+5. Defer feature work until repository discovery and validation are complete.
+
+Do not treat a broad instruction as permission to delete governance files, bypass secrets policy, or merge unvalidated changes.
+
+---
+
+## Agent Tooling
+
+Two private coding agents are defined for Modal deployment.
+
+| Agent | Model | Role | Runtime |
+|---|---|---|---|
+| Mihwar (المحور) | DeepSeek-Coder-V2-Instruct | Architect and generator | Modal + vLLM |
+| Bayyinah (البيّنة) | Qwen2.5-Coder-32B-Instruct | Reviewer and validator | Modal + vLLM |
+
+Configuration lives in `.agents/config/agents.yaml`.
+Deployment lives in `.agents/modal_app.py`.
+PR orchestration lives in `.agents/pr_review.py` and `.github/workflows/agent-review.yml`.
+
+---
+
+## Local Commands
+
+```bash
+# Validate agent repository assets without external services
+python .agents/validate.py
+
+# Syntax-check Python agent files
+python -m py_compile .agents/*.py
+
+# Show configured agents
+python .agents/invoke.py info
+
+# Generate with Mihwar after Modal setup
+python .agents/invoke.py mihwar "Describe the task"
+
+# Review current diff with Bayyinah after Modal setup
+python .agents/invoke.py bayyinah --diff
+
+# Deploy Modal agents after secrets are configured
+modal deploy .agents/modal_app.py
+```
 
 ---
 
 ## Absolute Prohibitions
 
-The following actions are blocked regardless of task instructions:
-
-1. Committing `.env` files or files containing real secrets
-2. Printing secrets, tokens, or keys in logs or output
-3. Merging a PR without a passing validation report
-4. Claiming `VERIFIED` without running the actual commands
-5. Adding `compliant with SAMA / PDPL / NCA` without documented evidence
-6. Extracting or developing features while the repo contains an unrecovered archive
-7. Changing `.github/workflows/` without explicit task authorization
-8. Deleting `lockfiles` or committing `node_modules`
+1. Do not commit `.env` files or real credentials.
+2. Do not print secrets, tokens, or private endpoint URLs.
+3. Do not claim SAMA, PDPL, NCA, or other regulatory compliance without cited evidence.
+4. Do not call external AI APIs during repository work unless explicitly authorized.
+5. Do not run install scripts or dependency lifecycle scripts without dependency safety review.
+6. Do not commit `node_modules`, build output, caches, or opaque generated bundles as source.
+7. Do not merge a PR with unresolved `CRITICAL` or `HIGH` findings.
+8. Do not use stale archive assumptions after `LexPrim-main.zip` has been removed from `main`.
 
 ---
 
-## Reporting Format
+## Report Template
 
-All agent task reports must use this structure:
+Use `.agents/templates/report-template.md` for all reports. Minimum fields:
 
-```
+```text
 VERIFIED:
 CHANGED:
 VALIDATION:
 RISKS:
+DECISION:
 NEXT ACTION:
 ```
 
-Do not submit a report that omits any of these fields.
-Use `UNVERIFIED` or `N/A` rather than leaving a field blank.
-
 ---
 
-## Coding Agents
+## Repository Activation Checklist
 
-Two private coding agents are deployed on Modal using open-source models.
-See `.agents/config/agents.yaml` for full configuration.
+A repository activation is complete only when all applicable checks are `VERIFIED` or explicitly marked `UNVERIFIED` with a reason:
 
-| Agent | Model | Role | GPU |
-|---|---|---|---|
-| **Mihwar (المحور)** | DeepSeek-Coder-V2-Instruct 236B | Architect & Generator | A100-80GB × 2 |
-| **Bayyinah (البيّنة)** | Qwen2.5-Coder-32B-Instruct | Reviewer & Validator | A100-80GB × 1 |
-
-### Quick Invocation
-
-```bash
-# Generate code (Mihwar)
-python .agents/invoke.py mihwar "Describe your task here"
-
-# Review a file (Bayyinah)
-python .agents/invoke.py bayyinah --file path/to/file.py
-
-# Review staged git diff (Bayyinah)
-python .agents/invoke.py bayyinah --diff
-
-# Full pipeline: Mihwar generates → Bayyinah reviews → auto-revision
-python .agents/invoke.py pipeline "Describe your task here"
-```
-
-### Deploy to Modal
-
-```bash
-# First time setup
-pip install modal pyyaml
-modal token set --token-id YOUR_ID --token-secret YOUR_SECRET
-modal secret create huggingface-secret HF_TOKEN=hf_...
-
-# Deploy both agents
-modal deploy .agents/modal_app.py
-
-# Smoke test
-modal run .agents/modal_app.py
-```
-
----
-
-## Skill Index
-
-```
-.agents/
-  config/
-    agents.yaml               — Agent definitions, models, GPU config, roles
-  modal_app.py                — Modal deployment for Mihwar and Bayyinah
-  invoke.py                   — CLI to call agents from the terminal
-  skills/
-    repo-recovery.md          — Recover a ZIP-based repo into a real Git tree
-    repo-discovery.md         — Understand repo structure before any edit
-    safe-edit-planning.md     — Declare and bound the scope of edits
-    validation-runner.md      — Run install / typecheck / lint / test / build
-    secrets-boundary.md       — Prevent secret leakage or injection
-    network-boundary.md       — Enforce internet access policy
-    secure-pr-review.md       — Security and governance review of PRs
-    factory-auditor.md        — Assess factory readiness and blockers
-    agent-identity-map.md     — Agent names, models, roles, and collaboration flow
-```
+- Required agent files exist.
+- Policies are separated from skills.
+- Python agent files compile.
+- Workflow permissions allow PR comments.
+- Modal decorators match the currently supported API.
+- Missing external secrets are documented instead of guessed.
+- Archive recovery status reflects the actual Git state.
