@@ -55,9 +55,11 @@ until recovery is complete.
 
 > Not yet active. Will be added after repository recovery.
 
-### Swarm or Agent Architecture Changes
+### Agent Architecture Changes
 
-> Not yet active. Will be added after repository recovery.
+| Skill | File |
+|---|---|
+| Agent Identity Map | `.agents/skills/agent-identity-map.md` |
 
 ---
 
@@ -93,10 +95,57 @@ Use `UNVERIFIED` or `N/A` rather than leaving a field blank.
 
 ---
 
+## Coding Agents
+
+Two private coding agents are deployed on Modal using open-source models.
+See `.agents/config/agents.yaml` for full configuration.
+
+| Agent | Model | Role | GPU |
+|---|---|---|---|
+| **Mihwar (المحور)** | DeepSeek-Coder-V2-Instruct 236B | Architect & Generator | A100-80GB × 2 |
+| **Bayyinah (البيّنة)** | Qwen2.5-Coder-32B-Instruct | Reviewer & Validator | A100-80GB × 1 |
+
+### Quick Invocation
+
+```bash
+# Generate code (Mihwar)
+python .agents/invoke.py mihwar "Describe your task here"
+
+# Review a file (Bayyinah)
+python .agents/invoke.py bayyinah --file path/to/file.py
+
+# Review staged git diff (Bayyinah)
+python .agents/invoke.py bayyinah --diff
+
+# Full pipeline: Mihwar generates → Bayyinah reviews → auto-revision
+python .agents/invoke.py pipeline "Describe your task here"
+```
+
+### Deploy to Modal
+
+```bash
+# First time setup
+pip install modal pyyaml
+modal token set --token-id YOUR_ID --token-secret YOUR_SECRET
+modal secret create huggingface-secret HF_TOKEN=hf_...
+
+# Deploy both agents
+modal deploy .agents/modal_app.py
+
+# Smoke test
+modal run .agents/modal_app.py
+```
+
+---
+
 ## Skill Index
 
 ```
 .agents/
+  config/
+    agents.yaml               — Agent definitions, models, GPU config, roles
+  modal_app.py                — Modal deployment for Mihwar and Bayyinah
+  invoke.py                   — CLI to call agents from the terminal
   skills/
     repo-recovery.md          — Recover a ZIP-based repo into a real Git tree
     repo-discovery.md         — Understand repo structure before any edit
@@ -106,4 +155,5 @@ Use `UNVERIFIED` or `N/A` rather than leaving a field blank.
     network-boundary.md       — Enforce internet access policy
     secure-pr-review.md       — Security and governance review of PRs
     factory-auditor.md        — Assess factory readiness and blockers
+    agent-identity-map.md     — Agent names, models, roles, and collaboration flow
 ```

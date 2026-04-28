@@ -1,0 +1,273 @@
+"""
+CurLexAI Coding Agents — Modal Deployment
+==========================================
+Two private coding agents deployed on Modal using vLLM.
+
+Agent 1 — Mihwar:  DeepSeek-Coder-V2-Instruct (236B MoE) on 2x A100-80GB
+Agent 2 — Bayyinah: Qwen2.5-Coder-32B-Instruct (32B) on 1x A100-80GB
+
+Usage:
+    modal deploy .agents/modal_app.py          # deploy both agents
+    modal run .agents/modal_app.py::test       # smoke test both endpoints
+
+Environment secrets required in Modal dashboard:
+    HF_TOKEN — Hugging Face token for model downloads
+"""
+
+import modal
+
+# ── Shared base image ──────────────────────────────────────────────────────
+
+vllm_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install(
+        "vllm==0.5.5",
+        "transformers>=4.44.0",
+        "accelerate>=0.33.0",
+        "huggingface_hub>=0.24.0",
+    )
+)
+
+hf_secret = modal.Secret.from_name("huggingface-secret")
+
+# ── Agent 1: MIHWAR ───────────────────────────────────────────────────────
+# DeepSeek-Coder-V2-Instruct — strongest open-source coding model
+# 236B MoE (21B parameters active per token)
+# Requires 2x A100-80GB for tensor parallel inference
+
+MIHWAR_MODEL = "deepseek-ai/DeepSeek-Coder-V2-Instruct"
+MIHWAR_SYSTEM = (
+    "You are Mihwar (المحور), a senior software architect agent. "
+    "You plan, design, and generate production-quality code. "
+    "Think step-by-step. Never truncate output. "
+    "Declare which files you create or modify before generating them. "
+    "Label every claim: VERIFIED / INFERRED / UNVERIFIED."
+)
+
+mihwar_app = modal.App("curlexai-mihwar")
+
+
+@mihwar_app.cls(
+    gpu=modal.gpu.A100(count=2, size="80GB"),
+    image=vllm_image,
+    secrets=[hf_secret],
+    timeout=300,
+    concurrency_limit=1,
+    keep_warm=1,
+)
+class MihwarAgent:
+    model_id: str = MIHWAR_MODEL
+
+    @modal.enter()
+    def load_model(self):
+        from vllm import LLM, SamplingParams  # noqa: F401
+
+        self.llm = LLM(
+            model=self.model_id,
+            tensor_parallel_size=2,
+            max_model_len=32768,
+            trust_remote_code=True,
+            gpu_memory_utilization=0.92,
+        )
+        self.default_params = SamplingParams(
+            temperature=0.1,
+            top_p=0.95,
+            max_tokens=8192,
+        )
+
+    @modal.method()
+    def generate(self, user_message: str, max_tokens: int = 8192) -> dict:
+        from vllm import SamplingParams
+
+        params = SamplingParams(
+            temperature=0.1,
+            top_p=0.95,
+            max_tokens=max_tokens,
+        )
+
+        prompt = _build_chat_prompt(
+            system=MIHWAR_SYSTEM,
+            user=user_message,
+            model_family="deepseek",
+        )
+
+        outputs = self.llm.generate([prompt], params)
+        text = outputs[0].outputs[0].text.strip()
+
+        return {
+            "agent": "mihwar",
+            "model": self.model_id,
+            "response": text,
+            "finish_reason": outputs[0].outputs[0].finish_reason,
+            "tokens_generated": len(outputs[0].outputs[0].token_ids),
+        }
+
+    @modal.method()
+    def review_and_generate(
+        self, task: str, context_files: dict[str, str] | None = None
+    ) -> dict:
+        """
+        Full coding task: receive task description + optional file context,
+        return implementation plan and generated code.
+        """
+        file_block = ""
+        if context_files:
+            file_block = "\n\nEXISTING FILES:\n"
+            for path, content in context_files.items():
+                file_block += f"\n--- {path} ---\n{content}\n"
+
+        message = f"TASK:\n{task}{file_block}"
+        return self.generate(message)
+
+
+# ── Agent 2: BAYYINAH ─────────────────────────────────────────────────────
+# Qwen2.5-Coder-32B-Instruct — top open-source model for code review
+# 32B dense model, Apache 2.0, 131K context
+# Requires 1x A100-80GB
+
+BAYYINAH_MODEL = "Qwen/Qwen2.5-Coder-32B-Instruct"
+BAYYINAH_SYSTEM = (
+    "You are Bayyinah (البيّنة), a code review and validation agent. "
+    "You find bugs, security issues, and logical errors with precision. "
+    "Review every line. Cite exact file:line for every finding. "
+    "Use severity: CRITICAL / HIGH / MEDIUM / LOW / INFO. "
+    "Output format:\n"
+    "VERDICT: APPROVE | REQUEST_CHANGES\n"
+    "FINDINGS: [severity] file:line — description\n"
+    "BLOCKERS: [list or NONE]"
+)
+
+bayyinah_app = modal.App("curlexai-bayyinah")
+
+
+@bayyinah_app.cls(
+    gpu=modal.gpu.A100(count=1, size="80GB"),
+    image=vllm_image,
+    secrets=[hf_secret],
+    timeout=120,
+    concurrency_limit=4,
+    keep_warm=1,
+)
+class BayyinahAgent:
+    model_id: str = BAYYINAH_MODEL
+
+    @modal.enter()
+    def load_model(self):
+        from vllm import LLM, SamplingParams  # noqa: F401
+
+        self.llm = LLM(
+            model=self.model_id,
+            tensor_parallel_size=1,
+            max_model_len=32768,
+            trust_remote_code=True,
+            gpu_memory_utilization=0.90,
+        )
+
+    @modal.method()
+    def review(self, code_or_diff: str, context: str = "") -> dict:
+        """
+        Review a code snippet, full file, or git diff.
+        Returns structured findings with severity labels.
+        """
+        from vllm import SamplingParams
+
+        params = SamplingParams(
+            temperature=0.0,
+            top_p=1.0,
+            max_tokens=4096,
+        )
+
+        review_prompt = (
+            f"Review the following code for bugs, security issues, "
+            f"and correctness.\n\n"
+        )
+        if context:
+            review_prompt += f"CONTEXT:\n{context}\n\n"
+        review_prompt += f"CODE TO REVIEW:\n{code_or_diff}"
+
+        prompt = _build_chat_prompt(
+            system=BAYYINAH_SYSTEM,
+            user=review_prompt,
+            model_family="qwen",
+        )
+
+        outputs = self.llm.generate([prompt], params)
+        text = outputs[0].outputs[0].text.strip()
+
+        verdict = "REQUEST_CHANGES"
+        if "VERDICT: APPROVE" in text.upper():
+            verdict = "APPROVE"
+
+        return {
+            "agent": "bayyinah",
+            "model": self.model_id,
+            "verdict": verdict,
+            "report": text,
+            "finish_reason": outputs[0].outputs[0].finish_reason,
+            "tokens_generated": len(outputs[0].outputs[0].token_ids),
+        }
+
+    @modal.method()
+    def validate_mihwar_output(self, mihwar_result: dict) -> dict:
+        """
+        Dedicated method for Bayyinah to validate Mihwar's generated code.
+        Receives Mihwar's full output dict and returns a review.
+        """
+        code = mihwar_result.get("response", "")
+        context = f"This code was generated by Mihwar for task review."
+        return self.review(code, context=context)
+
+
+# ── Prompt builders ────────────────────────────────────────────────────────
+
+def _build_chat_prompt(system: str, user: str, model_family: str) -> str:
+    """
+    Build a chat-formatted prompt for the given model family.
+    Uses the correct chat template for each model.
+    """
+    if model_family == "deepseek":
+        return (
+            f"<｜begin▁of▁sentence｜>{system}\n"
+            f"<｜User｜>{user}"
+            f"<｜Assistant｜>"
+        )
+    elif model_family == "qwen":
+        return (
+            f"<|im_start|>system\n{system}<|im_end|>\n"
+            f"<|im_start|>user\n{user}<|im_end|>\n"
+            f"<|im_start|>assistant\n"
+        )
+    else:
+        return f"### System:\n{system}\n\n### User:\n{user}\n\n### Assistant:\n"
+
+
+# ── Smoke test ─────────────────────────────────────────────────────────────
+
+@mihwar_app.local_entrypoint()
+def test():
+    """
+    Run a minimal smoke test against both agents.
+    Usage: modal run .agents/modal_app.py
+    """
+    print("=== Testing Mihwar (DeepSeek-Coder-V2-Instruct) ===")
+    mihwar = MihwarAgent()
+    result = mihwar.generate.remote(
+        "Write a Python function that checks if a string is a valid Arabic name. "
+        "Include type hints and a brief docstring."
+    )
+    print(f"Agent:  {result['agent']}")
+    print(f"Tokens: {result['tokens_generated']}")
+    print(f"Output:\n{result['response'][:500]}")
+
+    print("\n=== Testing Bayyinah (Qwen2.5-Coder-32B-Instruct) ===")
+    bayyinah = BayyinahAgent()
+    sample_code = """
+def is_valid_arabic_name(name: str) -> bool:
+    import re
+    pattern = r'^[\\u0600-\\u06FF\\s]{2,50}$'
+    return bool(re.match(pattern, name))
+"""
+    review = bayyinah.review.remote(sample_code)
+    print(f"Agent:   {review['agent']}")
+    print(f"Verdict: {review['verdict']}")
+    print(f"Report:\n{review['report'][:500]}")
