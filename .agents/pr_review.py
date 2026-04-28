@@ -295,7 +295,7 @@ def _set_output(name: str, value: str) -> None:
     github_output = os.environ.get("GITHUB_OUTPUT", "")
     if github_output:
         with open(github_output, "a") as f:
-            f.write(f"{name}={value}\n")
+            f.write(f"{name}<<EOF\n{value}\nEOF\n")
 
 
 def _parse_args() -> argparse.Namespace:

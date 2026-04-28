@@ -56,14 +56,16 @@ def call_mihwar(task: str, context_files: dict[str, str] | None = None) -> dict:
     """
     _check_modal()
 
-    payload = json.dumps({"task": task, "context_files": context_files or {}})
+    cmd = [
+        "modal", "run",
+        str(MODAL_APP_PATH) + "::MihwarAgent.review_and_generate",
+        "--task", task,
+    ]
+    if context_files:
+        cmd += ["--context-files", json.dumps(context_files)]
 
     result = subprocess.run(
-        [
-            "modal", "run",
-            str(MODAL_APP_PATH) + "::MihwarAgent.review_and_generate",
-            "--task", task,
-        ],
+        cmd,
         capture_output=True,
         text=True,
     )

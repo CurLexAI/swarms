@@ -272,7 +272,8 @@ def bayyinah_review_web(payload: dict) -> dict:
     """
     import os
 
-    if payload.get("token") != os.environ.get("AGENT_API_TOKEN", ""):
+    expected_token = os.environ.get("AGENT_API_TOKEN", "")
+    if not expected_token or payload.get("token") != expected_token:
         return {"error": "unauthorized", "verdict": "BLOCKED", "report": ""}
 
     agent = BayyinahAgent()
@@ -297,7 +298,8 @@ def mihwar_generate_web(payload: dict) -> dict:
     """
     import os
 
-    if payload.get("token") != os.environ.get("AGENT_API_TOKEN", ""):
+    expected_token = os.environ.get("AGENT_API_TOKEN", "")
+    if not expected_token or payload.get("token") != expected_token:
         return {"error": "unauthorized", "response": ""}
 
     agent = MihwarAgent()
@@ -312,7 +314,7 @@ def mihwar_generate_web(payload: dict) -> dict:
 @mihwar_app.local_entrypoint()
 def test():
     """
-    Run a minimal smoke test against both agents.
+    Smoke test for Mihwar.
     Usage: modal run .agents/modal_app.py
     """
     print("=== Testing Mihwar (DeepSeek-Coder-V2-Instruct) ===")
@@ -325,7 +327,14 @@ def test():
     print(f"Tokens: {result['tokens_generated']}")
     print(f"Output:\n{result['response'][:500]}")
 
-    print("\n=== Testing Bayyinah (Qwen2.5-Coder-32B-Instruct) ===")
+
+@bayyinah_app.local_entrypoint()
+def test_bayyinah():
+    """
+    Smoke test for Bayyinah.
+    Usage: modal run .agents/modal_app.py::test_bayyinah
+    """
+    print("=== Testing Bayyinah (Qwen2.5-Coder-32B-Instruct) ===")
     bayyinah = BayyinahAgent()
     sample_code = """
 def is_valid_arabic_name(name: str) -> bool:

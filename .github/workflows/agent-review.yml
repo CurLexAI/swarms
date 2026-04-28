@@ -17,6 +17,9 @@ jobs:
     name: "Bayyinah Review (Qwen2.5-Coder-32B)"
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      verdict: ${{ steps.review.outputs.verdict }}
+      report: ${{ steps.review.outputs.report }}
 
     steps:
       # 1. Checkout with enough history to produce a clean diff
@@ -76,7 +79,7 @@ jobs:
     timeout-minutes: 20
     needs: bayyinah-review
     # Only run if Bayyinah found CRITICAL or HIGH issues
-    if: needs.bayyinah-review.outputs.verdict == 'REQUEST_CHANGES'
+    if: always() && needs.bayyinah-review.outputs.verdict == 'REQUEST_CHANGES'
 
     steps:
       - name: Checkout
