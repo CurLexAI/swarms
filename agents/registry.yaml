@@ -88,3 +88,9 @@ providers:
       - "coding"
       - "code_review"
       - "agent_creation"
+  router:
+    kind: "router"
+    allowed_when:
+      - "model_routing"
+      - "policy_enforcement"
+      - "risk_classification"
