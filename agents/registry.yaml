@@ -82,7 +82,7 @@ providers:
     allowed_when:
       - "long_context_analysis"
       - "critical_decision"
-      - "arabic_legal_analysis"
+      - "legal_analysis"
   modal_vllm:
     kind: "sovereign_runtime"
     allowed_when:
