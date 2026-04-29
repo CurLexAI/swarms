@@ -25,7 +25,7 @@ agents:
       benchmark_livecodebench: "Tier-1 open-source"
 
     modal:
-      app: "curlexai-mihwar"
+      app: "curlexai-agents"
       endpoint: "MihwarAgent"
       gpu: "A100-80GB"
       gpu_count: 2
@@ -79,7 +79,7 @@ agents:
       benchmark_livecodebench: "Tier-1 open-source (instruction)"
 
     modal:
-      app: "curlexai-bayyinah"
+      app: "curlexai-agents"
       endpoint: "BayyinahAgent"
       gpu: "A100-80GB"
       gpu_count: 1
