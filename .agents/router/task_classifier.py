@@ -91,7 +91,7 @@ def classify_task(task: str, tenant_id: str | None = None) -> TaskProfile:
     is_critical = _match_hints(_CRITICAL_HINTS, normalized)
     estimated_context_tokens = max(256, len(task.split()) * 2)
 
-    if is_legal and (has_arabic or "saudi" in normalized or "sama" in normalized):
+    if is_legal and (has_arabic or "saudi" in normalized or bool(re.search(r"\bsama\b", normalized))):
         kind = TaskKind.LEGAL_ANALYSIS
     elif is_review and is_code:
         kind = TaskKind.CODE_REVIEW

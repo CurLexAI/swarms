@@ -21,7 +21,9 @@ def build_execution_plan(task: str, tenant_id: str | None = None) -> ExecutionPl
     if profile.requires_code_execution:
         steps.append("require_validation_evidence")
 
-    validation_required = route.requires_reviewer or profile.risk in {"high", "critical"}
+    validation_required = route.requires_reviewer or (
+        profile.risk in {"high", "critical"} and route.reviewer_agent_id is not None
+    )
     if validation_required:
         steps.append("bayyinah_validation_gate")
 
