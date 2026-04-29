@@ -1,0 +1,92 @@
+version: 1
+agents:
+  - id: mihwar
+    name: "Mihwar — المحور"
+    role: "architect_generator"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.generate"
+        - "scope:architecture"
+    capabilities:
+      - "reasoning"
+      - "code_generation"
+      - "architecture"
+      - "multi_file_planning"
+    enable_reasoning: true
+    provider:
+      kind: "modal_vllm"
+      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
+      endpoint_env: "MIHWAR_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: bayyinah
+    name: "Bayyinah — البيّنة"
+    role: "validator_reviewer"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.review"
+        - "scope:output.validate"
+    capabilities:
+      - "reasoning"
+      - "code_review"
+      - "security_review"
+      - "tenant_validation"
+      - "citation_validation"
+      - "legal_risk_review"
+    enable_reasoning: true
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: qarar-router
+    name: "Qarar Model Router"
+    role: "model_router"
+    type: "node"
+    execution:
+      runtime: "local_policy"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:model.route"
+        - "scope:policy.enforce"
+    capabilities:
+      - "reasoning"
+      - "model_routing"
+      - "policy_enforcement"
+      - "risk_classification"
+    enable_reasoning: true
+    provider:
+      kind: "router"
+
+providers:
+  openai:
+    kind: "external_ai"
+    endpoint_env: "OPENAI_API_KEY"
+    allowed_when:
+      - "fast_draft"
+      - "multimodal"
+      - "low_risk_tools"
+  anthropic:
+    kind: "external_ai"
+    endpoint_env: "ANTHROPIC_API_KEY"
+    allowed_when:
+      - "long_context_analysis"
+      - "critical_decision"
+      - "arabic_legal_analysis"
+  modal_vllm:
+    kind: "sovereign_runtime"
+    allowed_when:
+      - "coding"
+      - "code_review"
+      - "security_review"
+      - "offline_first"
