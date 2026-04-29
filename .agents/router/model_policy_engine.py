@@ -55,10 +55,7 @@ def choose_route(profile: TaskProfile) -> ModelRoute:
             reviewer_agent_id="bayyinah",
         )
 
-    return ModelRoute(
-        provider="openai",
-        model="gpt-current-mini",
-        reason="Low-risk default path.",
-        requires_reviewer=False,
-        reviewer_agent_id=None,
+    raise ValueError(
+        f"No route defined for task kind {profile.kind!r} with risk {profile.risk!r}. "
+        "Add an explicit handler for this combination in choose_route."
     )

@@ -82,6 +82,9 @@ providers:
       - "long_context_analysis"
       - "critical_decision"
       - "legal_analysis"
+      - "coding"
+      - "code_review"
+      - "agent_creation"
   modal_vllm:
     kind: "sovereign_runtime"
     allowed_when:
