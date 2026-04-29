@@ -77,7 +77,7 @@ const CLIENT_SAFE_PYTHON_ENGINE_ERROR_PATTERN =
 
 // ── P0: Capability enforcement ─────────────────────────────────────────────
 // Maps agent runtime to the required declared capability.
-// Agents must declare matching capabilities in registry.yaml to be executed.
+// Agents must declare matching capabilities in .agents/config/agents.yaml to be executed.
 const RUNTIME_CAPABILITY_MAP: Readonly<Record<string, string>> = {
   python: "python_execution",
   node: "node_execution",
@@ -234,7 +234,7 @@ export class UnifiedAgentAdapter {
   private registryStartupError: RegistryStartupError | null = null;
 
   constructor() {
-    this.registryPath = path.join(process.cwd(), "agents/registry.yaml");
+    this.registryPath = path.join(process.cwd(), ".agents/config/agents.yaml");
     this.loadRegistry();
   }
 
@@ -248,20 +248,57 @@ export class UnifiedAgentAdapter {
         throw new RegistryStartupError(
           "REGISTRY_LOAD_FAILURE",
           this.registryPath,
-          `REGISTRY_LOAD_FAILURE: Invalid registry schema in agents/registry.yaml (expected top-level object)`
+          `REGISTRY_LOAD_FAILURE: Invalid registry schema in .agents/config/agents.yaml (expected top-level object)`
         );
       }
 
-      if (!("agents" in data) || !Array.isArray((data as { agents?: unknown }).agents)) {
+      if (!("agents" in data)) {
         throw new RegistryStartupError(
           "REGISTRY_LOAD_FAILURE",
           this.registryPath,
-          `REGISTRY_LOAD_FAILURE: Invalid registry schema in agents/registry.yaml (expected agents array)`
+          `REGISTRY_LOAD_FAILURE: Invalid registry schema in .agents/config/agents.yaml (missing agents key)`
         );
       }
 
-      const typedData = data as { agents: AgentDefinition[] };
-      typedData.agents.forEach((agent) => {
+      const rawAgents = (data as { agents: unknown }).agents;
+      let agentsList: AgentDefinition[];
+      if (Array.isArray(rawAgents)) {
+        agentsList = rawAgents as AgentDefinition[];
+      } else if (rawAgents && typeof rawAgents === "object") {
+        agentsList = Object.entries(rawAgents as Record<string, Record<string, unknown>>).map(
+          ([key, raw]) => {
+            const r = raw ?? {};
+            const runtime =
+              ((r.execution as { runtime?: string } | undefined)?.runtime as
+                | "python"
+                | "node"
+                | "hybrid"
+                | undefined) ?? ((r.type as "python" | "node" | "hybrid" | undefined) ?? "python");
+            return {
+              id: (r.id as string | undefined) ?? key,
+              name: (r.name as string | undefined) ?? (r.display_name as string | undefined) ?? key,
+              role: (r.role as string | undefined) ?? (r.capability as string | undefined) ?? key,
+              type: runtime,
+              execution: { runtime },
+              capabilities:
+                (r.capabilities as string[] | undefined) ??
+                [RUNTIME_CAPABILITY_MAP[runtime] ?? "python_execution"],
+              contexts: r.contexts as { allowed: string[] } | undefined,
+              required_scope: r.required_scope as string | undefined,
+              enable_reasoning: r.enable_reasoning as boolean | undefined,
+              category: r.category as string | undefined,
+            } satisfies AgentDefinition;
+          }
+        );
+      } else {
+        throw new RegistryStartupError(
+          "REGISTRY_LOAD_FAILURE",
+          this.registryPath,
+          `REGISTRY_LOAD_FAILURE: Invalid registry schema in .agents/config/agents.yaml (agents must be array or mapping)`
+        );
+      }
+
+      agentsList.forEach((agent) => {
         const runtime = agent.execution?.runtime ?? agent.type;
         if (!runtime) {
           logger.warn({ agentId: agent.id }, "Skipping agent without runtime/type");
@@ -298,8 +335,8 @@ export class UnifiedAgentAdapter {
               : "REGISTRY_LOAD_FAILURE",
             this.registryPath,
             e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "ENOENT"
-              ? `CONFIG_NOT_FOUND: Required registry file agents/registry.yaml was not found at ${this.registryPath}`
-              : `REGISTRY_LOAD_FAILURE: Failed to load agents/registry.yaml from ${this.registryPath}`,
+              ? `CONFIG_NOT_FOUND: Required registry file .agents/config/agents.yaml was not found at ${this.registryPath}`
+              : `REGISTRY_LOAD_FAILURE: Failed to load .agents/config/agents.yaml from ${this.registryPath}`,
             e
           );
       this.registryStartupError = startupError;
@@ -361,7 +398,7 @@ export class UnifiedAgentAdapter {
     }
 
     // P0: Capability enforcement — scope alone is not sufficient.
-    // Agent must declare the required capability for its runtime in registry.yaml.
+    // Agent must declare the required capability for its runtime in .agents/config/agents.yaml.
     const requiredCapability = RUNTIME_CAPABILITY_MAP[agent.runtime];
     if (
       agent.capabilities !== undefined &&
