@@ -21,11 +21,12 @@ class ModalProvider:
         if not token:
             raise RuntimeError("AGENT_API_TOKEN is not configured.")
 
+        metadata = request.metadata or {}
         payload = {
             "token": token,
             "task": request.task,
-            "code": request.task,
-            "context": json.dumps(request.metadata or {}, ensure_ascii=False),
+            "code": metadata.get("code", ""),
+            "context": json.dumps(metadata, ensure_ascii=False),
             "context_files": {},
         }
         data = json.dumps(payload).encode("utf-8")
@@ -38,7 +39,7 @@ class ModalProvider:
         try:
             with urllib.request.urlopen(req, timeout=120) as response:
                 body = response.read().decode("utf-8")
-        except urllib.error.URLError as exc:
+        except (urllib.error.URLError, TimeoutError) as exc:
             raise RuntimeError("Modal endpoint request failed without exposing endpoint details.") from exc
 
         return ProviderResponse(
