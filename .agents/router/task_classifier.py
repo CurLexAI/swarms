@@ -74,9 +74,13 @@ _CRITICAL_HINTS = (
 def _match_hints(hints: tuple[str, ...], text: str) -> bool:
     """Return True if any hint matches as a whole word in text."""
     for hint in hints:
-        pattern = r"\b" + re.escape(hint) + r"\b"
-        if re.search(pattern, text):
-            return True
+        if _ARABIC_RE.search(hint):
+            if hint in text:
+                return True
+        else:
+            pattern = r"\b" + re.escape(hint) + r"\b"
+            if re.search(pattern, text):
+                return True
     return False
 
 
