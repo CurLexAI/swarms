@@ -19,15 +19,6 @@ def choose_route(profile: TaskProfile) -> ModelRoute:
             reviewer_agent_id="bayyinah",
         )
 
-    if profile.requires_multimodal or profile.kind == TaskKind.FAST_DRAFT:
-        return ModelRoute(
-            provider="openai",
-            model="gpt-current",
-            reason="Fast multimodal or draft-heavy task benefits from OpenAI tool and multimodal path.",
-            requires_reviewer=profile.risk != "low",
-            reviewer_agent_id="bayyinah" if profile.risk != "low" else None,
-        )
-
     if profile.kind in {TaskKind.CODING, TaskKind.CODE_REVIEW, TaskKind.AGENT_CREATION}:
         return ModelRoute(
             provider="modal_vllm",
@@ -35,6 +26,15 @@ def choose_route(profile: TaskProfile) -> ModelRoute:
             reason="Sovereign coding path uses Modal/vLLM agents with Bayyinah validation for sensitive output.",
             requires_reviewer=profile.kind != TaskKind.CODE_REVIEW,
             reviewer_agent_id="bayyinah" if profile.kind != TaskKind.CODE_REVIEW else None,
+        )
+
+    if profile.requires_multimodal or profile.kind == TaskKind.FAST_DRAFT:
+        return ModelRoute(
+            provider="openai",
+            model="gpt-current",
+            reason="Fast multimodal or draft-heavy task benefits from OpenAI tool and multimodal path.",
+            requires_reviewer=profile.risk != "low",
+            reviewer_agent_id="bayyinah" if profile.risk != "low" else None,
         )
 
     if profile.kind == TaskKind.LONG_CONTEXT_ANALYSIS:

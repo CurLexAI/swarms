@@ -20,7 +20,9 @@ def build_execution_plan(task: str, tenant_id: str | None = None) -> ExecutionPl
         steps.append("require_citations")
     if profile.requires_code_execution:
         steps.append("require_validation_evidence")
-    if route.requires_reviewer:
+
+    validation_required = route.requires_reviewer or profile.risk in {"high", "critical"}
+    if validation_required:
         steps.append("bayyinah_validation_gate")
 
     if profile.kind == TaskKind.AGENT_CREATION:
@@ -33,6 +35,6 @@ def build_execution_plan(task: str, tenant_id: str | None = None) -> ExecutionPl
     return ExecutionPlan(
         primary_agent_id=primary_agent_id,
         route=route,
-        validation_required=route.requires_reviewer or profile.risk in {"high", "critical"},
+        validation_required=validation_required,
         steps=tuple(steps),
     )

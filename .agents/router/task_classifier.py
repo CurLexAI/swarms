@@ -71,15 +71,24 @@ _CRITICAL_HINTS = (
 )
 
 
+def _match_hints(hints: tuple[str, ...], text: str) -> bool:
+    """Return True if any hint matches as a whole word in text."""
+    for hint in hints:
+        pattern = r"\b" + re.escape(hint) + r"\b"
+        if re.search(pattern, text):
+            return True
+    return False
+
+
 def classify_task(task: str, tenant_id: str | None = None) -> TaskProfile:
     normalized = task.lower()
     has_arabic = bool(_ARABIC_RE.search(task))
-    is_code = any(hint in normalized for hint in _CODE_HINTS)
-    is_legal = any(hint in normalized for hint in _LEGAL_HINTS)
-    is_agent = any(hint in normalized for hint in _AGENT_HINTS)
-    is_multimodal = any(hint in normalized for hint in _MULTIMODAL_HINTS)
-    is_review = "review" in normalized or "راجع" in task or "تدقيق" in task
-    is_critical = any(hint in normalized for hint in _CRITICAL_HINTS)
+    is_code = _match_hints(_CODE_HINTS, normalized)
+    is_legal = _match_hints(_LEGAL_HINTS, normalized)
+    is_agent = _match_hints(_AGENT_HINTS, normalized)
+    is_multimodal = _match_hints(_MULTIMODAL_HINTS, normalized)
+    is_review = bool(re.search(r"\breview\b", normalized)) or "راجع" in task or "تدقيق" in task
+    is_critical = _match_hints(_CRITICAL_HINTS, normalized)
     estimated_context_tokens = max(256, len(task.split()) * 2)
 
     if is_legal and (has_arabic or "saudi" in normalized or "sama" in normalized):
