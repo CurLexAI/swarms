@@ -75,7 +75,6 @@ providers:
     allowed_when:
       - "fast_draft"
       - "multimodal"
-      - "low_risk_tools"
   anthropic:
     kind: "external_ai"
     endpoint_env: "ANTHROPIC_API_KEY"
@@ -88,5 +87,4 @@ providers:
     allowed_when:
       - "coding"
       - "code_review"
-      - "security_review"
-      - "offline_first"
+      - "agent_creation"

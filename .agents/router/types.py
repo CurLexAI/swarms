@@ -23,8 +23,8 @@ class TaskKind(str, Enum):
 
 
 RiskLevel = Literal["low", "medium", "high", "critical"]
-ProviderKind = Literal["openai", "anthropic", "modal_vllm", "local"]
-ValidationVerdict = Literal["APPROVE", "REQUEST_CHANGES", "BLOCK"]
+ProviderKind = Literal["openai", "anthropic", "modal_vllm", "router"]
+ValidationVerdict = Literal["APPROVE", "REQUEST_CHANGES", "BLOCKED"]
 FindingSeverity = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 FindingCategory = Literal[
     "SECURITY",
