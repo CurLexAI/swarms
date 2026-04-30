@@ -52,6 +52,7 @@ Skills are operational playbooks. They describe *how* to perform task classes.
 | Secure PR Review | `.agents/skills/secure-pr-review.md` | Required for PR review or merge decisions. |
 | Factory Auditor | `.agents/skills/factory-auditor.md` | Use for layer readiness, launch readiness, and blocker audits. |
 | Agent Identity Map | `.agents/skills/agent-identity-map.md` | Use for agent/model/role changes. |
+| iPhone Command Center | `.agents/skills/iphone-command-center.md` | Use when operating this repository from iPhone through ChatGPT, SSH, GitHub, Codex, or remote runtimes. |
 
 If `00-task-scope-lock.md` is absent, apply the Scope Lock section in this file directly.
 
@@ -97,6 +98,24 @@ Two private coding agents are defined for Modal deployment.
 Configuration lives in `.agents/config/agents.yaml`.
 Deployment lives in `.agents/modal_app.py`.
 PR orchestration lives in `.agents/pr_review.py` and `.github/workflows/agent-review.yml`.
+
+---
+
+## iPhone Command Center
+
+The iPhone is an executive control surface, not the coding runtime.
+
+Use ChatGPT on iPhone for strategy, requirements, prompts, review, and decisions. Use SSH or GitHub from iPhone to supervise remote work running on a trusted workstation, VPS, GitHub runner, or Modal runtime.
+
+Before any remote operation, run:
+
+```bash
+git remote -v
+git status --short
+git branch --show-current
+```
+
+Then apply `.agents/skills/iphone-command-center.md`.
 
 ---
 
@@ -163,3 +182,4 @@ A repository activation is complete only when all applicable checks are `VERIFIE
 - Modal decorators match the currently supported API.
 - Missing external secrets are documented instead of guessed.
 - Archive recovery status reflects the actual Git state.
+- iPhone command-center workflows operate only against the canonical repository and remote runtime.
