@@ -1,0 +1,87 @@
+openapi: 3.1.0
+info:
+  title: Bayyinah Mihwar - Secure GitHub Operations
+  description: API for 'Qarar' agent to interact with GitHub securely. Enforces PR-first workflows and prevents direct commits to main.
+  version: 1.1.0
+servers:
+  - url: https://api.github.com
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: GitHub Fine-grained Personal Access Token with restricted branch access.
+security:
+  - BearerAuth: []
+paths:
+  /repos/{owner}/{repo}/contents/{path}:
+    get:
+      summary: قراءة ملف من المستودع (يتطلب التحقق من SHA)
+      operationId: getFileContent
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ref
+          in: query
+          description: اسم الفرع أو الـ Commit SHA
+          required: false
+          schema:
+            type: string
+    put:
+      summary: إنشاء أو تحديث ملف في فرع عمل (منع الكتابة على main)
+      operationId: secureFileUpdate
+      description: |
+        يجب على الوكيل التأكد من إنشاء فرع عمل جديد (Working Branch) قبل استدعاء هذا المسار.
+        يُمنع منعاً باتاً التعديل المباشر على فرع main أو master.
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  description: رسالة الـ Commit التفصيلية
+                content:
+                  type: string
+                  description: محتوى الملف مشفر بصيغة Base64
+                sha:
+                  type: string
+                  description: إلزامي عند التحديث لمنع تضارب الملفات (File Conflict Protection)
+                branch:
+                  type: string
+                  description: إلزامي. يجب أن يبدأ بـ 'agent/' أو 'codex/' (مثال 'agent/incident-reports')
+              required:
+                - message
+                - content
+                - branch
