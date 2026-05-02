@@ -1,0 +1,8 @@
+{
+    "azure.resourceGroup": "<YOUR_RESOURCE_GROUP>",
+    "azure.subscription": "<YOUR_SUBSCRIPTION_ID>",
+    "cloudcode.kubernetes": {
+        "enabled": true
+    },
+    "codex.enabled": true
+}
