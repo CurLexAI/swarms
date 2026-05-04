@@ -25,15 +25,16 @@ test("loadRegistry logs loaded and reasoning-enabled counters for mixed definiti
   assert.match(source, /if \(agent\.enable_reasoning\) \{\s*reasoningEnabledAgents \+= 1;\s*\}/s);
   assert.match(
     source,
-    /logger\.info\(\s*\{\s*loadedAgents,\s*reasoningEnabledAgents\s*\},\s*"✅ LexPrim Intelligence Matrix loaded"\s*\);/s
+    /logger\.info\(\s*\{\s*loadedAgents,\s*reasoningEnabledAgents,\s*registryPath:\s*selectedRegistryPath\s*\},\s*"✅ LexPrim Intelligence Matrix loaded"\s*\);/s
   );
 });
 
-test("loadRegistry reads .agents/config/agents.yaml and accepts dict-keyed agents", () => {
+test("loadRegistry supports primary and fallback registry paths and accepts dict-keyed agents", () => {
   const source = fs.readFileSync(adapterPath, 'utf8');
 
   assert.match(source, /path\.join\(process\.cwd\(\),\s*"\.agents\/config\/agents\.yaml"\)/);
-  assert.match(source, /CONFIG_NOT_FOUND: Required registry file \.agents\/config\/agents\.yaml/);
+  assert.match(source, /this\.fallbackRegistryPath = path\.join\(process\.cwd\(\),\s*"agents\/registry\.yaml"\);/);
+  assert.match(source, /CONFIG_NOT_FOUND: Required registry file was not found at \$\{this\.registryPath\} or \$\{this\.fallbackRegistryPath\}/);
   assert.match(source, /if \(Array\.isArray\(rawAgents\)\) \{/);
   assert.match(source, /Object\.entries\(rawAgents as Record<string, Record<string, unknown>>\)/);
   assert.match(source, /\(r\.id as string \| undefined\) \?\? key/);
