@@ -230,33 +230,38 @@ export class NodeExecutionDispatchError extends Error {
 
 export class UnifiedAgentAdapter {
   private registryPath: string;
+  private fallbackRegistryPath: string;
   private agents: Map<string, NormalizedAgentDefinition> = new Map();
   private registryStartupError: RegistryStartupError | null = null;
 
   constructor() {
     this.registryPath = path.join(process.cwd(), ".agents/config/agents.yaml");
+    this.fallbackRegistryPath = path.join(process.cwd(), "agents/registry.yaml");
     this.loadRegistry();
   }
 
   private loadRegistry() {
     try {
-      const fileContents = fs.readFileSync(this.registryPath, "utf8");
+      const selectedRegistryPath = fs.existsSync(this.registryPath)
+        ? this.registryPath
+        : this.fallbackRegistryPath;
+      const fileContents = fs.readFileSync(selectedRegistryPath, "utf8");
       const data = yaml.load(fileContents);
       let loadedAgents = 0;
       let reasoningEnabledAgents = 0;
       if (!data || typeof data !== "object" || Array.isArray(data)) {
         throw new RegistryStartupError(
           "REGISTRY_LOAD_FAILURE",
-          this.registryPath,
-          `REGISTRY_LOAD_FAILURE: Invalid registry schema in .agents/config/agents.yaml (expected top-level object)`
+          selectedRegistryPath,
+          `REGISTRY_LOAD_FAILURE: Invalid registry schema in ${selectedRegistryPath} (expected top-level object)`
         );
       }
 
       if (!("agents" in data)) {
         throw new RegistryStartupError(
           "REGISTRY_LOAD_FAILURE",
-          this.registryPath,
-          `REGISTRY_LOAD_FAILURE: Invalid registry schema in .agents/config/agents.yaml (missing agents key)`
+          selectedRegistryPath,
+          `REGISTRY_LOAD_FAILURE: Invalid registry schema in ${selectedRegistryPath} (missing agents key)`
         );
       }
 
@@ -293,8 +298,8 @@ export class UnifiedAgentAdapter {
       } else {
         throw new RegistryStartupError(
           "REGISTRY_LOAD_FAILURE",
-          this.registryPath,
-          `REGISTRY_LOAD_FAILURE: Invalid registry schema in .agents/config/agents.yaml (agents must be array or mapping)`
+          selectedRegistryPath,
+          `REGISTRY_LOAD_FAILURE: Invalid registry schema in ${selectedRegistryPath} (agents must be array or mapping)`
         );
       }
 
@@ -317,10 +322,13 @@ export class UnifiedAgentAdapter {
           reasoningEnabledAgents += 1;
         }
       });
+      this.registryPath = selectedRegistryPath;
+
       logger.info(
         {
           loadedAgents,
-          reasoningEnabledAgents
+          reasoningEnabledAgents,
+          registryPath: selectedRegistryPath
         },
         "✅ LexPrim Intelligence Matrix loaded"
       );
@@ -333,10 +341,10 @@ export class UnifiedAgentAdapter {
             e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "ENOENT"
               ? "CONFIG_NOT_FOUND"
               : "REGISTRY_LOAD_FAILURE",
-            this.registryPath,
+            fs.existsSync(this.registryPath) ? this.registryPath : this.fallbackRegistryPath,
             e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "ENOENT"
-              ? `CONFIG_NOT_FOUND: Required registry file .agents/config/agents.yaml was not found at ${this.registryPath}`
-              : `REGISTRY_LOAD_FAILURE: Failed to load .agents/config/agents.yaml from ${this.registryPath}`,
+              ? `CONFIG_NOT_FOUND: Required registry file was not found at ${this.registryPath} or ${this.fallbackRegistryPath}`
+              : `REGISTRY_LOAD_FAILURE: Failed to load registry from ${this.registryPath} or ${this.fallbackRegistryPath}`,
             e
           );
       this.registryStartupError = startupError;
