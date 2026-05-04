@@ -20,6 +20,7 @@ Environment secrets required in Modal dashboard:
 """
 
 import modal
+from typing import Optional, Dict
 
 # ── Shared base image ──────────────────────────────────────────────────────
 
@@ -53,12 +54,12 @@ app = modal.App("curlexai-agents")
 
 
 @app.cls(
-    gpu=modal.gpu.A100(count=2, size="80GB"),
+    gpu="A100-80GB:2",
     image=vllm_image,
     secrets=[hf_secret],
     timeout=300,
-    concurrency_limit=1,
-    keep_warm=1,
+    max_containers=1,
+    min_containers=1,
 )
 class MihwarAgent:
     model_id: str = MIHWAR_MODEL
@@ -113,7 +114,7 @@ class MihwarAgent:
 
     @modal.method()
     def review_and_generate(
-        self, task: str, context_files: dict[str, str] | None = None
+        self, task: str, context_files=None
     ) -> dict:
         """
         Full coding task: receive task description + optional file context,
@@ -147,12 +148,12 @@ BAYYINAH_SYSTEM = (
 )
 
 @app.cls(
-    gpu=modal.gpu.A100(count=1, size="80GB"),
+    gpu="A100-80GB",
     image=vllm_image,
     secrets=[hf_secret],
     timeout=120,
-    concurrency_limit=4,
-    keep_warm=1,
+    max_containers=4,
+    min_containers=1,
 )
 class BayyinahAgent:
     model_id: str = BAYYINAH_MODEL
@@ -251,9 +252,9 @@ api_secret = modal.Secret.from_name("agent-api-secret")
     image=vllm_image,
     secrets=[hf_secret, api_secret],
     timeout=180,
-    keep_warm=1,
+    min_containers=1,
 )
-@modal.web_endpoint(method="POST", label="bayyinah-review")
+@modal.fastapi_endpoint(method="POST", label="bayyinah-review")
 def bayyinah_review_web(payload: dict) -> dict:
     """
     HTTP POST endpoint for Bayyinah.
@@ -277,9 +278,9 @@ def bayyinah_review_web(payload: dict) -> dict:
     image=vllm_image,
     secrets=[hf_secret, api_secret],
     timeout=360,
-    keep_warm=1,
+    min_containers=1,
 )
-@modal.web_endpoint(method="POST", label="mihwar-generate")
+@modal.fastapi_endpoint(method="POST", label="mihwar-generate")
 def mihwar_generate_web(payload: dict) -> dict:
     """
     HTTP POST endpoint for Mihwar.
