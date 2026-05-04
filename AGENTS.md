@@ -67,6 +67,7 @@ Policies are mandatory boundaries, not optional skills.
 | Secrets Boundary | `.agents/policies/secrets-boundary.md` | Blocks secret leaks, real credentials, and unsafe logs. |
 | Network Boundary | `.agents/policies/network-boundary.md` | Blocks unauthorized network access and exfiltration. |
 | Dependency Build Safety | `.agents/policies/dependency-build-safety.md` | Controls package installs, lockfiles, scripts, and build artifacts. |
+| Execution Discipline Maximum | `.agents/policies/execution-discipline-maximum.md` | Enforces strict runtime-truth claims, blocker taxonomy, and status/report semantics. |
 
 If a policy file is missing, apply the absolute prohibitions in this handbook and mark the policy check `UNVERIFIED`.
 
