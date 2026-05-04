@@ -1,0 +1,20 @@
+{
+  "name": "curlexai-swarms",
+  "version": "1.0.0",
+  "description": "CurLexAI agent operations layer — swarm tooling, review automation, and agent orchestration",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/unifiedAgentAdapter.test.js tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js tests/unifiedAgentAdapter.nodeDispatch.integration.test.js",
+    "test:unit": "node --test tests/unifiedAgentAdapter.test.js"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
