@@ -23,7 +23,10 @@ _PROMPT_INJECTION_TERMS = (
     "bypass policy",
     "تجاهل التعليمات",
 )
-_NETWORK_TERMS = ("curl ", "wget ", "requests.post", "fetch(", "urllib.request", "http://", "https://")
+# Bare "http://" / "https://" are not listed: they appear in legitimate
+# citation URLs and would block any output that cites a source. Only patterns
+# that imply *executing* a network call are flagged here.
+_NETWORK_TERMS = ("curl ", "wget ", "requests.post", "fetch(", "urllib.request")
 
 
 def validate_output(
@@ -93,9 +96,9 @@ def validate_output(
         )
 
     if any(f.severity == "CRITICAL" for f in findings):
-        return ValidationReport(verdict="BLOCK", severity="critical", findings=tuple(findings), safe_output=None)
+        return ValidationReport(verdict="BLOCKED", severity="critical", findings=tuple(findings), safe_output=None)
     if any(f.severity in _HIGH_RISK_SEVERITIES for f in findings):
-        return ValidationReport(verdict="BLOCK", severity="high", findings=tuple(findings), safe_output=None)
+        return ValidationReport(verdict="BLOCKED", severity="high", findings=tuple(findings), safe_output=None)
     if findings:
         return ValidationReport(verdict="REQUEST_CHANGES", severity="medium", findings=tuple(findings), safe_output=output)
     return ValidationReport(verdict="APPROVE", severity="none", findings=(), safe_output=output)

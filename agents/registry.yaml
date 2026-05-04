@@ -68,6 +68,110 @@ agents:
     provider:
       kind: "router"
 
+  # ── Direct model bindings ────────────────────────────────────────────────
+  # Lightweight aliases that expose the underlying models used by Mihwar /
+  # Bayyinah (and external providers) as first-class picker entries. They do
+  # NOT replace Mihwar/Bayyinah; use those for orchestrated work.
+
+  - id: deepseek-coder
+    name: "DeepSeek Coder V2 — ديب سيك كود"
+    role: "raw_code_generation"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.generate"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
+      endpoint_env: "MIHWAR_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: qwen-coder
+    name: "Qwen2.5 Coder 32B — كيونق كود"
+    role: "raw_code_review"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.review"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  # ── External provider agents (UNVERIFIED until env is configured) ────────
+  # Gated by ALLOW_EXTERNAL_AI=true. Transports for these providers are NOT
+  # implemented in this operations repo; see .agents/providers/ for the gate.
+
+  - id: azure-gpt
+    name: "Azure OpenAI — أزور"
+    role: "general_assistant"
+    type: "hybrid"
+    execution:
+      runtime: "external_ai"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+    enable_reasoning: false
+    provider:
+      kind: "azure_openai"
+      endpoint_env: "AZURE_OPENAI_ENDPOINT"
+      token_env: "AZURE_OPENAI_API_KEY"
+      deployment_env: "AZURE_OPENAI_DEPLOYMENT"
+      api_version_env: "AZURE_OPENAI_API_VERSION"
+    status: "UNVERIFIED"
+
+  - id: gpt-o1
+    name: "OpenAI o1 — جي بي تي o1"
+    role: "deep_reasoning"
+    type: "hybrid"
+    execution:
+      runtime: "external_ai"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:reasoning.deep"
+    enable_reasoning: true
+    provider:
+      kind: "openai"
+      model: "o1"
+      endpoint_env: "OPENAI_API_KEY"
+      token_env: "OPENAI_API_KEY"
+    status: "UNVERIFIED"
+
+# ── Swarms ──────────────────────────────────────────────────────────────────
+# A swarm is a named, ordered group of agents that operate in coordination on
+# a task class. Members MUST exist in the agents block above.
+
+swarms:
+  - id: coding-swarm
+    name: "سرب البرمجة — Coding Swarm"
+    description: "Architect-then-validate flow for production code changes."
+    members: [mihwar, bayyinah]
+    pipeline:
+      - mihwar.review_and_generate
+      - bayyinah.review
+    revision_policy:
+      max_cycles: 3
+      blocker_on: ["CRITICAL", "HIGH"]
+
+  - id: routing-swarm
+    name: "سرب التوجيه — Routing Swarm"
+    description: "Policy-driven routing with mandatory validation gate."
+    members: [qarar-router, bayyinah]
+    pipeline:
+      - qarar-router.classify
+      - qarar-router.choose_route
+      - bayyinah.review
+
 providers:
   openai:
     kind: "external_ai"
@@ -75,6 +179,17 @@ providers:
     allowed_when:
       - "fast_draft"
       - "multimodal"
+      - "deep_reasoning"
+  azure_openai:
+    kind: "external_ai"
+    endpoint_env: "AZURE_OPENAI_ENDPOINT"
+    token_env: "AZURE_OPENAI_API_KEY"
+    deployment_env: "AZURE_OPENAI_DEPLOYMENT"
+    api_version_env: "AZURE_OPENAI_API_VERSION"
+    allowed_when:
+      - "fast_draft"
+      - "multimodal"
+      - "general_assistant"
   anthropic:
     kind: "external_ai"
     endpoint_env: "ANTHROPIC_API_KEY"
