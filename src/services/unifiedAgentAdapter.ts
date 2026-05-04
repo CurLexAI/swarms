@@ -4,7 +4,7 @@ import yaml from "js-yaml";
 import { randomUUID } from "crypto";
 import { v4 as uuidv4 } from "uuid";
 import logger from "../utils/logger.js";
-import { AuditService } from "./AuditService.js";
+import { AuditService } from "./AuditService.ts";
 import {
   buildClientSafePythonEngineError,
   sanitizeBackendErrorForAudit,
