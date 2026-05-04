@@ -86,6 +86,22 @@ Do not treat a broad instruction as permission to delete governance files, bypas
 
 ---
 
+## Work Intake Sources
+
+This repository does not track executable work via inline `TODO`, `FIXME`, `XXX`, or `HACK` comments in source. A grep for those markers will return no real matches, and that is intentional, not an omission. Do not fabricate one to justify a change.
+
+When asked to "implement a TODO" or otherwise pick up the next unit of work, resolve the request against these sources, in order:
+
+1. Open issues in `CurLexAI/swarms` (`mcp__github__list_issues` with `state: OPEN`).
+2. Failing checks on open pull requests in `CurLexAI/swarms`.
+3. Unchecked items in the **Repository Activation Checklist** at the bottom of this file that are not yet `VERIFIED`.
+4. First failing test in `tests/` after running the suites listed under **Local Commands** plus `node --test tests/*.test.js`.
+5. Documented blockers in `docs/` reports (e.g. `docs/operations/`, `docs/public-profile/`) that explicitly request follow-up.
+
+If none of these surface a concrete unit of work, stop and report back rather than inventing one. Producing no change is a valid outcome.
+
+---
+
 ## Agent Tooling
 
 Two private coding agents are defined for Modal deployment.
