@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "curlexai-agents": {
+      "type": "local",
       "command": "python",
       "args": ["-u", ".agents/mcp/server.py"],
       "env": {

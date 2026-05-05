@@ -25,6 +25,7 @@ Open the **MCP configuration** page in your repository's Copilot settings and pa
 {
   "mcpServers": {
     "curlexai-agents": {
+      "type": "local",
       "command": "python",
       "args": ["-u", ".agents/mcp/server.py"],
       "env": {
@@ -37,7 +38,7 @@ Open the **MCP configuration** page in your repository's Copilot settings and pa
 }
 ```
 
-The `$VAR` references resolve from the repository's `copilot environment` secrets.
+The `"type": "local"` field is required by GitHub Copilot's schema — it tells Copilot to spawn the server as a stdio subprocess. The `$VAR` references resolve from the repository's `copilot environment` secrets.
 
 ---
 
@@ -60,6 +61,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
   }
 }
 ```
+
+> Note: Claude Desktop / Cursor do **not** require the `"type"` field — only GitHub Copilot does.
 
 ---
 
