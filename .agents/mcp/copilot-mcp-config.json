@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "curlexai-agents": {
+      "command": "python",
+      "args": ["-u", ".agents/mcp/server.py"],
+      "env": {
+        "MIHWAR_ENDPOINT": "$MIHWAR_ENDPOINT",
+        "BAYYINAH_ENDPOINT": "$BAYYINAH_ENDPOINT",
+        "AGENT_API_TOKEN": "$AGENT_API_TOKEN"
+      }
+    }
+  }
+}
