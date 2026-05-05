@@ -28,6 +28,7 @@ Open the **MCP configuration** page in your repository's Copilot settings and pa
       "type": "local",
       "command": "python",
       "args": ["-u", ".agents/mcp/server.py"],
+      "tools": ["mihwar_generate", "bayyinah_review"],
       "env": {
         "MIHWAR_ENDPOINT": "$MIHWAR_ENDPOINT",
         "BAYYINAH_ENDPOINT": "$BAYYINAH_ENDPOINT",
@@ -38,7 +39,11 @@ Open the **MCP configuration** page in your repository's Copilot settings and pa
 }
 ```
 
-The `"type": "local"` field is required by GitHub Copilot's schema — it tells Copilot to spawn the server as a stdio subprocess. The `$VAR` references resolve from the repository's `copilot environment` secrets.
+GitHub Copilot's schema requires:
+- `"type": "local"` — spawn the server as a stdio subprocess.
+- `"tools": [...]` — explicit allowlist of tool names the server provides.
+
+The `$VAR` references resolve from the repository's `copilot environment` secrets.
 
 ---
 
