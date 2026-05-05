@@ -1,6 +1,8 @@
 # Python cache artifacts
 __pycache__/
 *.py[cod]
+*.pyo
+.venv/
 
 # Node dependency artifacts
 node_modules/

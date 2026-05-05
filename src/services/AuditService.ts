@@ -9,8 +9,8 @@ export class AuditService {
       user: userId,
       details: {
         agent_id: agentId,
+        reason,
         ...details,
-        reason
       }
     });
   }
