@@ -1,3 +1,6 @@
 # Python cache artifacts
 __pycache__/
 *.py[cod]
+
+# Node dependency artifacts
+node_modules/

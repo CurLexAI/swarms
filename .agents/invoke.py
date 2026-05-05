@@ -27,12 +27,16 @@ Requirements:
 from __future__ import annotations
 
 import argparse
+import importlib
+import importlib.util
 import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
-import yaml
+_yaml_spec = importlib.util.find_spec("yaml")
+yaml = importlib.import_module("yaml") if _yaml_spec else None
 
 CONFIG_PATH = Path(__file__).parent / "config" / "agents.yaml"
 MODAL_APP_PATH = Path(__file__).parent / "modal_app.py"
@@ -43,8 +47,95 @@ MODAL_APP_PATH = Path(__file__).parent / "modal_app.py"
 def load_config() -> dict:
     if not CONFIG_PATH.exists():
         _die(f"Config not found: {CONFIG_PATH}")
-    with CONFIG_PATH.open() as f:
-        return yaml.safe_load(f)
+    config_text = CONFIG_PATH.read_text()
+    if yaml is not None:
+        return yaml.safe_load(config_text)
+    return _load_minimal_agents_yaml(config_text)
+
+
+def _load_minimal_agents_yaml(config_text: str) -> dict[str, Any]:
+    """Parse this repository's agent config when PyYAML is unavailable.
+
+    The fallback intentionally supports only the simple mapping/list/literal-block
+    subset used by .agents/config/agents.yaml so `python .agents/invoke.py info`
+    can run in a clean checkout without installing deployment dependencies.
+    """
+
+    root: dict[str, Any] = {}
+    stack: list[tuple[int, Any]] = [(-1, root)]
+    list_keys = {"tasks", "human_review_required_for"}
+    skip_literal_parent_indent: int | None = None
+
+    for raw_line in config_text.splitlines():
+        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+            continue
+
+        indent = len(raw_line) - len(raw_line.lstrip(" "))
+        if skip_literal_parent_indent is not None:
+            if indent > skip_literal_parent_indent:
+                continue
+            skip_literal_parent_indent = None
+
+        line = _strip_yaml_comment(raw_line.strip())
+        if not line:
+            continue
+
+        while stack and indent <= stack[-1][0]:
+            stack.pop()
+
+        parent = stack[-1][1]
+        if line.startswith("- "):
+            if not isinstance(parent, list):
+                raise ValueError("Unsupported YAML list placement in agent config")
+            parent.append(_parse_yaml_scalar(line[2:].strip()))
+            continue
+
+        if ":" not in line:
+            continue
+
+        key, raw_value = line.split(":", 1)
+        key = key.strip()
+        raw_value = raw_value.strip()
+        if not isinstance(parent, dict):
+            raise ValueError("Unsupported YAML mapping placement in agent config")
+
+        if raw_value == "|":
+            parent[key] = ""
+            skip_literal_parent_indent = indent
+        elif raw_value == "":
+            child: dict[str, Any] | list[Any] = [] if key in list_keys else {}
+            parent[key] = child
+            stack.append((indent, child))
+        else:
+            parent[key] = _parse_yaml_scalar(raw_value)
+
+    return root
+
+
+def _strip_yaml_comment(value: str) -> str:
+    in_single = False
+    in_double = False
+    for index, char in enumerate(value):
+        if char == "'" and not in_double:
+            in_single = not in_single
+        elif char == '"' and not in_single:
+            in_double = not in_double
+        elif char == "#" and not in_single and not in_double:
+            if index == 0 or value[index - 1].isspace():
+                return value[:index].rstrip()
+    return value
+
+
+def _parse_yaml_scalar(value: str) -> Any:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1]
+    if value.lower() == "true":
+        return True
+    if value.lower() == "false":
+        return False
+    if value.isdigit():
+        return int(value)
+    return value
 
 
 # ── Modal call helpers ─────────────────────────────────────────────────────
