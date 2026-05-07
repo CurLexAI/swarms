@@ -471,11 +471,13 @@ export class UnifiedAgentAdapter {
     }
 
     // P0: Audit entries sanitized before write; input body never logged.
+    const action = `EXECUTE_${agent.runtime.toUpperCase()}_${agent.enable_reasoning ? "WITH" : "WITHOUT"}_REASONING`;
+
     await AuditService.logAction({
       tenant_id: safePayload.tenant_id,
       actor_id: userId,
       agent_id: agentId,
-      action: `EXECUTE_${agent.runtime.toUpperCase()}${agent.enable_reasoning ? "_WITH_REASONING" : ""}`,
+      action,
       payload: { taskId, reasoning_enabled: !!agent.enable_reasoning },
       redaction_version: AUDIT_REDACTION_VERSION,
     });
