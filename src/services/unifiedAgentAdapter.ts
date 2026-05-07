@@ -71,6 +71,9 @@ const ALLOWED_PAYLOAD_FIELDS = ["tenant_id", "input", "metadata"] as const;
 const MAX_TENANT_ID_LENGTH = 128;
 const MAX_INPUT_LENGTH = 8000;
 const DEFAULT_PYTHON_ENGINE_TIMEOUT_MS = 15000;
+const DEFAULT_PYTHON_ENGINE_MAX_RETRIES = 2;
+const DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS = 250;
+const RETRYABLE_HTTP_STATUSES = new Set([502, 503, 504]);
 const CLIENT_SAFE_PYTHON_ENGINE_ERROR_PATTERN =
   /^Python engine request failed with status \d+\. Please try again later(?: \(ref: [0-9a-f]{8}\))?\.$/i;
 
@@ -151,7 +154,7 @@ function validateBackendUrl(url: string): { valid: boolean; reason?: string } {
 }
 
 function getPythonEngineTimeoutMs() {
-  const rawTimeout = process.env.UNIFIED_AGENT_PYTHON_TIMEOUT_MS;
+  const rawTimeout = process.env.PYTHON_BACKEND_TIMEOUT_MS ?? process.env.UNIFIED_AGENT_PYTHON_TIMEOUT_MS;
   const parsedTimeout = Number(rawTimeout);
 
   if (!rawTimeout || !Number.isFinite(parsedTimeout) || parsedTimeout <= 0) {
@@ -159,6 +162,42 @@ function getPythonEngineTimeoutMs() {
   }
 
   return Math.floor(parsedTimeout);
+}
+
+function getPythonEngineMaxAttempts() {
+  const parsed = Number(process.env.PYTHON_BACKEND_MAX_ATTEMPTS);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return DEFAULT_PYTHON_ENGINE_MAX_RETRIES;
+  }
+  return Math.floor(parsed);
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableNetworkError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  if (error.name === "AbortError") return false;
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === "ECONNRESET" || code === "ETIMEDOUT" || code === "EAI_AGAIN" || code === "UND_ERR_CONNECT_TIMEOUT";
+}
+
+type RuntimeFailureClass = "RUNTIME_FAILURE" | "UNVERIFIED_RUNTIME" | "PYTHON_ENGINE_TIMEOUT";
+
+class PythonEngineRuntimeError extends Error {
+  code: RuntimeFailureClass;
+  upstreamStatus: number | null;
+  retryable: boolean;
+
+  constructor(message: string, code: RuntimeFailureClass, upstreamStatus: number | null, retryable: boolean, cause?: unknown) {
+    super(message);
+    this.name = "PythonEngineRuntimeError";
+    this.code = code;
+    this.upstreamStatus = upstreamStatus;
+    this.retryable = retryable;
+    if (cause !== undefined) this.cause = cause;
+  }
 }
 
 export class PythonEngineTimeoutError extends Error {
@@ -195,6 +234,9 @@ type BlockerStatus =
   | "UNVERIFIED_RUNTIME";
 
 function classifyBlocker(error: unknown): BlockerStatus {
+  if (error instanceof PythonEngineRuntimeError) {
+    return error.code;
+  }
   if (error instanceof PythonEngineTimeoutError) {
     return "PYTHON_ENGINE_TIMEOUT";
   }
@@ -494,10 +536,15 @@ export class UnifiedAgentAdapter {
       return { taskId, status: "success", data: verifiedResult };
     } catch (error) {
       const blocker = classifyBlocker(error);
-      logger.error({ err: error, agentId }, `💥 Intelligence Failure at Agent ${agentId}`);
+      const structuredFailure = error instanceof PythonEngineRuntimeError
+        ? { failure_class: error.code, upstream_status: error.upstreamStatus, retryable: error.retryable }
+        : { failure_class: blocker, upstream_status: null };
+
+      logger.error({ err: error, agentId, structuredFailure }, `💥 Intelligence Failure at Agent ${agentId}`);
       await AuditService.updateTaskStatus(taskId, "FAILED", {
         error: error instanceof Error ? sanitizeForAudit(error.message) : "Unknown error",
-        blocker
+        blocker,
+        ...structuredFailure
       });
       throw error;
     }
@@ -608,78 +655,117 @@ export class UnifiedAgentAdapter {
     }
 
     const timeoutMs = getPythonEngineTimeoutMs();
-    const abortController = new AbortController();
-    const timeoutHandle = setTimeout(() => {
-      abortController.abort();
-    }, timeoutMs);
+    const maxAttempts = getPythonEngineMaxAttempts();
 
-    try {
-      const response = await fetch(`${normalizedBackendUrl}/api/v1/workflow/query`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-request-id": randomUUID(),  // P0: request tracing
-          "x-task-id": taskId,            // P0: task correlation
-        },
-        body: JSON.stringify(safeBody),
-        signal: abortController.signal
-      });
-
-      if (!response.ok) {
-        const correlationId = randomUUID().slice(0, 8);
-        const errorText = await response.text();
-        const sanitizedBackendError = sanitizeBackendErrorText(errorText);
-        const auditErrorExcerpt = sanitizeBackendErrorForAudit(errorText);
-
-        logger.error(
-          {
-            agentId: agent.id,
-            backendStatus: response.status,
-            correlationId,
-            backendError: sanitizedBackendError
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const abortController = new AbortController();
+      const timeoutHandle = setTimeout(() => abortController.abort(), timeoutMs);
+      try {
+        const response = await fetch(`${normalizedBackendUrl}/api/v1/workflow/query`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-request-id": randomUUID(),
+            "x-task-id": taskId,
           },
-          "Python engine downstream error"
-        );
-
-        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", {
-          status_code: response.status,
-          correlation_id: correlationId,
-          backend_error_excerpt: auditErrorExcerpt
+          body: JSON.stringify(safeBody),
+          signal: abortController.signal
         });
 
-        throw new Error(buildClientSafePythonEngineError(response.status, correlationId));
+        if (!response.ok) {
+          const errorText = await response.text();
+          const retryable = RETRYABLE_HTTP_STATUSES.has(response.status);
+          if (retryable && attempt < maxAttempts) {
+            const jitterMs = Math.floor(Math.random() * 100);
+            const backoffMs = DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1) + jitterMs;
+            logger.warn({ agentId: agent.id, status: response.status, attempt, maxAttempts, backoffMs }, "Retrying python engine transient status");
+            await sleep(backoffMs);
+            continue;
+          }
+
+          const correlationId = randomUUID().slice(0, 8);
+          const sanitizedBackendError = sanitizeBackendErrorText(errorText);
+          const auditErrorExcerpt = sanitizeBackendErrorForAudit(errorText);
+
+          logger.error(
+            {
+              agentId: agent.id,
+              backendStatus: response.status,
+              correlationId,
+              backendError: sanitizedBackendError
+            },
+            "Python engine downstream error"
+          );
+
+          await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", {
+            status_code: response.status,
+            correlation_id: correlationId,
+            backend_error_excerpt: auditErrorExcerpt
+          });
+
+          throw new PythonEngineRuntimeError(
+            buildClientSafePythonEngineError(response.status, correlationId),
+            "RUNTIME_FAILURE",
+            response.status,
+            retryable
+          );
+        }
+
+        const responseBody: unknown = await response.json();
+        return responseBody;
+      } catch (error) {
+        if ((error instanceof Error && error.name === "AbortError") || abortController.signal.aborted) {
+          throw new PythonEngineRuntimeError(
+            `Python engine timed out after ${timeoutMs}ms for agent ${agent.id}`,
+            "PYTHON_ENGINE_TIMEOUT",
+            null,
+            false,
+            error
+          );
+        }
+
+        if (error instanceof PythonEngineRuntimeError) {
+          throw error;
+        }
+
+        if (isRetryableNetworkError(error) && attempt < maxAttempts) {
+          const jitterMs = Math.floor(Math.random() * 100);
+          const backoffMs = DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1) + jitterMs;
+          logger.warn({ err: error, agentId: agent.id, attempt, maxAttempts, backoffMs }, "Retrying python engine transient network failure");
+          await sleep(backoffMs);
+          continue;
+        }
+
+        const correlationId = randomUUID().slice(0, 8);
+        logger.error(
+          {
+            err: error,
+            agentId: agent.id,
+            correlationId,
+            attempt,
+            maxAttempts
+          },
+          "Python engine request failed before response"
+        );
+
+        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", {
+          correlation_id: correlationId
+        });
+
+        const errorCode: RuntimeFailureClass = error instanceof Error ? "RUNTIME_FAILURE" : "UNVERIFIED_RUNTIME";
+        throw new PythonEngineRuntimeError(
+          buildClientSafePythonEngineError(502, correlationId),
+          errorCode,
+          502,
+          false,
+          error
+        );
+      } finally {
+        clearTimeout(timeoutHandle);
       }
-
-      // P0: Type-safe JSON parse — response.ok verified before reading body.
-      const responseBody: unknown = await response.json();
-      return responseBody;
-    } catch (error) {
-      if ((error instanceof Error && error.name === "AbortError") || abortController.signal.aborted) {
-        throw new PythonEngineTimeoutError(agent.id, timeoutMs, error);
-      }
-
-      if (error instanceof Error && CLIENT_SAFE_PYTHON_ENGINE_ERROR_PATTERN.test(error.message)) {
-        throw error;
-      }
-
-      const correlationId = randomUUID().slice(0, 8);
-      logger.error(
-        {
-          err: error,
-          agentId: agent.id,
-          correlationId
-        },
-        "Python engine request failed before response"
-      );
-
-      await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", {
-        correlation_id: correlationId
-      });
-
-      throw new Error(buildClientSafePythonEngineError(502, correlationId));
-    } finally {
-      clearTimeout(timeoutHandle);
     }
+
+    throw new PythonEngineRuntimeError("Python engine exhausted retry budget", "UNVERIFIED_RUNTIME", null, false);
   }
 
   /**
