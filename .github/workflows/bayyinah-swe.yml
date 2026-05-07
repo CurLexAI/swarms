@@ -80,6 +80,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          pr_number="${{ github.event.issue.number }}"
+          head_sha=$(gh api "repos/${{ github.repository }}/pulls/${pr_number}" --jq .head.sha)
+          base_ref=$(gh api "repos/${{ github.repository }}/pulls/${pr_number}" --jq .base.ref)
+          echo "number=${pr_number}"   >> "$GITHUB_OUTPUT"
+          echo "head_sha=${head_sha}"  >> "$GITHUB_OUTPUT"
+          echo "base_ref=${base_ref}"  >> "$GITHUB_OUTPUT"
+
+      - name: Fetch PR head commit
+        if: github.event.issue.pull_request != null
+        run: |
+          git fetch origin "refs/pull/${{ steps.pr.outputs.number }}/head"
+          git cat-file -e "${{ steps.pr.outputs.head_sha }}^{commit}"
+
+      - name: Set up Python
+        if: github.event.issue.pull_request != null
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
           gh pr view ${{ steps.pr-context.outputs.pr_number }} \
             --json title,body,headRefName,baseRefName,files \
             > /tmp/pr-meta.json 2>/dev/null || echo '{}' > /tmp/pr-meta.json
