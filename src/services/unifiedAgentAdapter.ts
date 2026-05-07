@@ -451,6 +451,22 @@ export class UnifiedAgentAdapter {
 
     const taskId = randomUUID();
     const safePayload = validation.safePayload;
+    try {
+      await AuditService.createTask({
+        taskId,
+        tenant_id: safePayload.tenant_id,
+        actor_id: userId,
+        agent_id: agentId,
+        metadata: {
+          runtime: agent.runtime,
+          reasoning_enabled: !!agent.enable_reasoning,
+          request_metadata: sanitizeForAudit(safePayload.metadata ?? {})
+        }
+      });
+    } catch (error) {
+      logger.error({ err: error, taskId, agentId }, "RUNTIME_FAILURE: audit task initialization failed");
+      throw new Error(`RUNTIME_FAILURE: audit initialization failed for task ${taskId}`);
+    }
 
     if (agent.enable_reasoning) {
       logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
