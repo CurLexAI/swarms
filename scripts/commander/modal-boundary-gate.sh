@@ -68,9 +68,17 @@ pattern = re.compile(
 exts = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
 skip_dirs = {"node_modules", ".next", "dist", "build", ".git"}
 
+# Follow symlinked directories (GNU `grep -R` does too). Track real paths
+# of visited dirs so a cycle like `src/vendor -> ..` cannot loop forever.
 hits = []
+visited = set()
 for root_arg in sys.argv[1:]:
-    for root, dirs, files in os.walk(root_arg):
+    for root, dirs, files in os.walk(root_arg, followlinks=True):
+        real = os.path.realpath(root)
+        if real in visited:
+            dirs[:] = []
+            continue
+        visited.add(real)
         dirs[:] = [d for d in dirs if d not in skip_dirs]
         for fn in files:
             if not fn.endswith(exts):
