@@ -101,7 +101,8 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
         name: "Node Agent",
         role: "test",
         runtime: "node",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
       }
     ]
   ]);
@@ -169,7 +170,8 @@ test("UnifiedAgentAdapter returns real node execution output for hybrid agents (
         name: "Hybrid Agent",
         role: "test",
         runtime: "hybrid",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
       }
     ]
   ]);
@@ -230,7 +232,8 @@ test("UnifiedAgentAdapter marks task FAILED when node dispatch throws runtime fa
         name: "Node Agent",
         role: "test",
         runtime: "node",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
       }
     ]
   ]);

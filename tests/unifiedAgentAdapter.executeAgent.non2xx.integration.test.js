@@ -109,7 +109,8 @@ db_password=hunter2 token=abc123 INTERNAL ERROR: stack frame exploded`;
         name: "Python Agent",
         role: "test",
         runtime: "python",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["python_execution"]
       }
     ]
   ]);
@@ -189,7 +190,8 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
         name: "Python Agent",
         role: "test",
         runtime: "python",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["python_execution"]
       }
     ]
   ]);
