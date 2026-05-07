@@ -57,6 +57,12 @@ jobs:
           echo "head_sha=${head_sha}"  >> "$GITHUB_OUTPUT"
           echo "base_ref=${base_ref}"  >> "$GITHUB_OUTPUT"
 
+      - name: Fetch PR head commit
+        if: github.event.issue.pull_request != null
+        run: |
+          git fetch origin "refs/pull/${{ steps.pr.outputs.number }}/head"
+          git cat-file -e "${{ steps.pr.outputs.head_sha }}^{commit}"
+
       - name: Set up Python
         if: github.event.issue.pull_request != null
         uses: actions/setup-python@v6
