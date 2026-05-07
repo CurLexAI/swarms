@@ -34,12 +34,18 @@ else
 fi
 
 # ── 2. Modal SDK must not be imported from client/public surfaces ────────────
+# Covers four shapes that all pull in the Modal SDK:
+#   from "modal" / from 'modal'                  — bindings import
+#   require("modal") / require('modal')          — CommonJS
+#   import "modal" / import 'modal'              — side-effect ES import
+#   import("modal") / await import('modal')      — dynamic ES import
+modal_import_pattern=$'(from|require[[:space:]]*\\(|import)[[:space:]]*\\(?[[:space:]]*[\'"]modal[\'"]'
 if (( ${#EXISTING_DIRS[@]} > 0 )); then
   if grep -RIn \
-       --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' \
+       --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' --include='*.mjs' --include='*.cjs' \
        --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist \
        --exclude-dir=build \
-       -E '(from |require\()['"'"'"]modal['"'"'"]' \
+       -E "$modal_import_pattern" \
        "${EXISTING_DIRS[@]}" 2>/dev/null; then
     fail "MODAL_SDK_IMPORT_IN_CLIENT: 'modal' SDK imported from public/client paths"
   else
