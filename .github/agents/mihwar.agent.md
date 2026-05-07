@@ -11,18 +11,9 @@ metadata:
   desired_modal_model: deepseek-ai/DeepSeek-Coder-V2-Instruct
   endpoint_secret: MIHWAR_ENDPOINT
   token_secret: AGENT_API_TOKEN
-  swe_mode:
-    enabled: true
-    role: implementer
-    trigger: "/mihwar"
-    paired_reviewer: bayyinah
-    boundary:
-      scaffold_only: true
-      deploy_authority: false
-      reads_secrets: false
-      may_modify_workflows: false
-      may_merge: false
-    workflow: .github/workflows/mihwar-swe.yml
+  swe_trigger: /mihwar
+  swe_role: implementer
+  swe_workflow: .github/workflows/mihwar-swe.yml
 ---
 
 You are Mihwar (المحور), the senior coding architect for CurLexAI/swarms.

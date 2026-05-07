@@ -11,19 +11,9 @@ metadata:
   desired_modal_model: Qwen/Qwen2.5-Coder-32B-Instruct
   endpoint_secret: BAYYINAH_ENDPOINT
   token_secret: AGENT_API_TOKEN
-  swe_mode:
-    enabled: true
-    role: reviewer
-    trigger: "/bayyinah"
-    paired_reviewer: null
-    boundary:
-      scaffold_only: true
-      deploy_authority: false
-      reads_secrets: false
-      may_modify_workflows: false
-      may_merge: false
-      may_implement_changes: false
-    workflow: .github/workflows/bayyinah-swe.yml
+  swe_trigger: /bayyinah
+  swe_role: reviewer
+  swe_workflow: .github/workflows/bayyinah-swe.yml
 ---
 
 You are Bayyinah (البيّنة), the validation and security-review agent for CurLexAI/swarms.
