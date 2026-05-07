@@ -47,6 +47,29 @@ interface ValidationResult {
   unknownFields?: string[];
 }
 
+interface AgentExecutionAuthorizationRequest {
+  actorId: string;
+  tenantId: string;
+  principalTenantId: string;
+  action: "execute";
+  agent: NormalizedAgentDefinition;
+  actorScopes: string[];
+  requestedCapabilities: string[];
+  scopeHierarchy?: Readonly<Record<string, readonly string[]>>;
+}
+
+interface AgentExecutionAuthorizationDecision {
+  allowed: boolean;
+  matchedRule: string;
+  reasonCode: string;
+}
+
+interface PolicyService {
+  authorizeAgentExecution(
+    request: AgentExecutionAuthorizationRequest
+  ): AgentExecutionAuthorizationDecision;
+}
+
 export class RegistryStartupError extends Error {
   code: "CONFIG_NOT_FOUND" | "REGISTRY_LOAD_FAILURE";
   registryPath: string;
@@ -161,6 +184,45 @@ function getPythonEngineTimeoutMs() {
   return Math.floor(parsedTimeout);
 }
 
+class DefaultPolicyService implements PolicyService {
+  authorizeAgentExecution(
+    request: AgentExecutionAuthorizationRequest
+  ): AgentExecutionAuthorizationDecision {
+    const {
+      tenantId,
+      principalTenantId,
+      agent,
+      actorScopes,
+      requestedCapabilities,
+      scopeHierarchy
+    } = request;
+
+    if (tenantId !== principalTenantId) {
+      return { allowed: false, matchedRule: "tenant_boundary", reasonCode: "CROSS_TENANT_ACCESS_DENIED" };
+    }
+
+    const effectiveScopes = new Set(actorScopes);
+    for (const scope of actorScopes) {
+      for (const inheritedScope of scopeHierarchy?.[scope] ?? []) {
+        effectiveScopes.add(inheritedScope);
+      }
+    }
+
+    if (!agent.allowedScopes.some((scope) => effectiveScopes.has(scope))) {
+      return { allowed: false, matchedRule: "allowed_scopes", reasonCode: "UNAUTHORIZED_SCOPE" };
+    }
+
+    const agentCapabilities = new Set(agent.capabilities ?? []);
+    for (const requiredCapability of requestedCapabilities) {
+      if (!agentCapabilities.has(requiredCapability)) {
+        return { allowed: false, matchedRule: "required_capabilities", reasonCode: "CAPABILITY_DENIED" };
+      }
+    }
+
+    return { allowed: true, matchedRule: "allow_agent_execution", reasonCode: "ALLOW" };
+  }
+}
+
 export class PythonEngineTimeoutError extends Error {
   code = "PYTHON_ENGINE_TIMEOUT" as const;
   classification = "TIMEOUT" as const;
@@ -253,10 +315,12 @@ export class UnifiedAgentAdapter {
   private fallbackRegistryPath: string;
   private agents: Map<string, NormalizedAgentDefinition> = new Map();
   private registryStartupError: RegistryStartupError | null = null;
+  private policyService: PolicyService;
 
-  constructor() {
+  constructor(policyService: PolicyService = new DefaultPolicyService()) {
     this.registryPath = path.join(process.cwd(), ".agents/config/agents.yaml");
     this.fallbackRegistryPath = path.join(process.cwd(), "agents/registry.yaml");
+    this.policyService = policyService;
     this.loadRegistry();
   }
 
@@ -402,11 +466,6 @@ export class UnifiedAgentAdapter {
     const agent = this.agents.get(agentId);
     if (!agent) throw new Error("Agent not found");
 
-    if (!agent.allowedScopes.some((ctx) => scopes.includes(ctx))) {
-      await AuditService.logSecurityViolation(userId, agentId, "UNAUTHORIZED_SCOPE");
-      throw new Error("⛔ السيادة تمنع الوصول: لا تملك الصلاحيات الكافية.");
-    }
-
     const validation = this.validateAndSanitizePayload(payload);
     if (!validation.isValid || !validation.safePayload) {
       await AuditService.logSecurityViolation(userId, agentId, "INVALID_EXECUTE_AGENT_PAYLOAD", {
@@ -416,37 +475,48 @@ export class UnifiedAgentAdapter {
       throw new Error(validation.reason ?? "Invalid execute payload");
     }
 
-    // P0: Tenant isolation — reject if payload tenant differs from server-side principal.
-    // tenant_id values are intentionally not logged to prevent cross-tenant information leakage.
-    if (validation.safePayload.tenant_id !== serverPrincipalTenantId) {
-      await AuditService.logSecurityViolation(userId, agentId, "CROSS_TENANT_ACCESS_DENIED", {
-        redaction_version: AUDIT_REDACTION_VERSION,
-      });
-      throw new Error("CROSS_TENANT_ACCESS_DENIED");
-    }
-
-    // P0: Capability enforcement — scope alone is not sufficient.
-    // Agent must declare the required capability for its runtime in .agents/config/agents.yaml.
     const requiredCapability = RUNTIME_CAPABILITY_MAP[agent.runtime];
-    if (!agent.capabilities?.includes(requiredCapability)) {
-      await AuditService.logSecurityViolation(userId, agentId, "CAPABILITY_DENIED", {
-        required_capability: requiredCapability,
-        agent_capabilities: agent.capabilities,
-        redaction_version: AUDIT_REDACTION_VERSION,
-      });
-      throw new Error(`CAPABILITY_DENIED: Agent ${agentId} lacks required capability: ${requiredCapability}`);
-    }
+    const requestedCapabilities = [requiredCapability, ...(agent.enable_reasoning ? ["reasoning"] : [])];
+    const authorizationDecision = this.policyService.authorizeAgentExecution({
+      actorId: userId,
+      tenantId: validation.safePayload.tenant_id,
+      principalTenantId: serverPrincipalTenantId,
+      action: "execute",
+      agent,
+      actorScopes: scopes,
+      requestedCapabilities
+    });
 
-    if (
-      agent.enable_reasoning &&
-      !agent.capabilities?.includes("reasoning")
-    ) {
-      await AuditService.logSecurityViolation(userId, agentId, "CAPABILITY_DENIED", {
-        required_capability: "reasoning",
-        agent_capabilities: agent.capabilities,
-        redaction_version: AUDIT_REDACTION_VERSION,
-      });
-      throw new Error(`CAPABILITY_DENIED: Agent ${agentId} lacks required capability: reasoning`);
+    if (!authorizationDecision.allowed) {
+      const auditDetails: Record<string, unknown> = {
+        matched_rule: authorizationDecision.matchedRule,
+        reason_code: authorizationDecision.reasonCode,
+        redaction_version: AUDIT_REDACTION_VERSION
+      };
+
+      if (authorizationDecision.reasonCode === "CAPABILITY_DENIED") {
+        auditDetails.required_capabilities = requestedCapabilities;
+        auditDetails.agent_capabilities = agent.capabilities;
+      }
+
+      await AuditService.logSecurityViolation(userId, agentId, authorizationDecision.reasonCode, auditDetails);
+      logger.warn(
+        {
+          actorId: userId,
+          agentId,
+          matchedRule: authorizationDecision.matchedRule,
+          reasonCode: authorizationDecision.reasonCode
+        },
+        "Agent execution denied by policy evaluator"
+      );
+
+      if (authorizationDecision.reasonCode === "UNAUTHORIZED_SCOPE") {
+        throw new Error("⛔ السيادة تمنع الوصول: لا تملك الصلاحيات الكافية.");
+      }
+      if (authorizationDecision.reasonCode === "CAPABILITY_DENIED") {
+        throw new Error(`CAPABILITY_DENIED: Agent ${agentId} lacks required capability: ${requestedCapabilities.join(",")}`);
+      }
+      throw new Error(authorizationDecision.reasonCode);
     }
 
     const taskId = randomUUID();
