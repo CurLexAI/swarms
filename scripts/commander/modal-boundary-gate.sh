@@ -40,19 +40,70 @@ fi
 #     import (
 #       "modal"
 #     )
-# or `from\n  'modal'` is also flagged. Uses PCRE multi-line (-Pz) since
-# POSIX -E is line-oriented.
-modal_import_pattern=$'(from|require\\s*\\(|import)\\s*\\(?\\s*[\'"`]modal[\'"`]'
+# or `from\n  'modal'` is also flagged.
+#
+# Implemented in python3 rather than `grep -P` because PCRE support is
+# GNU-grep-specific. On BSD/macOS grep there is no -P flag, and the
+# previous form silently false-passed: the option error was swallowed by
+# 2>/dev/null and the if/else fell into the "ok" branch. The python
+# scanner uses an explicit tri-state exit code so a runtime failure is
+# FAIL, never silently OK:
+#   0  -> at least one offending file (FAIL)
+#   1  -> clean (OK)
+#   ≥2 -> scanner itself failed (FAIL, fail-closed)
 if (( ${#EXISTING_DIRS[@]} > 0 )); then
-  if grep -PRIzl \
-       --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' --include='*.mjs' --include='*.cjs' \
-       --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist \
-       --exclude-dir=build \
-       "$modal_import_pattern" \
-       "${EXISTING_DIRS[@]}" 2>/dev/null; then
-    fail "MODAL_SDK_IMPORT_IN_CLIENT: 'modal' SDK imported from public/client paths"
+  if ! command -v python3 >/dev/null 2>&1; then
+    fail "PYTHON3_MISSING: cannot run Modal SDK import scan"
   else
-    ok "no Modal SDK import found in client surfaces"
+    # Temporarily disable errexit: rc=1 means "no matches" and is normal.
+    # We inspect rc explicitly below.
+    set +e
+    scan_output="$(python3 - "${EXISTING_DIRS[@]}" <<'PY'
+import os, re, sys
+
+pattern = re.compile(
+    r"(from|require\s*\(|import)\s*\(?\s*['\"`]modal['\"`]",
+    re.MULTILINE | re.DOTALL,
+)
+exts = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
+skip_dirs = {"node_modules", ".next", "dist", "build", ".git"}
+
+hits = []
+for root_arg in sys.argv[1:]:
+    for root, dirs, files in os.walk(root_arg):
+        dirs[:] = [d for d in dirs if d not in skip_dirs]
+        for fn in files:
+            if not fn.endswith(exts):
+                continue
+            path = os.path.join(root, fn)
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    if pattern.search(f.read()):
+                        hits.append(path)
+            except OSError as e:
+                # An unreadable file is a scanner failure, not a silent pass.
+                sys.stderr.write(f"scan_error: {path}: {e}\n")
+                sys.exit(2)
+
+for h in hits:
+    print(h)
+sys.exit(0 if hits else 1)
+PY
+    )"
+    py_rc=$?
+    set -e
+    case "$py_rc" in
+      0)
+        printf '%s\n' "$scan_output"
+        fail "MODAL_SDK_IMPORT_IN_CLIENT: 'modal' SDK imported from public/client paths"
+        ;;
+      1)
+        ok "no Modal SDK import found in client surfaces"
+        ;;
+      *)
+        fail "MODAL_SDK_SCAN_FAILED: python scanner exited rc=$py_rc"
+        ;;
+    esac
   fi
 fi
 
