@@ -224,3 +224,87 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
   assert.match(updateTaskStatusCalls[0][2].error, /\(ref: [0-9a-f]{8}\)/i);
   assert.doesNotMatch(updateTaskStatusCalls[0][2].error, /ECONNREFUSED|python-backend\.internal/i);
 });
+
+test("UnifiedAgentAdapter.executeAgent rejects successful non-JSON python responses with sanitized runtime error", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+
+  const updateTaskStatusCalls = [];
+  let jsonCalled = false;
+
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: {
+      get: (name) => (name.toLowerCase() === "content-type" ? "text/html; charset=utf-8" : null)
+    },
+    text: async () => "<html>upstream maintenance page</html>",
+    json: async () => {
+      jsonCalled = true;
+      return { hidden: true };
+    }
+  });
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => {
+    updateTaskStatusCalls.push(args);
+  };
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([
+    [
+      "py-agent",
+      {
+        id: "py-agent",
+        name: "Python Agent",
+        role: "test",
+        runtime: "python",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["python_execution"]
+      }
+    ]
+  ]);
+
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+
+  await assert.rejects(
+    async () =>
+      adapter.executeAgent(
+        "py-agent",
+        "user-1",
+        {
+          tenant_id: "tenant-1",
+          input: "run",
+          metadata: { source: "integration-test" }
+        },
+        ["scope:execute"],
+        "tenant-1"
+      ),
+    (error) => {
+      assert.match(error.message, /Python engine request failed with status 200/);
+      assert.match(error.message, /\(ref: [0-9a-f]{8}\)/i);
+      return true;
+    }
+  );
+
+  assert.equal(jsonCalled, false, "response.json() must not be called when content-type is not application/json");
+  assert.equal(updateTaskStatusCalls.length, 1);
+  assert.equal(updateTaskStatusCalls[0][1], "FAILED");
+  assert.match(updateTaskStatusCalls[0][2].error, /Python engine request failed with status 200/);
+});

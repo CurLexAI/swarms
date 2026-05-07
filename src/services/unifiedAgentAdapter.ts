@@ -94,6 +94,7 @@ const ALLOWED_PAYLOAD_FIELDS = ["tenant_id", "input", "metadata"] as const;
 const MAX_TENANT_ID_LENGTH = 128;
 const MAX_INPUT_LENGTH = 8000;
 const DEFAULT_PYTHON_ENGINE_TIMEOUT_MS = 15000;
+const MAX_BACKEND_ERROR_SNIPPET_LENGTH = 512;
 const DEFAULT_PYTHON_ENGINE_MAX_RETRIES = 2;
 const DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS = 250;
 const RETRYABLE_HTTP_STATUSES = new Set([502, 503, 504]);
@@ -274,6 +275,42 @@ export class PythonEngineTimeoutError extends Error {
       this.cause = cause;
     }
   }
+}
+
+export class PythonEngineResponseError extends Error {
+  code: "RUNTIME_FAILURE" | "UNVERIFIED_RUNTIME";
+  classification: "TRANSPORT_FAILURE" | "APPLICATION_FAILURE";
+  endpoint: string;
+  status: number;
+  correlationId: string;
+
+  constructor(params: {
+    code: "RUNTIME_FAILURE" | "UNVERIFIED_RUNTIME";
+    classification: "TRANSPORT_FAILURE" | "APPLICATION_FAILURE";
+    endpoint: string;
+    status: number;
+    correlationId: string;
+    message: string;
+    cause?: unknown;
+  }) {
+    super(params.message);
+    this.name = "PythonEngineResponseError";
+    this.code = params.code;
+    this.classification = params.classification;
+    this.endpoint = params.endpoint;
+    this.status = params.status;
+    this.correlationId = params.correlationId;
+    if (params.cause !== undefined) {
+      this.cause = params.cause;
+    }
+  }
+}
+
+function boundedSnippet(text: string, maxLength = MAX_BACKEND_ERROR_SNIPPET_LENGTH): string {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength)}...[truncated]`;
 }
 
 type BlockerStatus =
@@ -757,6 +794,26 @@ export class UnifiedAgentAdapter {
           signal: abortController.signal
         });
 
+    try {
+      const endpoint = `${normalizedBackendUrl}/api/v1/workflow/query`;
+      const requestId = randomUUID();
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-request-id": requestId,  // P0: request tracing
+          "x-task-id": taskId,            // P0: task correlation
+        },
+        body: JSON.stringify(safeBody),
+        signal: abortController.signal
+      });
+
+      if (!response.ok) {
+        const correlationId = randomUUID().slice(0, 8);
+        const errorText = await response.text();
+        const boundedText = boundedSnippet(errorText);
+        const sanitizedBackendError = sanitizeBackendErrorText(errorText);
+        const auditErrorExcerpt = sanitizeBackendErrorForAudit(boundedText);
         if (!response.ok) {
           const errorText = await response.text();
           const retryable = RETRYABLE_HTTP_STATUSES.has(response.status);
@@ -824,6 +881,13 @@ export class UnifiedAgentAdapter {
         const correlationId = randomUUID().slice(0, 8);
         logger.error(
           {
+            errorClass: "PythonEngineResponseError",
+            agentId: agent.id,
+            endpoint,
+            backendStatus: response.status,
+            correlationId,
+            requestId,
+            backendError: sanitizedBackendError
             err: error,
             agentId: agent.id,
             correlationId,
@@ -833,6 +897,100 @@ export class UnifiedAgentAdapter {
           "Python engine request failed before response"
         );
 
+        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", {
+          status_code: response.status,
+          correlation_id: correlationId,
+          request_id: requestId,
+          endpoint,
+          backend_error_excerpt: auditErrorExcerpt
+        });
+
+        throw new PythonEngineResponseError({
+          code: "RUNTIME_FAILURE",
+          classification: "APPLICATION_FAILURE",
+          endpoint,
+          status: response.status,
+          correlationId,
+          message: buildClientSafePythonEngineError(response.status, correlationId)
+        });
+      }
+
+      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+      if (!contentType.includes("application/json")) {
+        const correlationId = randomUUID().slice(0, 8);
+        const rawPayload = boundedSnippet(await response.text());
+        logger.error(
+          {
+            errorClass: "PythonEngineResponseError",
+            agentId: agent.id,
+            endpoint,
+            backendStatus: response.status,
+            correlationId,
+            requestId,
+            contentType
+          },
+          "Python engine returned non-JSON response"
+        );
+        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_CONTENT_TYPE_MISMATCH", {
+          status_code: response.status,
+          content_type: contentType || "missing",
+          correlation_id: correlationId,
+          request_id: requestId,
+          task_id: taskId,
+          endpoint,
+          backend_error_excerpt: sanitizeBackendErrorForAudit(rawPayload)
+        });
+
+        throw new PythonEngineResponseError({
+          code: "UNVERIFIED_RUNTIME",
+          classification: "TRANSPORT_FAILURE",
+          endpoint,
+          status: response.status,
+          correlationId,
+          message: buildClientSafePythonEngineError(response.status, correlationId)
+        });
+      }
+
+      try {
+        return await response.json();
+      } catch {
+        const correlationId = randomUUID().slice(0, 8);
+        const rawPayload = boundedSnippet(await response.text());
+        logger.error(
+          {
+            errorClass: "PythonEngineResponseError",
+            agentId: agent.id,
+            endpoint,
+            backendStatus: response.status,
+            correlationId,
+            requestId
+          },
+          "Python engine JSON parse failure"
+        );
+        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_JSON_PARSE_FAILURE", {
+          status_code: response.status,
+          correlation_id: correlationId,
+          request_id: requestId,
+          task_id: taskId,
+          endpoint,
+          backend_error_excerpt: sanitizeBackendErrorForAudit(rawPayload)
+        });
+        throw new PythonEngineResponseError({
+          code: "UNVERIFIED_RUNTIME",
+          classification: "TRANSPORT_FAILURE",
+          endpoint,
+          status: response.status,
+          correlationId,
+          message: buildClientSafePythonEngineError(response.status, correlationId)
+        });
+      }
+    } catch (error) {
+      if ((error instanceof Error && error.name === "AbortError") || abortController.signal.aborted) {
+        throw new PythonEngineTimeoutError(agent.id, timeoutMs, error);
+      }
+
+      if (error instanceof Error && CLIENT_SAFE_PYTHON_ENGINE_ERROR_PATTERN.test(error.message)) {
+        throw error;
         await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", {
           correlation_id: correlationId
         });
