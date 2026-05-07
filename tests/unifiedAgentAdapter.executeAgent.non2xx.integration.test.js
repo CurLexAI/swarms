@@ -9,7 +9,7 @@ const SOURCE_PATH = path.resolve("src/services/unifiedAgentAdapter.ts");
 
 async function loadAuditServiceOrSkip(t) {
   try {
-    const mod = await import("../src/services/AuditService.ts");
+    const mod = await import("../src/services/AuditService.js");
     return mod.AuditService;
   } catch {
     t.skip("AuditService module is not available for direct ESM import in this runtime");
@@ -35,9 +35,7 @@ async function loadUnifiedAgentAdapterFromTs(t) {
   const patchedSource = source.replace(
     'import yaml from "js-yaml";',
     'const yaml = { load: () => ({ agents: [] }) };'
-  )
-    .replace('import { v4 as uuidv4 } from "uuid";\n', "")
-    .replaceAll("uuidv4()", "randomUUID()");
+  );
   const transpiled = ts.transpileModule(patchedSource, {
     compilerOptions: {
       module: ts.ModuleKind.ES2022,
@@ -109,7 +107,8 @@ db_password=hunter2 token=abc123 INTERNAL ERROR: stack frame exploded`;
         name: "Python Agent",
         role: "test",
         runtime: "python",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["python_execution"]
       }
     ]
   ]);
@@ -189,7 +188,8 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
         name: "Python Agent",
         role: "test",
         runtime: "python",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["python_execution"]
       }
     ]
   ]);

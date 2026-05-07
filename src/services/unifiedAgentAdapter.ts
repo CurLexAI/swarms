@@ -3,7 +3,7 @@ import path from "path";
 import yaml from "js-yaml";
 import { randomUUID } from "crypto";
 import logger from "../utils/logger.js";
-import { AuditService } from "./AuditService.ts";
+import { AuditService } from "./AuditService.js";
 import {
   buildClientSafePythonEngineError,
   sanitizeBackendErrorForAudit,
@@ -180,9 +180,18 @@ export class PythonEngineTimeoutError extends Error {
 
 type BlockerStatus =
   | "AUTH_MISSING"
+  | "AUTH_INVALID"
+  | "AUTH_EXPIRED"
   | "CONFIG_NOT_FOUND"
+  | "SYNTAX_FAILURE"
+  | "TYPE_FAILURE"
+  | "TEST_FAILURE"
   | "PYTHON_ENGINE_TIMEOUT"
   | "RUNTIME_FAILURE"
+  | "WORKFLOW_CONFLICT"
+  | "HOT_SURFACE_CONFLICT"
+  | "SECRET_MISSING"
+  | "DEPLOYMENT_BLOCKED"
   | "UNVERIFIED_RUNTIME";
 
 function classifyBlocker(error: unknown): BlockerStatus {
@@ -197,6 +206,18 @@ function classifyBlocker(error: unknown): BlockerStatus {
 
     if (error.message.includes("UNAUTHORIZED_SCOPE")) {
       return "AUTH_MISSING";
+    }
+
+    if (error.message.includes("AUTH_INVALID")) {
+      return "AUTH_INVALID";
+    }
+
+    if (error.message.includes("AUTH_EXPIRED")) {
+      return "AUTH_EXPIRED";
+    }
+
+    if (error.message.includes("SECRET_MISSING")) {
+      return "SECRET_MISSING";
     }
 
     return "RUNTIME_FAILURE";
