@@ -34,18 +34,21 @@ else
 fi
 
 # ── 2. Modal SDK must not be imported from client/public surfaces ────────────
-# Covers four import shapes × three string-literal forms (', ", `):
-#   from "modal" / from 'modal' / from `modal`          — bindings import
-#   require("modal") / require(`modal`)                 — CommonJS
-#   import 'modal' / import `modal`                     — side-effect ES import
-#   import("modal") / await import(`modal`)             — dynamic ES import
-modal_import_pattern=$'(from|require[[:space:]]*\\(|import)[[:space:]]*\\(?[[:space:]]*[\'"`]modal[\'"`]'
+# Covers four import shapes × three string-literal forms (', ", `), and
+# allows whitespace -- including newlines -- between any two tokens, so
+# valid JS/TS formatting like
+#     import (
+#       "modal"
+#     )
+# or `from\n  'modal'` is also flagged. Uses PCRE multi-line (-Pz) since
+# POSIX -E is line-oriented.
+modal_import_pattern=$'(from|require\\s*\\(|import)\\s*\\(?\\s*[\'"`]modal[\'"`]'
 if (( ${#EXISTING_DIRS[@]} > 0 )); then
-  if grep -RIn \
+  if grep -PRIzl \
        --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' --include='*.mjs' --include='*.cjs' \
        --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist \
        --exclude-dir=build \
-       -E "$modal_import_pattern" \
+       "$modal_import_pattern" \
        "${EXISTING_DIRS[@]}" 2>/dev/null; then
     fail "MODAL_SDK_IMPORT_IN_CLIENT: 'modal' SDK imported from public/client paths"
   else
