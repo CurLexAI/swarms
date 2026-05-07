@@ -9,7 +9,7 @@ const SOURCE_PATH = path.resolve("src/services/unifiedAgentAdapter.ts");
 
 async function loadAuditServiceOrSkip(t) {
   try {
-    const mod = await import("../src/services/AuditService.ts");
+    const mod = await import("../src/services/AuditService.js");
     return mod.AuditService;
   } catch {
     t.skip("AuditService module is not available for direct ESM import in this runtime");

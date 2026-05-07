@@ -3,7 +3,7 @@ import path from "path";
 import yaml from "js-yaml";
 import { randomUUID } from "crypto";
 import logger from "../utils/logger.js";
-import { AuditService } from "./AuditService.ts";
+import { AuditService } from "./AuditService.js";
 import {
   buildClientSafePythonEngineError,
   sanitizeBackendErrorForAudit,
