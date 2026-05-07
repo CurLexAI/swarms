@@ -1,0 +1,119 @@
+name: Mihwar SWE (DeepSeek-Coder-V2)
+
+# ── Triggers ────────────────────────────────────────────────────────────────
+# Fires only on PR/issue comments whose body starts with `/mihwar`.
+# `issue_comment` covers comments on both issues and pull requests; the body
+# filter and the PR-context guard inside the job keep noise out.
+on:
+  issue_comment:
+    types: [created]
+
+# ── Permissions ─────────────────────────────────────────────────────────────
+permissions:
+  pull-requests: write   # post review/plan comments
+  issues: write          # post status replies on issue/PR threads
+  contents: read         # read the diff
+
+jobs:
+  mihwar-swe:
+    name: "Mihwar SWE (/mihwar trigger)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # 1. Body filter (cheap, no clone yet)
+    # 2. Author guard: only repo writers may invoke. This matches GitHub's
+    #    standard `author_association` taxonomy.
+    if: |
+      startsWith(github.event.comment.body, '/mihwar') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+
+    steps:
+      # 1. Checkout for diff + boundary gate
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # 2. Boundary gate runs BEFORE any secret is read.
+      - name: Modal boundary gate
+        run: bash scripts/commander/modal-boundary-gate.sh .
+
+      # 3. Reject if not invoked on a PR (issue_comment fires on issues too).
+      - name: Guard PR context
+        if: github.event.issue.pull_request == null
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST \
+            "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" \
+            -f body="[mihwar][skip] /mihwar must be invoked on a pull request, not an issue."
+          exit 0
+
+      # 4. Resolve PR head SHA (issue_comment payload does not carry it).
+      - name: Resolve PR head
+        id: pr
+        if: github.event.issue.pull_request != null
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pr_number="${{ github.event.issue.number }}"
+          head_sha=$(gh api "repos/${{ github.repository }}/pulls/${pr_number}" --jq .head.sha)
+          base_ref=$(gh api "repos/${{ github.repository }}/pulls/${pr_number}" --jq .base.ref)
+          echo "number=${pr_number}"   >> "$GITHUB_OUTPUT"
+          echo "head_sha=${head_sha}"  >> "$GITHUB_OUTPUT"
+          echo "base_ref=${base_ref}"  >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        if: github.event.issue.pull_request != null
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        if: github.event.issue.pull_request != null
+        run: pip install --quiet requests pyyaml
+
+      # 5. Build the diff against the base branch
+      - name: Generate PR diff
+        id: diff
+        if: github.event.issue.pull_request != null
+        env:
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF"
+          git diff "origin/$BASE_REF"...${{ steps.pr.outputs.head_sha }} > /tmp/pr.diff
+          LINES=$(wc -l < /tmp/pr.diff)
+          echo "lines=$LINES" >> "$GITHUB_OUTPUT"
+          echo "Diff size: $LINES lines"
+
+      # 6. Call Mihwar via Modal endpoint when secrets are set.
+      # Same graceful-degradation pattern as agent-review.yml.
+      - name: Run Mihwar SWE plan
+        if: |
+          github.event.issue.pull_request != null &&
+          steps.diff.outputs.lines != '0' &&
+          fromJSON(steps.diff.outputs.lines) < 4000
+        env:
+          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          if [ -z "$MIHWAR_ENDPOINT" ] || [ -z "$AGENT_API_TOKEN" ]; then
+            echo "::warning title=Mihwar Agent UNVERIFIED::MIHWAR_ENDPOINT or AGENT_API_TOKEN is missing. Skipping until Modal deployment is live."
+            gh api -X POST \
+              "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+              -f body="[mihwar][SKIPPED_UNVERIFIED] Mihwar endpoint or API token is not configured. See \`docs/secrets-policy.md\` §3."
+            exit 0
+          fi
+
+          echo "Mihwar secrets are present. Initiating Mihwar SWE plan."
+          python .agents/pr_review.py \
+            --diff /tmp/pr.diff \
+            --pr "$PR_NUMBER" \
+            --repo "$REPO" \
+            --head-sha "$HEAD_SHA" \
+            --agent mihwar
