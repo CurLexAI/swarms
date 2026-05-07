@@ -135,6 +135,42 @@ class ModalBoundaryGateTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("RELAY_MISSING", result.stdout)
 
+    @unittest.skipIf(os.name == "nt", "symlinks require admin on Windows")
+    def test_symlinked_modal_import_fails(self) -> None:
+        # PR #49 P1: a symlinked subdirectory under a public path used to
+        # bypass the scan because os.walk's followlinks defaulted False.
+        # The scanner now follows symlinks while breaking cycles.
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            _build_fixture(tmp)
+            (tmp / "src" / "ok.ts").write_text("export const x = 1;\n")
+            linked = tmp / "linked"
+            linked.mkdir()
+            (linked / "forbidden.ts").write_text('import "modal";\n')
+            os.symlink(linked.resolve(), tmp / "src" / "vendor")
+            result = _run_gate(tmp)
+            self.assertEqual(
+                result.returncode,
+                1,
+                msg=f"forbidden import behind a symlink was NOT detected\n"
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+            )
+            self.assertIn("MODAL_SDK_IMPORT_IN_CLIENT", result.stdout)
+
+    @unittest.skipIf(os.name == "nt", "symlinks require admin on Windows")
+    def test_symlink_cycle_does_not_hang(self) -> None:
+        # A cycle like `src/loop -> src` must terminate, not loop forever.
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            _build_fixture(tmp)
+            (tmp / "src" / "ok.ts").write_text("export const x = 1;\n")
+            os.symlink((tmp / "src").resolve(), tmp / "src" / "loop")
+            # _run_gate already imposes a 30s subprocess timeout; if the
+            # scanner ever loops, this raises TimeoutExpired.
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("[RESULT] PASS", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
