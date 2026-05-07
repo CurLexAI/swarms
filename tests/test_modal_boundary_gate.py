@@ -1,0 +1,140 @@
+"""Regression tests for scripts/commander/modal-boundary-gate.sh.
+
+These tests build an isolated temp-repo fixture, copy the gate script
+into it, and assert exit codes for the FAIL cases that have already
+regressed once (multi-line and backtick Modal imports), plus the PASS
+case. They lock the boundary's BEHAVIOR, not its implementation, so
+they keep passing across the grep -> python-scanner refactor on PR #49.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import textwrap
+import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+GATE = REPO_ROOT / "scripts" / "commander" / "modal-boundary-gate.sh"
+WORKFLOW = REPO_ROOT / ".github" / "workflows" / "agent-review.yml"
+
+
+def _build_fixture(tmp: Path) -> None:
+    """Provision the minimum files the gate's other checks expect."""
+    (tmp / "src").mkdir(parents=True, exist_ok=True)
+    (tmp / ".agents" / "router").mkdir(parents=True, exist_ok=True)
+    (tmp / ".agents" / "validators").mkdir(parents=True, exist_ok=True)
+    (tmp / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
+    (tmp / ".agents" / "pr_review.py").write_text("# stub relay\n")
+    (tmp / ".agents" / "router" / "__init__.py").write_text("")
+    (tmp / ".agents" / "validators" / "__init__.py").write_text("")
+    shutil.copy(WORKFLOW, tmp / ".github" / "workflows" / "agent-review.yml")
+
+
+def _run_gate(repo: Path) -> subprocess.CompletedProcess:
+    # Strip any inherited boundary secrets so [WARN] lines stay deterministic.
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"BAYYINAH_ENDPOINT", "MIHWAR_ENDPOINT", "AGENT_API_TOKEN"}
+    }
+    return subprocess.run(
+        ["bash", str(GATE), str(repo)],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
+    )
+
+
+class ModalBoundaryGateTests(unittest.TestCase):
+    def test_clean_repo_passes(self) -> None:
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            _build_fixture(tmp)
+            (tmp / "src" / "ok.ts").write_text(
+                "export const greet = () => 'hello';\n"
+            )
+            result = _run_gate(tmp)
+            self.assertEqual(
+                result.returncode,
+                0,
+                msg=f"expected PASS, got rc={result.returncode}\n"
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+            )
+            self.assertIn("[RESULT] PASS", result.stdout)
+
+    def test_inline_modal_import_fails(self) -> None:
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            _build_fixture(tmp)
+            (tmp / "src" / "bad.ts").write_text(
+                'import { App } from "modal";\n'
+            )
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("MODAL_SDK_IMPORT_IN_CLIENT", result.stdout)
+
+    def test_multiline_modal_import_fails(self) -> None:
+        # The exact regression class that motivated PR #48: 'from'/'import'
+        # and the specifier on different lines. A line-oriented scanner
+        # would silently miss this.
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            _build_fixture(tmp)
+            (tmp / "src" / "bad.ts").write_text(
+                textwrap.dedent(
+                    """\
+                    import (
+                      "modal"
+                    );
+                    """
+                )
+            )
+            result = _run_gate(tmp)
+            self.assertEqual(
+                result.returncode,
+                1,
+                msg=f"multi-line modal import was NOT detected\n"
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+            )
+            self.assertIn("MODAL_SDK_IMPORT_IN_CLIENT", result.stdout)
+
+    def test_backtick_modal_import_fails(self) -> None:
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            _build_fixture(tmp)
+            (tmp / "src" / "bad.ts").write_text(
+                "const m = await import(`modal`);\n"
+            )
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("MODAL_SDK_IMPORT_IN_CLIENT", result.stdout)
+
+    def test_modal_run_url_in_client_fails(self) -> None:
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            _build_fixture(tmp)
+            (tmp / "src" / "config.ts").write_text(
+                'export const URL = "https://example.modal.run/api";\n'
+            )
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("MODAL_URL_LEAK", result.stdout)
+
+    def test_missing_relay_fails(self) -> None:
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            _build_fixture(tmp)
+            (tmp / ".agents" / "pr_review.py").unlink()
+            (tmp / "src" / "ok.ts").write_text("export const x = 1;\n")
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("RELAY_MISSING", result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()
