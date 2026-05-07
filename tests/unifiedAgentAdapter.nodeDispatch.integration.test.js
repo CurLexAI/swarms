@@ -192,6 +192,102 @@ test("UnifiedAgentAdapter returns real node execution output for hybrid agents (
   assert.deepEqual(result.data, { output: "hybrid-node-output", details: { routedTo: "node" } });
 });
 
+test("UnifiedAgentAdapter logs EXECUTE_<TYPE>_WITHOUT_REASONING action when reasoning is disabled", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const logActions = [];
+
+  AuditService.logAction = async (entry) => {
+    logActions.push(entry);
+  };
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => async () => ({ output: "ok" });
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"],
+        enable_reasoning: false
+      }
+    ]
+  ]);
+
+  await adapter.executeAgent("node-agent", "user-1", { tenant_id: "tenant-1", input: "x" }, ["scope:execute"], "tenant-1");
+
+  assert.equal(logActions.length, 1);
+  assert.equal(logActions[0].action, "EXECUTE_NODE_WITHOUT_REASONING");
+  assert.equal(logActions[0].payload.reasoning_enabled, false);
+});
+
+test("UnifiedAgentAdapter logs EXECUTE_<TYPE>_WITH_REASONING action when reasoning is enabled", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const logActions = [];
+
+  AuditService.logAction = async (entry) => {
+    logActions.push(entry);
+  };
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => async () => ({ output: "ok" });
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution", "reasoning"],
+        enable_reasoning: true
+      }
+    ]
+  ]);
+
+  await adapter.executeAgent("node-agent", "user-1", { tenant_id: "tenant-1", input: "x" }, ["scope:execute"], "tenant-1");
+
+  assert.equal(logActions.length, 1);
+  assert.equal(logActions[0].action, "EXECUTE_NODE_WITH_REASONING");
+  assert.equal(logActions[0].payload.reasoning_enabled, true);
+});
+
 test("UnifiedAgentAdapter marks task FAILED when node dispatch throws runtime failure", async (t) => {
   const runAgentStub = async () => {
     const error = new Error("provider crashed");
