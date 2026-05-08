@@ -784,23 +784,27 @@ export class UnifiedAgentAdapter {
     }
 
     const err = error as NodeJS.ErrnoException & { url?: string };
-    const message = error.message.toLowerCase();
-    const missingRunnerPath = "../runners/agentrunner.js";
-    const missingRunnerUrl = "/runners/agentrunner.js";
-    const refersToRunner =
-      message.includes(missingRunnerPath) ||
-      message.includes(missingRunnerUrl) ||
-      (typeof err.url === "string" && err.url.toLowerCase().includes(missingRunnerUrl));
-
-    if (!refersToRunner) {
+    const code = err.code;
+    const isModuleNotFound =
+      code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND";
+    if (!isModuleNotFound) {
       return false;
     }
 
-    return (
-      err.code === "ERR_MODULE_NOT_FOUND" ||
-      err.code === "MODULE_NOT_FOUND" ||
-      message.includes("cannot find module")
+    const runnerSpecifier = "agentrunner.js";
+
+    if (typeof err.url === "string") {
+      return err.url.toLowerCase().endsWith(runnerSpecifier);
+    }
+
+    const match = /cannot find (?:module|package) ['"]([^'"]+)['"]/i.exec(
+      err.message
     );
+    if (match) {
+      return match[1].toLowerCase().endsWith(runnerSpecifier);
+    }
+
+    return false;
   }
 
   private mapNodeExecutionError(agentId: string, error: unknown) {
