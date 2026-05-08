@@ -307,6 +307,36 @@ function classifyBlocker(error: unknown): BlockerStatus {
   return "UNVERIFIED_RUNTIME";
 }
 
+type NormalizedError = {
+  message: string;
+  code?: string;
+  stack?: string;
+};
+
+function normalizeError(err: unknown): NormalizedError {
+  const stackAllowed = process.env.NODE_ENV !== "production";
+  if (err instanceof PythonEngineRuntimeError) {
+    return {
+      message: sanitizeForAudit(err.message),
+      code: err.code,
+      ...(stackAllowed && err.stack ? { stack: sanitizeForAudit(err.stack) } : {})
+    };
+  }
+
+  if (err instanceof Error) {
+    const maybeCode = "code" in err && typeof (err as { code?: unknown }).code === "string"
+      ? (err as { code: string }).code
+      : undefined;
+    return {
+      message: sanitizeForAudit(err.message),
+      ...(maybeCode ? { code: maybeCode } : {}),
+      ...(stackAllowed && err.stack ? { stack: sanitizeForAudit(err.stack) } : {})
+    };
+  }
+
+  return { message: "Unknown error" };
+}
+
 export class NodeExecutionDispatchError extends Error {
   code: "CONFIG_NOT_FOUND" | "RUNTIME_FAILURE";
   classification: "CONFIG_FAILURE" | "RUNTIME_FAILURE";
@@ -610,13 +640,19 @@ export class UnifiedAgentAdapter {
       return { taskId, status: "success", data: verifiedResult };
     } catch (error: unknown) {
       const blocker = classifyBlocker(error);
+      const normalizedError = normalizeError(error);
       const structuredFailure = error instanceof PythonEngineRuntimeError
         ? { failure_class: error.code, upstream_status: error.upstreamStatus, retryable: error.retryable }
         : { failure_class: blocker, upstream_status: null };
 
-      logger.error({ err: error, agentId, structuredFailure }, `💥 Intelligence Failure at Agent ${agentId}`);
+      logger.error(
+        { err: error, agentId, structuredFailure, normalizedError },
+        `💥 Intelligence Failure at Agent ${agentId}`
+      );
       await AuditService.updateTaskStatus(taskId, "FAILED", {
-        error: error instanceof Error ? sanitizeForAudit(error.message) : "Unknown error",
+        error: normalizedError.message,
+        ...(normalizedError.code ? { code: normalizedError.code } : {}),
+        ...(normalizedError.stack ? { stack: normalizedError.stack } : {}),
         blocker,
         ...structuredFailure
       });
