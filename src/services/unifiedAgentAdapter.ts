@@ -245,7 +245,7 @@ function isRetryableNetworkError(error: unknown) {
   return code === "ECONNRESET" || code === "ETIMEDOUT" || code === "EAI_AGAIN" || code === "UND_ERR_CONNECT_TIMEOUT";
 }
 
-type RuntimeFailureClass = "RUNTIME_FAILURE" | "UNVERIFIED_RUNTIME" | "PYTHON_ENGINE_TIMEOUT";
+type RuntimeFailureClass = "RUNTIME_FAILURE" | "UNVERIFIED_RUNTIME" | "PYTHON_ENGINE_TIMEOUT" | "AUTH_INVALID" | "AUTH_EXPIRED";
 type BlockerStatus = "AUTH_MISSING" | "AUTH_INVALID" | "AUTH_EXPIRED" | "CONFIG_NOT_FOUND" | "REGISTRY_LOAD_FAILURE" | "SYNTAX_FAILURE" | "TYPE_FAILURE" | "TEST_FAILURE" | "PYTHON_ENGINE_TIMEOUT" | "RUNTIME_FAILURE" | "WORKFLOW_CONFLICT" | "HOT_SURFACE_CONFLICT" | "SECRET_MISSING" | "DEPLOYMENT_BLOCKED" | "UNVERIFIED_RUNTIME";
 
 class PythonEngineRuntimeError extends Error {
@@ -285,6 +285,11 @@ class RuntimeOutputVerificationError extends Error {
 function createPythonRuntimeError(params: { code: RuntimeFailureClass; status: number | null; retryable: boolean; correlationId?: string; message?: string; cause?: unknown; }) {
   const message = params.message ?? (params.status !== null ? buildClientSafePythonEngineError(params.status, params.correlationId) : "Python engine request failed. Please try again later.");
   return new PythonEngineRuntimeError(message, params.code, params.status, params.retryable, params.cause);
+}
+
+function truncateForDiagnostics(value: string, maxLen = 512) {
+  if (value.length <= maxLen) return value;
+  return `${value.slice(0, maxLen)}...(truncated)`;
 }
 
 function classifyBlocker(error: unknown): BlockerStatus {
@@ -747,12 +752,13 @@ export class UnifiedAgentAdapter {
       try {
         const response = await fetch(`${normalizedBackendUrl}/api/v1/workflow/query`, { method: "POST", headers: { "Content-Type": "application/json", "x-request-id": requestId, "x-task-id": taskId }, body: JSON.stringify(safeBody), signal: abortController.signal });
         if (!response.ok) {
-          const rawError = await response.text();
+          const rawError = truncateForDiagnostics(await response.text());
           const retryable = RETRYABLE_HTTP_STATUSES.has(response.status);
+          const mappedCode: RuntimeFailureClass = response.status === 401 ? "AUTH_INVALID" : response.status === 403 ? "AUTH_EXPIRED" : "RUNTIME_FAILURE";
           if (retryable && attempt < maxAttempts) { await sleep(DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1)); continue; }
           const correlationId = randomUUID().slice(0, 8);
-          await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", { status_code: response.status, correlation_id: correlationId, request_id: requestId, endpoint, backend_error_excerpt: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)) });
-          throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: response.status, retryable, correlationId });
+          await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", { status_code: response.status, status_text: response.statusText || "missing", correlation_id: correlationId, request_id: requestId, endpoint, backend_error_excerpt: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)) });
+          throw createPythonRuntimeError({ code: mappedCode, status: response.status, retryable, correlationId, message: `${mappedCode}: Python engine returned HTTP ${response.status} ${response.statusText || "unknown"}` });
         }
 
         const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
@@ -767,7 +773,7 @@ export class UnifiedAgentAdapter {
         catch (parseError) {
           const correlationId = randomUUID().slice(0, 8);
           await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_JSON_PARSE_FAILURE", { status_code: response.status, correlation_id: correlationId, request_id: requestId, task_id: taskId, endpoint });
-          throw createPythonRuntimeError({ code: "UNVERIFIED_RUNTIME", status: response.status, retryable: false, correlationId, cause: parseError });
+          throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: response.status, retryable: false, correlationId, message: `RUNTIME_FAILURE: malformed JSON payload from python engine (HTTP ${response.status})`, cause: parseError });
         }
       } catch (error) {
         if ((error instanceof Error && error.name === "AbortError") || abortController.signal.aborted) throw createPythonRuntimeError({ code: "PYTHON_ENGINE_TIMEOUT", status: null, retryable: false, message: `Python engine timed out after ${timeoutMs}ms for agent ${agent.id}`, cause: error });
@@ -775,10 +781,10 @@ export class UnifiedAgentAdapter {
         if (isRetryableNetworkError(error) && attempt < maxAttempts) { await sleep(DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1)); continue; }
         const correlationId = randomUUID().slice(0, 8);
         await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId });
-        throw createPythonRuntimeError({ code: "UNVERIFIED_RUNTIME", status: 502, retryable: false, correlationId, cause: error });
+        throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: 502, retryable: false, correlationId, message: "RUNTIME_FAILURE: python engine request transport failure", cause: error });
       } finally { clearTimeout(timeoutHandle); }
     }
-    throw createPythonRuntimeError({ code: "UNVERIFIED_RUNTIME", status: null, retryable: false, message: "Python engine exhausted retry budget" });
+    throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: null, retryable: false, message: "RUNTIME_FAILURE: python engine exhausted retry budget" });
   }
 
   /**
