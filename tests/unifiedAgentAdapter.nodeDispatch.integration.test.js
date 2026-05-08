@@ -129,7 +129,7 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
       metadata: { trace_id: "trace-123" }
     },
     context: "api",
-    isAdmin: true
+    isAdmin: false
   });
 
   assert.equal(result.status, "success");
@@ -304,6 +304,51 @@ test("UnifiedAgentAdapter accepts valid downstream payload when quality verifica
   assert.deepEqual(response.data, { message: "ok", details: { source: "test" } });
   assert.equal(taskUpdates.length, 1);
   assert.equal(taskUpdates[0][1], "COMPLETED");
+});
+
+
+test("UnifiedAgentAdapter forwards trusted admin execution context to node dispatch", async (t) => {
+  const runAgentCalls = [];
+  const runAgentStub = async (payload) => {
+    runAgentCalls.push(payload);
+    return { output: "node-result" };
+  };
+
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => runAgentStub;
+  adapter.agents = new Map([["node-agent", { id: "node-agent", name: "Node Agent", role: "test", runtime: "node", allowedScopes: ["scope:execute"], capabilities: ["node_execution"] }]]);
+
+  await adapter.executeAgent(
+    "node-agent",
+    "user-1",
+    { tenant_id: "tenant-1", input: "run test" },
+    ["scope:execute"],
+    "tenant-1",
+    { isAdmin: true }
+  );
+
+  assert.equal(runAgentCalls.length, 1);
+  assert.equal(runAgentCalls[0].isAdmin, true);
 });
 
 test("UnifiedAgentAdapter logs EXECUTE_<TYPE>_WITHOUT_REASONING action when reasoning is disabled", async (t) => {
