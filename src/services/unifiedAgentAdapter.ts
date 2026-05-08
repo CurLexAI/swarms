@@ -659,7 +659,6 @@ export class UnifiedAgentAdapter {
       const requestId = randomUUID();
 
       try {
-        const requestId = randomUUID();
         const response = await fetch(`${normalizedBackendUrl}/api/v1/workflow/query`, { method: "POST", headers: { "Content-Type": "application/json", "x-request-id": requestId, "x-task-id": taskId }, body: JSON.stringify(safeBody), signal: abortController.signal });
         if (!response.ok) {
           const rawError = await response.text();
@@ -689,7 +688,7 @@ export class UnifiedAgentAdapter {
         if (error instanceof PythonEngineRuntimeError) throw error;
         if (isRetryableNetworkError(error) && attempt < maxAttempts) { await sleep(DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1)); continue; }
         const correlationId = randomUUID().slice(0, 8);
-        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, endpoint, task_id: taskId });
+        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId });
         throw createPythonRuntimeError({ code: "UNVERIFIED_RUNTIME", status: 502, retryable: false, correlationId, cause: error });
       } finally { clearTimeout(timeoutHandle); }
     }
