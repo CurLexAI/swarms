@@ -48,6 +48,15 @@ CLOUDFLARE_API_TOKEN
 SOVEREIGN_API_KEY
 ```
 
+
+## Agent runtime validation dependencies
+
+Use the agent-runtime dependency set only for validating agent CLI/runtime paths and tests in this repository (not as an application dependency lockfile).
+
+```bash
+pip install -r requirements-agent.txt
+```
+
 ## Local verification
 
 Run the strongest available subset from a real checkout:
