@@ -374,16 +374,27 @@ export class UnifiedAgentAdapter {
         }
         const taskId = randomUUID();
         const safePayload = validation.safePayload;
+        const executionPayload = {
+            ...safePayload,
+            ...(safePayload.metadata
+                ? {
+                    metadata: {
+                        ...safePayload.metadata,
+                        context: { ...(safePayload.metadata.context ?? {}) }
+                    }
+                }
+                : {})
+        };
         try {
             await AuditService.createTask({
                 taskId,
-                tenant_id: safePayload.tenant_id,
+                tenant_id: executionPayload.tenant_id,
                 actor_id: userId,
                 agent_id: agentId,
                 metadata: {
                     runtime: agent.runtime,
                     reasoning_enabled: !!agent.enable_reasoning,
-                    request_metadata: sanitizeForAudit(safePayload.metadata ?? {})
+                    request_metadata: sanitizeForAudit(executionPayload.metadata ?? {})
                 }
             });
         }
@@ -393,13 +404,13 @@ export class UnifiedAgentAdapter {
         }
         if (agent.enable_reasoning) {
             logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
-            const plan = await this.generateExecutionPlan(agent, safePayload);
-            const existingMetadata = safePayload.metadata ?? {};
+            const plan = await this.generateExecutionPlan(agent, executionPayload);
+            const existingMetadata = executionPayload.metadata ?? {};
             const metadataContext = existingMetadata.context;
             const currentContext = metadataContext && typeof metadataContext === "object" && !Array.isArray(metadataContext)
                 ? metadataContext
                 : {};
-            safePayload.metadata = {
+            executionPayload.metadata = {
                 ...existingMetadata,
                 context: {
                     ...currentContext,
@@ -410,7 +421,7 @@ export class UnifiedAgentAdapter {
         // P0: Audit entries sanitized before write; input body never logged.
         const action = `EXECUTE_${agent.runtime.toUpperCase()}_${agent.enable_reasoning ? "WITH" : "WITHOUT"}_REASONING`;
         await AuditService.logAction({
-            tenant_id: safePayload.tenant_id,
+            tenant_id: executionPayload.tenant_id,
             actor_id: userId,
             agent_id: agentId,
             action,
@@ -419,8 +430,8 @@ export class UnifiedAgentAdapter {
         });
         try {
             const result = agent.runtime === "python"
-                ? await this.forwardToPythonEngine(agent, safePayload, userId, taskId)
-                : await this.executeNodeInternal(agent, safePayload, trustedExecutionContext?.isAdmin ?? false);
+                ? await this.forwardToPythonEngine(agent, executionPayload, userId, taskId)
+                : await this.executeNodeInternal(agent, executionPayload, trustedExecutionContext?.isAdmin ?? false);
             const verifiedResult = await this.verifyOutputQuality(result);
             // P0: Sanitize result before audit write — never log raw LLM output or legal text.
             await AuditService.updateTaskStatus(taskId, "COMPLETED", sanitizeForAudit(verifiedResult));
