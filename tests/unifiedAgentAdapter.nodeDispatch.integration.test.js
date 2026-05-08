@@ -437,3 +437,75 @@ test("UnifiedAgentAdapter reports CONFIG_NOT_FOUND when node dispatcher module i
     assert.match(update[2].error, /^CONFIG_NOT_FOUND:/);
   }
 });
+
+test("UnifiedAgentAdapter keeps transitive ERR_MODULE_NOT_FOUND as runtime failure", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter, NodeExecutionDispatchError } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const taskUpdates = [];
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => {
+    taskUpdates.push(args);
+  };
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => {
+    const error = new Error("Cannot find package 'left-pad' imported from /workspace/src/runners/agentRunner.js");
+    error.code = "ERR_MODULE_NOT_FOUND";
+    throw error;
+  };
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
+      }
+    ]
+  ]);
+
+  await assert.rejects(
+    () =>
+      adapter.executeAgent(
+        "node-agent",
+        "user-1",
+        {
+          tenant_id: "tenant-1",
+          input: "dispatch through transitive missing dependency",
+          metadata: { trace_id: "node-agent-missing-transitive" }
+        },
+        ["scope:execute"],
+        "tenant-1"
+      ),
+    (error) => {
+      assert.equal(error instanceof NodeExecutionDispatchError, true);
+      assert.equal(error.code, "RUNTIME_FAILURE");
+      assert.equal(error.classification, "RUNTIME_FAILURE");
+      assert.match(error.message, /^RUNTIME_FAILURE: Node runtime execution failed for agent node-agent:/);
+      return true;
+    }
+  );
+
+  assert.equal(taskUpdates.length, 1);
+  assert.equal(taskUpdates[0][1], "FAILED");
+  assert.match(taskUpdates[0][2].error, /^RUNTIME_FAILURE:/);
+  assert.equal(taskUpdates[0][2].blocker, "RUNTIME_FAILURE");
+});
