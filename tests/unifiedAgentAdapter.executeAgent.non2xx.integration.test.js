@@ -308,3 +308,74 @@ test("UnifiedAgentAdapter.executeAgent rejects successful non-JSON python respon
   assert.equal(updateTaskStatusCalls[0][1], "FAILED");
   assert.match(updateTaskStatusCalls[0][2].error, /Python engine request failed with status 200/);
 });
+
+
+test("UnifiedAgentAdapter.executeAgent propagates a single per-attempt request id to headers and audit log", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+
+  const capturedRequestIds = [];
+  const securityViolationCalls = [];
+
+  global.fetch = async (_url, options) => {
+    capturedRequestIds.push(options?.headers?.["x-request-id"]);
+    return {
+      ok: false,
+      status: 500,
+      text: async () => "backend failure"
+    };
+  };
+
+  AuditService.logAction = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+  AuditService.logSecurityViolation = async (...args) => {
+    securityViolationCalls.push(args);
+  };
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([[
+    "py-agent",
+    {
+      id: "py-agent",
+      name: "Python Agent",
+      role: "test",
+      runtime: "python",
+      allowedScopes: ["scope:execute"],
+      capabilities: ["python_execution"]
+    }
+  ]]);
+
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+
+  await assert.rejects(() =>
+    adapter.executeAgent(
+      "py-agent",
+      "user-1",
+      { tenant_id: "tenant-1", input: "run", metadata: { source: "integration-test" } },
+      ["scope:execute"],
+      "tenant-1"
+    )
+  );
+
+  assert.equal(capturedRequestIds.length, 1);
+  assert.match(capturedRequestIds[0], /^[0-9a-f-]{36}$/i);
+
+  const downstreamFailureCall = securityViolationCalls.find((call) => call[2] === "PYTHON_ENGINE_DOWNSTREAM_FAILURE");
+  assert.ok(downstreamFailureCall, "expected PYTHON_ENGINE_DOWNSTREAM_FAILURE audit log");
+  assert.equal(downstreamFailureCall[3].request_id, capturedRequestIds[0]);
+});
