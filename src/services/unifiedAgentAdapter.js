@@ -18,7 +18,7 @@ export class RegistryStartupError extends Error {
         }
     }
 }
-const ALLOWED_PAYLOAD_FIELDS = ["tenant_id", "input", "metadata"];
+const ALLOWED_PAYLOAD_FIELDS = ["tenant_id", "input", "metadata", "context"];
 const MAX_TENANT_ID_LENGTH = 128;
 const MAX_INPUT_LENGTH = 8000;
 const DEFAULT_PYTHON_ENGINE_TIMEOUT_MS = 15000;
@@ -463,6 +463,15 @@ export class UnifiedAgentAdapter {
                 return { isValid: false, reason: "metadata must be an object when provided" };
             }
             safeMetadata = rawPayload.metadata;
+        }
+        if (rawPayload.context !== undefined) {
+            if (!rawPayload.context || typeof rawPayload.context !== "object" || Array.isArray(rawPayload.context)) {
+                return { isValid: false, reason: "context must be an object when provided" };
+            }
+            safeMetadata = {
+                ...(safeMetadata ?? {}),
+                context: rawPayload.context
+            };
         }
         return {
             isValid: true,
