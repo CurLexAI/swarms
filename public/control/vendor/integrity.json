@@ -1,0 +1,18 @@
+{
+  "vue": {
+    "path": "/control/vendor/vue.global.prod-3.5.13.js",
+    "integrity": "sha384-W/1Fp/LgAYO/oTn9Gs+PbeWuMuq1eQCnUMPCeg8POmMYchhzxctjEqtbiCIxDOON"
+  },
+  "marked": {
+    "path": "/control/vendor/marked.min-12.0.2.js",
+    "integrity": "sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi"
+  },
+  "dompurify": {
+    "path": "/control/vendor/purify.min-3.1.6.js",
+    "integrity": "sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a"
+  },
+  "lucide": {
+    "path": "/control/vendor/lucide.min-0.468.0.js",
+    "integrity": "sha384-uTYyvsSSUZeaPhb5RbKlQa0zY/WpX/QHfvg2mczXyBQOpkWPEDy9lczyp+w7SKXu"
+  }
+}
