@@ -149,8 +149,19 @@ class PythonEngineRuntimeError extends Error {
         this.code = code;
         this.upstreamStatus = upstreamStatus;
         this.retryable = retryable;
-        if (cause !== undefined)
+        if (cause !== undefined) {
             this.cause = cause;
+        }
+    }
+}
+class RuntimeOutputVerificationError extends Error {
+    code;
+    reason;
+    constructor(reason) {
+        super(`UNVERIFIED_RUNTIME: downstream payload failed verification (${reason})`);
+        this.name = "RuntimeOutputVerificationError";
+        this.code = "UNVERIFIED_RUNTIME";
+        this.reason = reason;
     }
 }
 function createPythonRuntimeError(params) {
@@ -160,9 +171,13 @@ function createPythonRuntimeError(params) {
 function classifyBlocker(error) {
     if (error instanceof PythonEngineRuntimeError)
         return error.code;
+    if (error instanceof RuntimeOutputVerificationError)
+        return error.code;
     if (error instanceof Error) {
         if (error.message.includes("CONFIG_NOT_FOUND"))
             return "CONFIG_NOT_FOUND";
+        if (error.message.includes("REGISTRY_LOAD_FAILURE"))
+            return "REGISTRY_LOAD_FAILURE";
         if (error.message.includes("UNAUTHORIZED_SCOPE"))
             return "AUTH_MISSING";
         if (error.message.includes("AUTH_INVALID"))
@@ -277,7 +292,6 @@ export class UnifiedAgentAdapter {
                     ? `CONFIG_NOT_FOUND: Required registry file was not found at ${this.registryPath} or ${this.fallbackRegistryPath}`
                     : `REGISTRY_LOAD_FAILURE: Failed to load registry from ${this.registryPath} or ${this.fallbackRegistryPath}`, e);
             this.registryStartupError = startupError;
-            throw startupError;
         }
     }
     getServiceHealth() {
@@ -299,6 +313,10 @@ export class UnifiedAgentAdapter {
     // never from the request payload. The caller is responsible for deriving this value
     // from a trusted source before invoking executeAgent.
     async executeAgent(agentId, userId, payload, scopes, serverPrincipalTenantId) {
+        if (this.registryStartupError) {
+            const startupBlocker = this.registryStartupError.code;
+            throw new Error(`${startupBlocker}: ${this.registryStartupError.message}`);
+        }
         const agent = this.agents.get(agentId);
         if (!agent)
             throw new Error("Agent not found");
@@ -368,12 +386,13 @@ export class UnifiedAgentAdapter {
         if (agent.enable_reasoning) {
             logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
             const plan = await this.generateExecutionPlan(agent, safePayload);
-            const metadataContext = safePayload.metadata?.context;
+            const existingMetadata = safePayload.metadata ?? {};
+            const metadataContext = existingMetadata.context;
             const currentContext = metadataContext && typeof metadataContext === "object" && !Array.isArray(metadataContext)
                 ? metadataContext
                 : {};
             safePayload.metadata = {
-                ...(safePayload.metadata ?? {}),
+                ...existingMetadata,
                 context: {
                     ...currentContext,
                     execution_plan: plan
@@ -458,6 +477,25 @@ export class UnifiedAgentAdapter {
         return "1. تحليل السؤال القانوني. 2. استرجاع السوابق عبر RAPTOR. 3. مطابقة المخرجات مع نظام PDPL.";
     }
     async verifyOutputQuality(result) {
+        if (!result || typeof result !== "object" || Array.isArray(result)) {
+            throw new RuntimeOutputVerificationError("payload must be a non-empty object");
+        }
+        const output = result;
+        const keys = Object.keys(output);
+        if (keys.length === 0) {
+            throw new RuntimeOutputVerificationError("payload object is empty");
+        }
+        const hasValidOutputField = ["output", "message", "result", "data"].some((field) => {
+            const value = output[field];
+            if (typeof value === "string")
+                return value.trim().length > 0;
+            if (value && typeof value === "object")
+                return true;
+            return false;
+        });
+        if (!hasValidOutputField) {
+            throw new RuntimeOutputVerificationError("required runtime output field is missing or malformed");
+        }
         return result;
     }
     async forwardToPythonEngine(agent, payload, userId, taskId) {
@@ -488,7 +526,6 @@ export class UnifiedAgentAdapter {
             const timeoutHandle = setTimeout(() => abortController.abort(), timeoutMs);
             const requestId = randomUUID();
             try {
-                const requestId = randomUUID();
                 const response = await fetch(`${normalizedBackendUrl}/api/v1/workflow/query`, { method: "POST", headers: { "Content-Type": "application/json", "x-request-id": requestId, "x-task-id": taskId }, body: JSON.stringify(safeBody), signal: abortController.signal });
                 if (!response.ok) {
                     const rawError = await response.text();
@@ -527,7 +564,7 @@ export class UnifiedAgentAdapter {
                     continue;
                 }
                 const correlationId = randomUUID().slice(0, 8);
-                await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, endpoint, task_id: taskId });
+                await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId });
                 throw createPythonRuntimeError({ code: "UNVERIFIED_RUNTIME", status: 502, retryable: false, correlationId, cause: error });
             }
             finally {

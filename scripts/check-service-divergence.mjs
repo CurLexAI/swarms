@@ -3,7 +3,8 @@ import path from 'node:path';
 import ts from 'typescript';
 
 const pairs = [
-  ['src/services/AuditService.ts', 'src/services/AuditService.js']
+  ['src/services/AuditService.ts', 'src/services/AuditService.js'],
+  ['src/services/unifiedAgentAdapter.ts', 'src/services/unifiedAgentAdapter.js']
 ];
 
 let failed = false;
