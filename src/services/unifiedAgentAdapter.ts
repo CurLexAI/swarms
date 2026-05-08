@@ -510,14 +510,15 @@ export class UnifiedAgentAdapter {
     if (agent.enable_reasoning) {
       logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
       const plan = await this.generateExecutionPlan(agent, safePayload);
-      const metadataContext = safePayload.metadata?.context;
+      const existingMetadata = safePayload.metadata ?? {};
+      const metadataContext = existingMetadata.context;
       const currentContext =
         metadataContext && typeof metadataContext === "object" && !Array.isArray(metadataContext)
           ? (metadataContext as Record<string, unknown>)
           : {};
 
       safePayload.metadata = {
-        ...(safePayload.metadata ?? {}),
+        ...existingMetadata,
         context: {
           ...currentContext,
           execution_plan: plan
