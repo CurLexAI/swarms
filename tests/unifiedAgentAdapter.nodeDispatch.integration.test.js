@@ -138,6 +138,66 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
   assert.equal(taskUpdates[0][1], "COMPLETED");
 });
 
+test("UnifiedAgentAdapter rejects malformed downstream object that passes JSON parsing but fails quality verification", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const taskUpdates = [];
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => {
+    taskUpdates.push(args);
+  };
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => async () => ({ traceId: "x-123" });
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
+      }
+    ]
+  ]);
+
+  await assert.rejects(
+    () =>
+      adapter.executeAgent(
+        "node-agent",
+        "user-1",
+        { tenant_id: "tenant-1", input: "run test" },
+        ["scope:execute"],
+        "tenant-1"
+      ),
+    (error) => {
+      assert.match(error.message, /UNVERIFIED_RUNTIME: downstream payload failed verification/i);
+      return true;
+    }
+  );
+
+  assert.equal(taskUpdates.length, 1);
+  assert.equal(taskUpdates[0][1], "FAILED");
+  assert.match(taskUpdates[0][2].blocker, /UNVERIFIED_RUNTIME/);
+});
+
 test("UnifiedAgentAdapter returns real node execution output for hybrid agents (intentional split)", async (t) => {
   const runAgentStub = async () => ({ output: "hybrid-node-output", details: { routedTo: "node" } });
   const loaded = await loadUnifiedAgentAdapterFromTs(t);
@@ -190,6 +250,60 @@ test("UnifiedAgentAdapter returns real node execution output for hybrid agents (
 
   assert.equal(result.status, "success");
   assert.deepEqual(result.data, { output: "hybrid-node-output", details: { routedTo: "node" } });
+});
+
+test("UnifiedAgentAdapter accepts valid downstream payload when quality verification requirements are met", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const taskUpdates = [];
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => {
+    taskUpdates.push(args);
+  };
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => async () => ({ message: "ok", details: { source: "test" } });
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
+      }
+    ]
+  ]);
+
+  const response = await adapter.executeAgent(
+    "node-agent",
+    "user-1",
+    { tenant_id: "tenant-1", input: "run test" },
+    ["scope:execute"],
+    "tenant-1"
+  );
+
+  assert.equal(response.status, "success");
+  assert.deepEqual(response.data, { message: "ok", details: { source: "test" } });
+  assert.equal(taskUpdates.length, 1);
+  assert.equal(taskUpdates[0][1], "COMPLETED");
 });
 
 test("UnifiedAgentAdapter logs EXECUTE_<TYPE>_WITHOUT_REASONING action when reasoning is disabled", async (t) => {

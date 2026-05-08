@@ -247,6 +247,17 @@ class PythonEngineRuntimeError extends Error {
   }
 }
 
+class RuntimeOutputVerificationError extends Error {
+  code: RuntimeFailureClass;
+  reason: string;
+  constructor(reason: string) {
+    super(`UNVERIFIED_RUNTIME: downstream payload failed verification (${reason})`);
+    this.name = "RuntimeOutputVerificationError";
+    this.code = "UNVERIFIED_RUNTIME";
+    this.reason = reason;
+  }
+}
+
 function createPythonRuntimeError(params: { code: RuntimeFailureClass; status: number | null; retryable: boolean; correlationId?: string; message?: string; cause?: unknown; }) {
   const message = params.message ?? (params.status !== null ? buildClientSafePythonEngineError(params.status, params.correlationId) : "Python engine request failed. Please try again later.");
   return new PythonEngineRuntimeError(message, params.code, params.status, params.retryable, params.cause);
@@ -254,6 +265,7 @@ function createPythonRuntimeError(params: { code: RuntimeFailureClass; status: n
 
 function classifyBlocker(error: unknown): BlockerStatus {
   if (error instanceof PythonEngineRuntimeError) return error.code;
+  if (error instanceof RuntimeOutputVerificationError) return error.code;
   if (error instanceof Error) {
     if (error.message.includes("CONFIG_NOT_FOUND")) return "CONFIG_NOT_FOUND";
     if (error.message.includes("UNAUTHORIZED_SCOPE")) return "AUTH_MISSING";
@@ -623,6 +635,27 @@ export class UnifiedAgentAdapter {
   }
 
   private async verifyOutputQuality(result: unknown) {
+    if (!result || typeof result !== "object" || Array.isArray(result)) {
+      throw new RuntimeOutputVerificationError("payload must be a non-empty object");
+    }
+
+    const output = result as Record<string, unknown>;
+    const keys = Object.keys(output);
+    if (keys.length === 0) {
+      throw new RuntimeOutputVerificationError("payload object is empty");
+    }
+
+    const hasValidOutputField = ["output", "message", "result", "data"].some((field) => {
+      const value = output[field];
+      if (typeof value === "string") return value.trim().length > 0;
+      if (value && typeof value === "object") return true;
+      return false;
+    });
+
+    if (!hasValidOutputField) {
+      throw new RuntimeOutputVerificationError("required runtime output field is missing or malformed");
+    }
+
     return result;
   }
 
