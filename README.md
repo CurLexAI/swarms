@@ -59,15 +59,57 @@ pip install -r requirements-agent.txt
 
 ## Local verification
 
-Run the strongest available subset from a real checkout:
+Run the strongest available subset from a real checkout. Each command is
+expected to exit `0` unless a known blocker is recorded in `docs/decisions/`
+or an open audit in `docs/audits/`.
+
+### One-time setup
+
+```bash
+pip install -r requirements-agent.txt
+npm install
+```
+
+### Python agent gates
+
+```bash
+python3 -m py_compile .agents/*.py
+python3 .agents/validate.py
+python3 .agents/invoke.py info
+```
+
+### Test suites
 
 ```bash
 python3 -m unittest discover -s tests
+python3 -m pytest -q tests/
+npm test
+```
+
+`pytest` and `unittest` cover the same Python tests; either runner is
+acceptable. `npm test` runs the unified agent adapter Node test suite.
+
+### TypeScript strict check
+
+```bash
+npx tsc --noEmit
+```
+
+### Repository policy gates
+
+```bash
 bash scripts/commander/p0-security-test-gate.sh .
 bash scripts/commander/modal-boundary-gate.sh .
 bash scripts/commander/agent-presence-gate.sh .
 bash .agents/skills/codex-commander/scripts/codex_commander_gate.sh .
 ```
+
+### Repository boundary
+
+The repository scope and forbidden additions are codified in
+[`docs/decisions/ADR-0001-swarms-boundary.md`](docs/decisions/ADR-0001-swarms-boundary.md).
+Read it before proposing changes that add public-facing application
+surfaces, RAG pipelines, frontend pages, or `autoStart` activation flags.
 
 Secret warnings in local runs are expected unless runtime endpoints and tokens are intentionally bound. They must not be reported as verified runtime activation.
 
