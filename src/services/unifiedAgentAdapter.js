@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import yaml from "js-yaml";
 import { randomUUID } from "crypto";
 import logger from "../utils/logger.js";
@@ -36,6 +37,7 @@ const RUNTIME_CAPABILITY_MAP = {
     node: "node_execution",
     hybrid: "node_execution",
 };
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 // ── P0: Backend URL allowlist ──────────────────────────────────────────────
 function getAllowedBackendHosts() {
     return (process.env.PYTHON_BACKEND_ALLOWED_HOSTS ?? "")
@@ -176,6 +178,11 @@ function createPythonRuntimeError(params) {
     const message = params.message ?? (params.status !== null ? buildClientSafePythonEngineError(params.status, params.correlationId) : "Python engine request failed. Please try again later.");
     return new PythonEngineRuntimeError(message, params.code, params.status, params.retryable, params.cause);
 }
+function truncateForDiagnostics(value, maxLen = 512) {
+    if (value.length <= maxLen)
+        return value;
+    return `${value.slice(0, maxLen)}...(truncated)`;
+}
 function classifyBlocker(error) {
     if (error instanceof PythonEngineRuntimeError)
         return error.code;
@@ -198,6 +205,27 @@ function classifyBlocker(error) {
     }
     return "UNVERIFIED_RUNTIME";
 }
+function normalizeError(err) {
+    const stackAllowed = process.env.NODE_ENV !== "production";
+    if (err instanceof PythonEngineRuntimeError) {
+        return {
+            message: String(sanitizeForAudit(err.message)),
+            code: err.code,
+            ...(stackAllowed && err.stack ? { stack: String(sanitizeForAudit(err.stack)) } : {})
+        };
+    }
+    if (err instanceof Error) {
+        const maybeCode = "code" in err && typeof err.code === "string"
+            ? err.code
+            : undefined;
+        return {
+            message: String(sanitizeForAudit(err.message)),
+            ...(maybeCode ? { code: maybeCode } : {}),
+            ...(stackAllowed && err.stack ? { stack: String(sanitizeForAudit(err.stack)) } : {})
+        };
+    }
+    return { message: "Unknown error" };
+}
 export class NodeExecutionDispatchError extends Error {
     code;
     classification;
@@ -218,7 +246,7 @@ export class UnifiedAgentAdapter {
     registryStartupError = null;
     policyService;
     constructor(policyService = new DefaultPolicyService()) {
-        const moduleDefaultRegistryPath = path.resolve(__dirname, "../../.agents/config/agents.yaml");
+        const moduleDefaultRegistryPath = path.resolve(MODULE_DIR, "../../.agents/config/agents.yaml");
         const envRegistryPath = process.env.AGENT_REGISTRY_PATH?.trim();
         const resolvedEnvRegistryPath = envRegistryPath ? path.resolve(envRegistryPath) : null;
         const registryPathSource = resolvedEnvRegistryPath ? "env" : "default";
@@ -447,12 +475,15 @@ export class UnifiedAgentAdapter {
         }
         catch (error) {
             const blocker = classifyBlocker(error);
+            const normalizedError = normalizeError(error);
             const structuredFailure = error instanceof PythonEngineRuntimeError
                 ? { failure_class: error.code, upstream_status: error.upstreamStatus, retryable: error.retryable }
                 : { failure_class: blocker, upstream_status: null };
-            logger.error({ err: error, agentId, structuredFailure }, `💥 Intelligence Failure at Agent ${agentId}`);
+            logger.error({ err: error, agentId, structuredFailure, normalizedError }, `💥 Intelligence Failure at Agent ${agentId}`);
             await AuditService.updateTaskStatus(taskId, "FAILED", {
-                error: error instanceof Error ? sanitizeForAudit(error.message) : "Unknown error",
+                error: normalizedError.message,
+                ...(normalizedError.code ? { code: normalizedError.code } : {}),
+                ...(normalizedError.stack ? { stack: normalizedError.stack } : {}),
                 blocker,
                 ...structuredFailure
             });
@@ -564,15 +595,16 @@ export class UnifiedAgentAdapter {
             try {
                 const response = await fetch(`${normalizedBackendUrl}/api/v1/workflow/query`, { method: "POST", headers: { "Content-Type": "application/json", "x-request-id": requestId, "x-task-id": taskId }, body: JSON.stringify(safeBody), signal: abortController.signal });
                 if (!response.ok) {
-                    const rawError = await response.text();
+                    const rawError = truncateForDiagnostics(await response.text());
                     const retryable = RETRYABLE_HTTP_STATUSES.has(response.status);
+                    const mappedCode = response.status === 401 ? "AUTH_INVALID" : response.status === 403 ? "AUTH_EXPIRED" : "RUNTIME_FAILURE";
                     if (retryable && attempt < maxAttempts) {
                         await sleep(DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1));
                         continue;
                     }
                     const correlationId = randomUUID().slice(0, 8);
-                    await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", { status_code: response.status, correlation_id: correlationId, request_id: requestId, endpoint, backend_error_excerpt: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)) });
-                    throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: response.status, retryable, correlationId });
+                    await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", { status_code: response.status, status_text: response.statusText || "missing", correlation_id: correlationId, request_id: requestId, endpoint, backend_error_excerpt: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)) });
+                    throw createPythonRuntimeError({ code: mappedCode, status: response.status, retryable, correlationId, message: `${mappedCode}: Python engine returned HTTP ${response.status} ${response.statusText || "unknown"}` });
                 }
                 const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
                 if (!contentType.includes("application/json")) {
@@ -587,7 +619,7 @@ export class UnifiedAgentAdapter {
                 catch (parseError) {
                     const correlationId = randomUUID().slice(0, 8);
                     await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_JSON_PARSE_FAILURE", { status_code: response.status, correlation_id: correlationId, request_id: requestId, task_id: taskId, endpoint });
-                    throw createPythonRuntimeError({ code: "UNVERIFIED_RUNTIME", status: response.status, retryable: false, correlationId, cause: parseError });
+                    throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: response.status, retryable: false, correlationId, message: `RUNTIME_FAILURE: malformed JSON payload from python engine (HTTP ${response.status})`, cause: parseError });
                 }
             }
             catch (error) {
@@ -601,13 +633,13 @@ export class UnifiedAgentAdapter {
                 }
                 const correlationId = randomUUID().slice(0, 8);
                 await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId });
-                throw createPythonRuntimeError({ code: "UNVERIFIED_RUNTIME", status: 502, retryable: false, correlationId, cause: error });
+                throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: 502, retryable: false, correlationId, message: "RUNTIME_FAILURE: python engine request transport failure", cause: error });
             }
             finally {
                 clearTimeout(timeoutHandle);
             }
         }
-        throw createPythonRuntimeError({ code: "UNVERIFIED_RUNTIME", status: null, retryable: false, message: "Python engine exhausted retry budget" });
+        throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: null, retryable: false, message: "RUNTIME_FAILURE: python engine exhausted retry budget" });
     }
     /**
      * Node/hybrid split behavior (intentional):
