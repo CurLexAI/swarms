@@ -19,6 +19,7 @@ from tempfile import TemporaryDirectory
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE = REPO_ROOT / "scripts" / "commander" / "modal-boundary-gate.sh"
+ADR_GATE = REPO_ROOT / "scripts" / "commander" / "adr-0001-boundary-gate.sh"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "agent-review.yml"
 
 
@@ -28,10 +29,12 @@ def _build_fixture(tmp: Path) -> None:
     (tmp / ".agents" / "router").mkdir(parents=True, exist_ok=True)
     (tmp / ".agents" / "validators").mkdir(parents=True, exist_ok=True)
     (tmp / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
+    (tmp / "scripts" / "commander").mkdir(parents=True, exist_ok=True)
     (tmp / ".agents" / "pr_review.py").write_text("# stub relay\n")
     (tmp / ".agents" / "router" / "__init__.py").write_text("")
     (tmp / ".agents" / "validators" / "__init__.py").write_text("")
     shutil.copy(WORKFLOW, tmp / ".github" / "workflows" / "agent-review.yml")
+    shutil.copy(ADR_GATE, tmp / "scripts" / "commander" / "adr-0001-boundary-gate.sh")
 
 
 def _run_gate(repo: Path) -> subprocess.CompletedProcess:
@@ -134,6 +137,15 @@ class ModalBoundaryGateTests(unittest.TestCase):
             result = _run_gate(tmp)
             self.assertEqual(result.returncode, 1)
             self.assertIn("RELAY_MISSING", result.stdout)
+
+    def test_boundary_regression_bubbles_up(self) -> None:
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            _build_fixture(tmp)
+            (tmp / "public" / "control").mkdir(parents=True, exist_ok=True)
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("ADR_0001_BOUNDARY_REGRESSION", result.stdout)
 
     @unittest.skipIf(os.name == "nt", "symlinks require admin on Windows")
     def test_symlinked_modal_import_fails(self) -> None:
