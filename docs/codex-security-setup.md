@@ -47,6 +47,27 @@ Keeping it current helps Codex Security produce better suggestions.
 
 For a deeper explanation of threat models and how they affect criticality and triage, see [Improving the threat model](https://developers.openai.com/codex/security/threat-model).
 
+### What to include in the project overview (threat model)
+
+In Codex Security, the threat model is edited as the **project overview**. Treat it as a short, high-signal security summary of how the repository actually works.
+
+A useful overview should explicitly call out:
+
+- entry points and untrusted input paths (APIs, uploads, webhooks, job payloads)
+- trust boundaries and authentication/authorization assumptions
+- sensitive data paths and privileged actions
+- the code paths your team wants prioritized in reviews
+
+Example shape:
+
+> Public API for account changes. Accepts JSON and file uploads. Uses an internal auth service for identity checks and writes billing updates through an internal service. Prioritize auth checks, upload parsing, and service-to-service trust boundaries.
+
+If findings look off-target, update the project overview before tuning anything else. Future scans use this context for prioritization and review guidance.
+
+### Where to edit
+
+Go to [Codex Security scans](https://chatgpt.com/codex/security/scans), open the repository, and click **Edit** on the project overview.
+
 ## 5. Review findings and patch
 
 After the initial backfill completes, review findings from the **Findings** view.
