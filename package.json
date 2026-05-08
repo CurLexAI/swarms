@@ -6,9 +6,14 @@
   "scripts": {
     "test": "node --test tests/unifiedAgentAdapter.test.js tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js tests/unifiedAgentAdapter.nodeDispatch.integration.test.js",
     "test:unit": "node --test tests/unifiedAgentAdapter.test.js",
+    "test:security": "node --test tests/sovereignCyberRadar.test.js",
     "build": "tsc -p tsconfig.json",
     "check:service-divergence": "node scripts/check-service-divergence.mjs",
     "check": "npm run check:service-divergence && npm run test:unit",
+    "security:radar:url": "tsx src/security/sovereignCyberRadar.ts scan-url",
+    "security:radar:text": "tsx src/security/sovereignCyberRadar.ts scan-text",
+    "security:radar:command": "tsx src/security/sovereignCyberRadar.ts scan-command",
+    "security:radar:simulate": "tsx src/security/sovereignCyberRadar.ts simulate"
     "integrity:frontend": "node scripts/generate-frontend-integrity.mjs"
   },
   "dependencies": {
@@ -18,6 +23,7 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.6.2",
+    "tsx": "^4.20.0",
     "typescript": "^6.0.3"
   },
   "engines": {
