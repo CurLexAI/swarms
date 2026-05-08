@@ -14,18 +14,7 @@ permissions:
 
 jobs:
   opencode:
-    if: |
-      (
-        startsWith(github.event.comment.body, '/oc') ||
-        contains(github.event.comment.body, ' /oc') ||
-        startsWith(github.event.comment.body, '/opencode') ||
-        contains(github.event.comment.body, ' /opencode')
-      ) &&
-      (
-        github.event.comment.author_association == 'OWNER' ||
-        github.event.comment.author_association == 'MEMBER' ||
-        github.event.comment.author_association == 'COLLABORATOR'
-      )
+    if: false # Disabled until anomalyco/opencode/github is pinned to a reviewed commit SHA.
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -36,7 +25,6 @@ jobs:
           persist-credentials: false
 
       - name: Run OpenCode
-        # TODO: pin to a commit SHA after verifying the trusted upstream revision.
         uses: anomalyco/opencode/github@latest
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

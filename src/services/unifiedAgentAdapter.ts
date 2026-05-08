@@ -754,12 +754,16 @@ export class UnifiedAgentAdapter {
   }
 
   private mapNodeExecutionError(agentId: string, error: unknown) {
+    if (error instanceof NodeExecutionDispatchError) {
+      return error;
+    }
+
     const errorCode =
       typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
         ? error.code
         : undefined;
 
-    if (errorCode === "MISSING_API_KEY" || errorCode === "ERR_MODULE_NOT_FOUND") {
+    if (errorCode === "MISSING_API_KEY" || this.isNodeRunnerModuleNotFound(error)) {
       return new NodeExecutionDispatchError(
         agentId,
         "CONFIG_NOT_FOUND",
