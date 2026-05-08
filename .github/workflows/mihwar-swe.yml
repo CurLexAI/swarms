@@ -22,7 +22,9 @@ jobs:
     name: Mihwar — SWE Execution
     runs-on: ubuntu-latest
 
-    # Only fire on /mihwar trigger from OWNER or MEMBER
+    # Only fire on /mihwar trigger from OWNER or MEMBER.
+    # The body is parsed from the event payload file in shell steps; do not
+    # interpolate github.event.comment.body into run scripts.
     if: |
       (
         github.event_name == 'issue_comment' ||
@@ -35,44 +37,77 @@ jobs:
       )
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Extract PR context
+        id: pr-context
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+          event_name = os.environ["EVENT_NAME"]
+          comment = event.get("comment") or {}
+          body = str(comment.get("body") or "")
+          lines = body.splitlines()
+          instruction = "\n".join(lines[1:]).strip() if lines else ""
+
+          if event_name == "issue_comment":
+              issue = event.get("issue") or {}
+              if not issue.get("pull_request"):
+                  print("is_pr=false")
+                  print("pr_number=")
+              else:
+                  print("is_pr=true")
+                  print(f"pr_number={int(issue['number'])}")
+          else:
+              pr = event.get("pull_request") or {}
+              print("is_pr=true")
+              print(f"pr_number={int(pr['number'])}")
+
+          print("instruction<<MIHWAR_INSTRUCTION_EOF")
+          print(instruction)
+          print("MIHWAR_INSTRUCTION_EOF")
+          PY
+
+      - name: Stop when comment is not on a PR
+        if: steps.pr-context.outputs.is_pr != 'true'
+        run: |
+          echo "::notice::/mihwar was not posted on a pull request. Nothing to do."
 
       - name: Validate required secrets
         id: secrets-check
+        if: steps.pr-context.outputs.is_pr == 'true'
+        env:
+          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
         run: |
-          if [[ -z "${{ secrets.MIHWAR_ENDPOINT }}" || -z "${{ secrets.AGENT_API_TOKEN }}" ]]; then
+          set -euo pipefail
+          if [[ -z "${MIHWAR_ENDPOINT}" || -z "${AGENT_API_TOKEN}" ]]; then
             echo "status=SKIPPED_UNVERIFIED" >> "$GITHUB_OUTPUT"
             echo "::warning::Mihwar Agent UNVERIFIED — MIHWAR_ENDPOINT or AGENT_API_TOKEN not configured. Exiting 0."
           else
             echo "status=READY" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Extract PR context
-        id: pr-context
+      - name: Checkout repository
         if: steps.secrets-check.outputs.status == 'READY'
-        run: |
-          # Resolve PR number from comment context
-          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
-            PR_NUMBER="${{ github.event.issue.number }}"
-          else
-            PR_NUMBER="${{ github.event.pull_request.number }}"
-          fi
-          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
-
-          # Extract instruction text after /mihwar trigger
-          INSTRUCTION=$(echo "${{ github.event.comment.body }}" | tail -n +2 | xargs)
-          echo "instruction=${INSTRUCTION}" >> "$GITHUB_OUTPUT"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Fetch PR diff
         id: fetch-diff
         if: steps.secrets-check.outputs.status == 'READY'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
         run: |
-          gh pr diff ${{ steps.pr-context.outputs.pr_number }} > /tmp/pr.diff 2>/dev/null || echo "" > /tmp/pr.diff
+          set -euo pipefail
+          gh pr diff "${PR_NUMBER}" > /tmp/pr.diff 2>/dev/null || : > /tmp/pr.diff
           echo "diff_path=/tmp/pr.diff" >> "$GITHUB_OUTPUT"
 
       - name: Invoke Mihwar endpoint
@@ -81,72 +116,76 @@ jobs:
         env:
           MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
           AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          INSTRUCTION: ${{ steps.pr-context.outputs.instruction }}
         run: |
-          DIFF_CONTENT=$(cat /tmp/pr.diff | head -c 32000)  # stay within token budget
-          INSTRUCTION="${{ steps.pr-context.outputs.instruction }}"
-          REPO="${{ github.repository }}"
-          PR_NUMBER="${{ steps.pr-context.outputs.pr_number }}"
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
-          PAYLOAD=$(jq -n \
-            --arg repo "${REPO}" \
-            --arg pr "${PR_NUMBER}" \
-            --arg diff "${DIFF_CONTENT}" \
-            --arg instruction "${INSTRUCTION}" \
-            --arg role "implementer" \
-            --arg boundary "scaffold_only" \
-            '{
-              role: $role,
-              boundary: $boundary,
-              repo: $repo,
-              pr_number: $pr,
-              diff: $diff,
-              instruction: $instruction
-            }')
+          diff = Path("/tmp/pr.diff").read_text(encoding="utf-8", errors="replace")[:32000]
+          payload = {
+              "role": "implementer",
+              "boundary": "scaffold_only",
+              "repo": os.environ["REPOSITORY"],
+              "pr_number": os.environ["PR_NUMBER"],
+              "diff": diff,
+              "instruction": os.environ.get("INSTRUCTION", ""),
+          }
+          Path("/tmp/mihwar-payload.json").write_text(json.dumps(payload), encoding="utf-8")
+          PY
 
-          RESPONSE=$(curl -sS --max-time 120 \
+          RESPONSE=$(curl -sS --fail-with-body --max-time 120 \
             -X POST "${MIHWAR_ENDPOINT}" \
             -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "${PAYLOAD}")
+            --data-binary @/tmp/mihwar-payload.json)
 
-          # Write raw response to file to avoid shell escaping issues
-          echo "${RESPONSE}" > /tmp/mihwar-response.json
-          PLAN=$(echo "${RESPONSE}" | jq -r '.plan // .output // .result // "No plan returned."')
-          echo "${PLAN}" > /tmp/mihwar-plan.txt
+          printf '%s' "${RESPONSE}" > /tmp/mihwar-response.json
+          jq -r '.plan // .output // .result // "No plan returned."' /tmp/mihwar-response.json > /tmp/mihwar-plan.txt
 
       - name: Post plan comment to PR
         if: steps.secrets-check.outputs.status == 'READY'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.event.comment.user.login }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
         run: |
-          PLAN=$(cat /tmp/mihwar-plan.txt)
-          ACTOR="${{ github.event.comment.user.login }}"
-          PR_NUMBER="${{ steps.pr-context.outputs.pr_number }}"
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
 
-          COMMENT_BODY=$(cat <<EOF
-          ### [mihwar][plan] — Mihwar SWE Execution
+          plan = Path("/tmp/mihwar-plan.txt").read_text(encoding="utf-8", errors="replace")
+          actor = os.environ["ACTOR"]
+          body = f"""### [mihwar][plan] — Mihwar SWE Execution
 
-          > Triggered by @${ACTOR} via \`/mihwar\`
-          > Boundary: \`scaffold_only\` · No deploy · No merge · Paired Bayyinah review required
+          > Triggered by @{actor} via `/mihwar`
+          > Boundary: `scaffold_only` · No deploy · No merge · Paired Bayyinah review required
 
-          ${PLAN}
+          {plan}
 
           ---
-          *Run \`/bayyinah\` to request Bayyinah security and policy review of this plan.*
-          EOF
-          )
-
-          gh pr comment "${PR_NUMBER}" --body "${COMMENT_BODY}"
+          *Run `/bayyinah` to request Bayyinah security and policy review of this plan.*
+          """
+          Path("/tmp/mihwar-comment.md").write_text(body, encoding="utf-8")
+          PY
+          gh pr comment "${PR_NUMBER}" --body-file /tmp/mihwar-comment.md
 
       - name: Post SKIPPED_UNVERIFIED notice
         if: steps.secrets-check.outputs.status == 'SKIPPED_UNVERIFIED'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
         run: |
-          PR_NUMBER=$([
-            "${{ github.event_name }}" == "issue_comment"
-          ] && echo "${{ github.event.issue.number }}" || echo "${{ github.event.pull_request.number }}")
+          set -euo pipefail
+          cat > /tmp/mihwar-skipped.md <<'EOF'
+          ### [mihwar][skipped]
 
-          gh pr comment "${PR_NUMBER}" --body \
-            $'### [mihwar][skipped]\n\n`MIHWAR_ENDPOINT` or `AGENT_API_TOKEN` is not configured.\nMihwar Agent **SKIPPED_UNVERIFIED** — configure secrets to enable SWE execution.' \
-            2>/dev/null || true
+          `MIHWAR_ENDPOINT` or `AGENT_API_TOKEN` is not configured.
+          Mihwar Agent **SKIPPED_UNVERIFIED** — configure secrets to enable SWE execution.
+          EOF
+          gh pr comment "${PR_NUMBER}" --body-file /tmp/mihwar-skipped.md 2>/dev/null || true
