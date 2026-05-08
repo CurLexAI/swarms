@@ -128,6 +128,16 @@ class ModalBoundaryGateTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("MODAL_URL_LEAK", result.stdout)
 
+    def test_modal_run_url_in_build_artifact_fails(self) -> None:
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            _build_fixture(tmp)
+            (tmp / "dist").mkdir(parents=True, exist_ok=True)
+            (tmp / "dist" / "bundle.js").write_text('const x = "https://x.modal.run/path";\n')
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("MODAL_URL_LEAK_BUILD_ARTIFACT", result.stdout)
+
     def test_missing_relay_fails(self) -> None:
         with TemporaryDirectory() as tmp_str:
             tmp = Path(tmp_str)

@@ -166,6 +166,23 @@ else
   warn "boundary gate not found: $ADR_GATE"
 fi
 
+
+# ── 8. Build artifact scan: no Modal domains inside client bundles ───────────
+BUILD_DIRS=(dist build .next out)
+EXISTING_BUILD_DIRS=()
+for d in "${BUILD_DIRS[@]}"; do
+  [[ -d "$d" ]] && EXISTING_BUILD_DIRS+=("$d")
+done
+
+if (( ${#EXISTING_BUILD_DIRS[@]} > 0 )); then
+  if grep -RIn --exclude-dir=node_modules --exclude-dir=.git '\.modal\.run' "${EXISTING_BUILD_DIRS[@]}" 2>/dev/null; then
+    fail "MODAL_URL_LEAK_BUILD_ARTIFACT: direct *.modal.run reference in build artifacts"
+  else
+    ok "no *.modal.run reference in build artifacts: $(IFS=, ; echo "${EXISTING_BUILD_DIRS[*]}")"
+  fi
+else
+  warn "no build artifact directories to scan (skipped)"
+fi
 if [[ "$status" == "PASS" ]]; then
   echo "[RESULT] PASS"
   exit 0
