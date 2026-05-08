@@ -1,17 +1,22 @@
 {
   "name": "curlexai-swarms",
   "version": "1.0.0",
-  "description": "CurLexAI agent operations layer — swarm tooling, review automation, and agent orchestration",
+  "description": "CurLexAI agent operations layer \u2014 swarm tooling, review automation, and agent orchestration",
   "type": "module",
   "scripts": {
     "test": "node --test tests/unifiedAgentAdapter.test.js tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js tests/unifiedAgentAdapter.nodeDispatch.integration.test.js",
-    "test:unit": "node --test tests/unifiedAgentAdapter.test.js"
+    "test:unit": "node --test tests/unifiedAgentAdapter.test.js",
+    "build": "tsc -p tsconfig.json",
+    "check:service-divergence": "node scripts/check-service-divergence.mjs",
+    "check": "npm run check:service-divergence && npm run test:unit"
   },
   "dependencies": {
     "js-yaml": "^4.1.0",
     "uuid": "^14.0.0"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.6.2",
     "typescript": "^6.0.3"
   },
   "engines": {

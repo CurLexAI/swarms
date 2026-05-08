@@ -117,7 +117,7 @@ const ALLOWED_BACKEND_HOSTS: readonly string[] = (
   process.env.PYTHON_BACKEND_ALLOWED_HOSTS ?? ""
 )
   .split(",")
-  .map((h) => h.trim())
+  .map((h: string) => h.trim())
   .filter(Boolean);
 
 // ── P0: Audit redaction ────────────────────────────────────────────────────
@@ -502,7 +502,7 @@ export class UnifiedAgentAdapter {
           request_metadata: sanitizeForAudit(safePayload.metadata ?? {})
         }
       });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error({ err: error, taskId, agentId }, "RUNTIME_FAILURE: audit task initialization failed");
       throw new Error(`RUNTIME_FAILURE: audit initialization failed for task ${taskId}`);
     }
@@ -549,7 +549,7 @@ export class UnifiedAgentAdapter {
       await AuditService.updateTaskStatus(taskId, "COMPLETED", sanitizeForAudit(verifiedResult));
 
       return { taskId, status: "success", data: verifiedResult };
-    } catch (error) {
+    } catch (error: unknown) {
       const blocker = classifyBlocker(error);
       const structuredFailure = error instanceof PythonEngineRuntimeError
         ? { failure_class: error.code, upstream_status: error.upstreamStatus, retryable: error.retryable }
@@ -656,6 +656,8 @@ export class UnifiedAgentAdapter {
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const abortController = new AbortController();
       const timeoutHandle = setTimeout(() => abortController.abort(), timeoutMs);
+      const requestId = randomUUID();
+
       try {
         const requestId = randomUUID();
         const response = await fetch(`${normalizedBackendUrl}/api/v1/workflow/query`, { method: "POST", headers: { "Content-Type": "application/json", "x-request-id": requestId, "x-task-id": taskId }, body: JSON.stringify(safeBody), signal: abortController.signal });
@@ -717,7 +719,7 @@ export class UnifiedAgentAdapter {
         context: "api",
         isAdmin: true
       });
-    } catch (error) {
+    } catch (error: unknown) {
       throw this.mapNodeExecutionError(agent.id, error);
     }
   }
