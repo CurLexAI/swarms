@@ -109,9 +109,11 @@ This ADR is satisfied while:
 - `python3 -m unittest discover -s tests` passes.
 - `python3 -m pytest -q tests/` passes (after
   `pip install -r requirements-agent.txt`).
-- `npm test` passes against the unified agent adapter test suite.
+- `npm test` passes against the unified agent adapter Node test suite.
 - `scripts/commander/modal-boundary-gate.sh .` reports no leakage of
   Modal endpoints into public-facing surfaces.
+- `scripts/commander/adr-0001-boundary-gate.sh .` reports no forbidden
+  application-repo surfaces or `autoStart` drift.
 - The four `Forbidden additions` categories above are absent from the tree.
 
 `npx tsc --noEmit` is also part of the validation set, but currently has a

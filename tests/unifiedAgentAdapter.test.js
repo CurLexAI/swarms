@@ -41,6 +41,15 @@ test("loadRegistry supports primary and fallback registry paths and accepts dict
   assert.match(source, /agents must be array or mapping/);
 });
 
+test("node dispatcher CONFIG_NOT_FOUND is limited to the canonical agentRunner module", () => {
+  const source = fs.readFileSync(adapterPath, 'utf8');
+
+  assert.match(source, /private isNodeRunnerModuleNotFound\(error: unknown\)/);
+  assert.match(source, /if \(this\.isNodeRunnerModuleNotFound\(error\)\) \{/);
+  assert.match(source, /CONFIG_NOT_FOUND: Node dispatcher module missing for agent/);
+  assert.doesNotMatch(source, /errorCode === "MISSING_API_KEY" \|\| errorCode === "ERR_MODULE_NOT_FOUND"/);
+});
+
 test("live .agents/config/agents.yaml declares mihwar/bayyinah and matches Modal deployment", () => {
   const cfgPath = path.join(process.cwd(), '.agents/config/agents.yaml');
   const raw = fs.readFileSync(cfgPath, 'utf8');

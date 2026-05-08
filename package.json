@@ -9,11 +9,12 @@
     "test:security": "node --test tests/sovereignCyberRadar.test.js",
     "build": "tsc -p tsconfig.json",
     "check:service-divergence": "node scripts/check-service-divergence.mjs",
-    "check": "npm run check:service-divergence && npm run test:unit",
+    "check:boundary": "bash scripts/commander/adr-0001-boundary-gate.sh .",
+    "check": "npm run check:service-divergence && npm run test:unit && npm run check:boundary",
     "security:radar:url": "tsx src/security/sovereignCyberRadar.ts scan-url",
     "security:radar:text": "tsx src/security/sovereignCyberRadar.ts scan-text",
     "security:radar:command": "tsx src/security/sovereignCyberRadar.ts scan-command",
-    "security:radar:simulate": "tsx src/security/sovereignCyberRadar.ts simulate"
+    "security:radar:simulate": "tsx src/security/sovereignCyberRadar.ts simulate",
     "integrity:frontend": "node scripts/generate-frontend-integrity.mjs"
   },
   "dependencies": {

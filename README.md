@@ -24,7 +24,8 @@ CurLexAI `swarms` is the private operator repository for Qarar/Bayyinah/Mihwar a
 - `.agents/skills/codex-commander/references/commander-report-template.md` — required status-report format.
 - `docs/secrets-policy.md` — required secrets and rotation posture.
 - `docs/launch-evidence/agent-launch.md` — launch-readiness evidence template; keep pending until evidence exists.
-- `scripts/commander/modal-boundary-gate.sh` — blocks Modal endpoint or SDK leakage into public/client surfaces.
+- `scripts/commander/modal-boundary-gate.sh` — blocks Modal endpoint or SDK leakage into public/client surfaces and chains ADR-0001 boundary regression checks.
+- `scripts/commander/adr-0001-boundary-gate.sh` — fails when forbidden application-repo surfaces drift into `swarms`.
 - `scripts/commander/agent-presence-gate.sh` — checks configured agent inventory and runtime secret presence.
 - `scripts/commander/p0-security-test-gate.sh` — runs P0 Bayyinah/router security policy tests.
 
@@ -100,9 +101,12 @@ npx tsc --noEmit
 ```bash
 bash scripts/commander/p0-security-test-gate.sh .
 bash scripts/commander/modal-boundary-gate.sh .
+bash scripts/commander/adr-0001-boundary-gate.sh .
 bash scripts/commander/agent-presence-gate.sh .
 bash .agents/skills/codex-commander/scripts/codex_commander_gate.sh .
 ```
+
+`npm run check` also executes the service-divergence unit checks and the ADR-0001 boundary regression gate.
 
 ### Repository boundary
 

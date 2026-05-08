@@ -152,6 +152,18 @@ else
   warn "workflow not found: $WF"
 fi
 
+# ── 7. ADR-0001 boundary regression gate ────────────────────────────────────
+ADR_GATE=scripts/commander/adr-0001-boundary-gate.sh
+if [[ -f "$ADR_GATE" ]]; then
+  if bash "$ADR_GATE" "$ROOT_DIR"; then
+    ok "ADR-0001 boundary gate passed"
+  else
+    fail "ADR_0001_BOUNDARY_REGRESSION"
+  fi
+else
+  warn "boundary gate not found: $ADR_GATE"
+fi
+
 if [[ "$status" == "PASS" ]]; then
   echo "[RESULT] PASS"
   exit 0
