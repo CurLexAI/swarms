@@ -23,7 +23,8 @@ const MAX_TENANT_ID_LENGTH = 128;
 const MAX_INPUT_LENGTH = 8000;
 const DEFAULT_PYTHON_ENGINE_TIMEOUT_MS = 15000;
 const MAX_BACKEND_ERROR_SNIPPET_LENGTH = 512;
-const DEFAULT_PYTHON_ENGINE_MAX_RETRIES = 2;
+// Total outbound attempts to the Python backend (initial request + retries).
+const DEFAULT_PYTHON_ENGINE_MAX_ATTEMPTS = 2;
 const DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS = 250;
 const RETRYABLE_HTTP_STATUSES = new Set([502, 503, 504]);
 const CLIENT_SAFE_PYTHON_ENGINE_ERROR_PATTERN = /^Python engine request failed with status \d+\. Please try again later(?: \(ref: [0-9a-f]{8}\))?\.$/i;
@@ -126,7 +127,7 @@ class DefaultPolicyService {
 function getPythonEngineMaxAttempts() {
     const parsed = Number(process.env.PYTHON_BACKEND_MAX_ATTEMPTS);
     if (!Number.isFinite(parsed) || parsed < 1)
-        return DEFAULT_PYTHON_ENGINE_MAX_RETRIES;
+        return DEFAULT_PYTHON_ENGINE_MAX_ATTEMPTS;
     return Math.floor(parsed);
 }
 function sleep(ms) {
@@ -480,6 +481,7 @@ export class UnifiedAgentAdapter {
         if (!urlValidation.valid)
             throw new Error(`CONFIG_NOT_FOUND: ${urlValidation.reason}`);
         const timeoutMs = getPythonEngineTimeoutMs();
+        // Contract: PYTHON_BACKEND_MAX_ATTEMPTS is the total number of outbound attempts.
         const maxAttempts = getPythonEngineMaxAttempts();
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
             const abortController = new AbortController();

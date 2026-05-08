@@ -308,3 +308,91 @@ test("UnifiedAgentAdapter.executeAgent rejects successful non-JSON python respon
   assert.equal(updateTaskStatusCalls[0][1], "FAILED");
   assert.match(updateTaskStatusCalls[0][2].error, /Python engine request failed with status 200/);
 });
+
+test("UnifiedAgentAdapter.executeAgent retries retryable 503 responses up to PYTHON_BACKEND_MAX_ATTEMPTS total attempts", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalMaxAttempts = process.env.PYTHON_BACKEND_MAX_ATTEMPTS;
+
+  const updateTaskStatusCalls = [];
+  let fetchCalls = 0;
+  global.fetch = async () => {
+    fetchCalls += 1;
+    return {
+      ok: false,
+      status: 503,
+      text: async () => "temporarily unavailable"
+    };
+  };
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => updateTaskStatusCalls.push(args);
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    if (originalMaxAttempts === undefined) delete process.env.PYTHON_BACKEND_MAX_ATTEMPTS;
+    else process.env.PYTHON_BACKEND_MAX_ATTEMPTS = originalMaxAttempts;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "3";
+
+  await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"));
+  assert.equal(fetchCalls, 3);
+  assert.equal(updateTaskStatusCalls.length, 1);
+});
+
+test("UnifiedAgentAdapter.executeAgent performs a single outbound attempt for retryable 503 when PYTHON_BACKEND_MAX_ATTEMPTS=1", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalMaxAttempts = process.env.PYTHON_BACKEND_MAX_ATTEMPTS;
+
+  let fetchCalls = 0;
+  global.fetch = async () => {
+    fetchCalls += 1;
+    return { ok: false, status: 503, text: async () => "temporarily unavailable" };
+  };
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    if (originalMaxAttempts === undefined) delete process.env.PYTHON_BACKEND_MAX_ATTEMPTS;
+    else process.env.PYTHON_BACKEND_MAX_ATTEMPTS = originalMaxAttempts;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "1";
+
+  await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"));
+  assert.equal(fetchCalls, 1);
+});
