@@ -32,9 +32,11 @@ test("loadRegistry logs loaded and reasoning-enabled counters for mixed definiti
 test("loadRegistry supports primary and fallback registry paths and accepts dict-keyed agents", () => {
   const source = fs.readFileSync(adapterPath, 'utf8');
 
-  assert.match(source, /path\.join\(process\.cwd\(\),\s*"\.agents\/config\/agents\.yaml"\)/);
-  assert.match(source, /this\.fallbackRegistryPath = path\.join\(process\.cwd\(\),\s*"agents\/registry\.yaml"\);/);
-  assert.match(source, /CONFIG_NOT_FOUND: Required registry file was not found at \$\{this\.registryPath\} or \$\{this\.fallbackRegistryPath\}/);
+  assert.match(source, /path\.resolve\(__dirname,\s*"\.\.\/\.\.\/\.agents\/config\/agents\.yaml"\)/);
+  assert.match(source, /process\.env\.AGENT_REGISTRY_PATH\?\.trim\(\)/);
+  assert.match(source, /registryPathSource = resolvedEnvRegistryPath \? "env" : "default"/);
+  assert.match(source, /CONFIG_NOT_FOUND: Required registry file was not found at \$\{selectedRegistryPath\}/);
+  assert.match(source, /SYNTAX_FAILURE: Failed to parse registry file at \$\{selectedRegistryPath\}/);
   assert.match(source, /if \(Array\.isArray\(rawAgents\)\) \{/);
   assert.match(source, /Object\.entries\(rawAgents as Record<string, Record<string, unknown>>\)/);
   assert.match(source, /\(r\.id as string \| undefined\) \?\? key/);
