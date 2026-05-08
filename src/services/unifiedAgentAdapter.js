@@ -37,12 +37,15 @@ const RUNTIME_CAPABILITY_MAP = {
     hybrid: "node_execution",
 };
 // ── P0: Backend URL allowlist ──────────────────────────────────────────────
-// When PYTHON_BACKEND_ALLOWED_HOSTS is set, only those hostnames are permitted
-// and HTTPS is enforced. Unset = no strict validation (dev/test only).
-const ALLOWED_BACKEND_HOSTS = (process.env.PYTHON_BACKEND_ALLOWED_HOSTS ?? "")
-    .split(",")
-    .map((h) => h.trim())
-    .filter(Boolean);
+function getAllowedBackendHosts() {
+    return (process.env.PYTHON_BACKEND_ALLOWED_HOSTS ?? "")
+        .split(",")
+        .map((h) => h.trim().toLowerCase())
+        .filter(Boolean);
+}
+function isStrictBackendAllowlistEnforced() {
+    return process.env.NODE_ENV === "production" || process.env.ENFORCE_BACKEND_ALLOWLIST === "true";
+}
 // ── P0: Audit redaction ────────────────────────────────────────────────────
 const AUDIT_REDACTION_VERSION = "1";
 const MAX_AUDIT_STRING_LENGTH = 500;
@@ -74,6 +77,11 @@ function sanitizeForAudit(value) {
     return value;
 }
 function validateBackendUrl(url) {
+    const allowedBackendHosts = getAllowedBackendHosts();
+    const strictAllowlistMode = isStrictBackendAllowlistEnforced();
+    if (strictAllowlistMode && allowedBackendHosts.length === 0) {
+        return { valid: false, reason: "PYTHON_BACKEND_ALLOWED_HOSTS is required when strict backend allowlist mode is enabled" };
+    }
     let parsed;
     try {
         parsed = new URL(url);
@@ -81,11 +89,11 @@ function validateBackendUrl(url) {
     catch {
         return { valid: false, reason: "PYTHON_BACKEND_URL is not a valid URL" };
     }
-    if (ALLOWED_BACKEND_HOSTS.length > 0) {
+    if (strictAllowlistMode) {
         if (parsed.protocol !== "https:") {
             return { valid: false, reason: "PYTHON_BACKEND_URL must use HTTPS" };
         }
-        if (!ALLOWED_BACKEND_HOSTS.includes(parsed.hostname)) {
+        if (!allowedBackendHosts.includes(parsed.hostname.toLowerCase())) {
             return {
                 valid: false,
                 reason: `PYTHON_BACKEND_URL hostname not in allowlist`,
