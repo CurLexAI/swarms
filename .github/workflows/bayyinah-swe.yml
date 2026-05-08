@@ -23,7 +23,9 @@ jobs:
     name: Bayyinah — SWE Review
     runs-on: ubuntu-latest
 
-    # Only fire on /bayyinah trigger from OWNER or MEMBER
+    # Only fire on /bayyinah trigger from OWNER or MEMBER.
+    # The body is parsed from the event payload file in shell steps; do not
+    # interpolate github.event.comment.body into run scripts.
     if: |
       (
         github.event_name == 'issue_comment' ||
@@ -36,69 +38,87 @@ jobs:
       )
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Extract PR context
+        id: pr-context
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+          event_name = os.environ["EVENT_NAME"]
+          comment = event.get("comment") or {}
+          body = str(comment.get("body") or "")
+          lines = body.splitlines()
+          focus = "\n".join(lines[1:]).strip() if lines else ""
+
+          if event_name == "issue_comment":
+              issue = event.get("issue") or {}
+              if not issue.get("pull_request"):
+                  print("is_pr=false")
+                  print("pr_number=")
+              else:
+                  print("is_pr=true")
+                  print(f"pr_number={int(issue['number'])}")
+          else:
+              pr = event.get("pull_request") or {}
+              print("is_pr=true")
+              print(f"pr_number={int(pr['number'])}")
+
+          print("focus<<BAYYINAH_FOCUS_EOF")
+          print(focus)
+          print("BAYYINAH_FOCUS_EOF")
+          PY
+
+      - name: Stop when comment is not on a PR
+        if: steps.pr-context.outputs.is_pr != 'true'
+        run: |
+          echo "::notice::/bayyinah was not posted on a pull request. Nothing to do."
 
       - name: Validate required secrets
         id: secrets-check
+        if: steps.pr-context.outputs.is_pr == 'true'
+        env:
+          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
         run: |
-          if [[ -z "${{ secrets.BAYYINAH_ENDPOINT }}" || -z "${{ secrets.AGENT_API_TOKEN }}" ]]; then
+          set -euo pipefail
+          if [[ -z "${BAYYINAH_ENDPOINT}" || -z "${AGENT_API_TOKEN}" ]]; then
             echo "status=SKIPPED_UNVERIFIED" >> "$GITHUB_OUTPUT"
             echo "::warning::Bayyinah Agent UNVERIFIED — BAYYINAH_ENDPOINT or AGENT_API_TOKEN not configured. Exiting 0."
           else
             echo "status=READY" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Extract PR context
-        id: pr-context
+      - name: Checkout repository
         if: steps.secrets-check.outputs.status == 'READY'
-        run: |
-          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
-            PR_NUMBER="${{ github.event.issue.number }}"
-          else
-            PR_NUMBER="${{ github.event.pull_request.number }}"
-          fi
-          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
-
-          # Extract optional focus instruction after /bayyinah
-          FOCUS=$(echo "${{ github.event.comment.body }}" | tail -n +2 | xargs)
-          echo "focus=${FOCUS}" >> "$GITHUB_OUTPUT"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Fetch PR diff
         id: fetch-diff
         if: steps.secrets-check.outputs.status == 'READY'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
         run: |
-          gh pr diff ${{ steps.pr-context.outputs.pr_number }} > /tmp/pr.diff 2>/dev/null || echo "" > /tmp/pr.diff
+          set -euo pipefail
+          gh pr diff "${PR_NUMBER}" > /tmp/pr.diff 2>/dev/null || : > /tmp/pr.diff
 
       - name: Fetch PR metadata
         id: fetch-meta
         if: steps.secrets-check.outputs.status == 'READY'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
         run: |
-          pr_number="${{ github.event.issue.number }}"
-          head_sha=$(gh api "repos/${{ github.repository }}/pulls/${pr_number}" --jq .head.sha)
-          base_ref=$(gh api "repos/${{ github.repository }}/pulls/${pr_number}" --jq .base.ref)
-          echo "number=${pr_number}"   >> "$GITHUB_OUTPUT"
-          echo "head_sha=${head_sha}"  >> "$GITHUB_OUTPUT"
-          echo "base_ref=${base_ref}"  >> "$GITHUB_OUTPUT"
-
-      - name: Fetch PR head commit
-        if: github.event.issue.pull_request != null
-        run: |
-          git fetch origin "refs/pull/${{ steps.pr.outputs.number }}/head"
-          git cat-file -e "${{ steps.pr.outputs.head_sha }}^{commit}"
-
-      - name: Set up Python
-        if: github.event.issue.pull_request != null
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-          gh pr view ${{ steps.pr-context.outputs.pr_number }} \
+          set -euo pipefail
+          gh pr view "${PR_NUMBER}" \
             --json title,body,headRefName,baseRefName,files \
             > /tmp/pr-meta.json 2>/dev/null || echo '{}' > /tmp/pr-meta.json
 
@@ -108,63 +128,57 @@ jobs:
         env:
           BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
           AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          FOCUS: ${{ steps.pr-context.outputs.focus }}
         run: |
-          DIFF_CONTENT=$(cat /tmp/pr.diff | head -c 32000)
-          META_CONTENT=$(cat /tmp/pr-meta.json | head -c 8000)
-          FOCUS="${{ steps.pr-context.outputs.focus }}"
-          REPO="${{ github.repository }}"
-          PR_NUMBER="${{ steps.pr-context.outputs.pr_number }}"
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
-          PAYLOAD=$(jq -n \
-            --arg repo "${REPO}" \
-            --arg pr "${PR_NUMBER}" \
-            --arg diff "${DIFF_CONTENT}" \
-            --arg meta "${META_CONTENT}" \
-            --arg focus "${FOCUS}" \
-            --arg role "reviewer" \
-            --argjson checks '{
-              "secrets_leakage": true,
-              "prompt_injection_surface": true,
-              "tenant_isolation": true,
-              "modal_boundary": true,
-              "policy_compliance": true,
-              "merge_safety": true
-            }' \
-            '{
-              role: $role,
-              repo: $repo,
-              pr_number: $pr,
-              diff: $diff,
-              pr_metadata: $meta,
-              focus: $focus,
-              checks: $checks
-            }')
+          diff = Path("/tmp/pr.diff").read_text(encoding="utf-8", errors="replace")[:32000]
+          meta = Path("/tmp/pr-meta.json").read_text(encoding="utf-8", errors="replace")[:8000]
+          payload = {
+              "role": "reviewer",
+              "repo": os.environ["REPOSITORY"],
+              "pr_number": os.environ["PR_NUMBER"],
+              "diff": diff,
+              "pr_metadata": meta,
+              "focus": os.environ.get("FOCUS", ""),
+              "checks": {
+                  "secrets_leakage": True,
+                  "prompt_injection_surface": True,
+                  "tenant_isolation": True,
+                  "modal_boundary": True,
+                  "policy_compliance": True,
+                  "merge_safety": True,
+              },
+          }
+          Path("/tmp/bayyinah-payload.json").write_text(json.dumps(payload), encoding="utf-8")
+          PY
 
-          RESPONSE=$(curl -sS --max-time 120 \
+          RESPONSE=$(curl -sS --fail-with-body --max-time 120 \
             -X POST "${BAYYINAH_ENDPOINT}" \
             -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "${PAYLOAD}")
+            --data-binary @/tmp/bayyinah-payload.json)
 
-          echo "${RESPONSE}" > /tmp/bayyinah-response.json
-          REVIEW=$(echo "${RESPONSE}" | jq -r '.review // .output // .result // "No review returned."')
-          echo "${REVIEW}" > /tmp/bayyinah-review.txt
-
-          # Extract verdict for job summary
-          VERDICT=$(echo "${RESPONSE}" | jq -r '.verdict // "UNVERIFIED"')
+          printf '%s' "${RESPONSE}" > /tmp/bayyinah-response.json
+          jq -r '.review // .output // .result // "No review returned."' /tmp/bayyinah-response.json > /tmp/bayyinah-review.txt
+          VERDICT=$(jq -r '.verdict // "UNVERIFIED"' /tmp/bayyinah-response.json)
           echo "verdict=${VERDICT}" >> "$GITHUB_OUTPUT"
 
       - name: Post review comment to PR
         if: steps.secrets-check.outputs.status == 'READY'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.event.comment.user.login }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          VERDICT: ${{ steps.bayyinah-invoke.outputs.verdict }}
         run: |
-          REVIEW=$(cat /tmp/bayyinah-review.txt)
-          VERDICT="${{ steps.bayyinah-invoke.outputs.verdict }}"
-          ACTOR="${{ github.event.comment.user.login }}"
-          PR_NUMBER="${{ steps.pr-context.outputs.pr_number }}"
-
-          # Choose verdict badge
+          set -euo pipefail
           case "${VERDICT}" in
             APPROVE)          BADGE="✅ APPROVE" ;;
             REQUEST_CHANGES)  BADGE="🟡 REQUEST_CHANGES" ;;
@@ -172,20 +186,26 @@ jobs:
             *)                BADGE="⚪ UNVERIFIED" ;;
           esac
 
-          COMMENT_BODY=$(cat <<EOF
-          ### [bayyinah][review] — ${BADGE}
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
 
-          > On-demand re-review triggered by @${ACTOR} via \`/bayyinah\`
+          review = Path("/tmp/bayyinah-review.txt").read_text(encoding="utf-8", errors="replace")
+          actor = os.environ["ACTOR"]
+          badge = os.environ["BADGE"]
+          body = f"""### [bayyinah][review] — {badge}
+
+          > On-demand re-review triggered by @{actor} via `/bayyinah`
           > Checks: secrets · prompt surfaces · tenant isolation · Modal boundary · policy · merge safety
 
-          ${REVIEW}
+          {review}
 
           ---
           *Bayyinah is review-only and does not modify source. Unresolved CRITICAL or HIGH findings block merge.*
-          EOF
-          )
-
-          gh pr comment "${PR_NUMBER}" --body "${COMMENT_BODY}"
+          """
+          Path("/tmp/bayyinah-comment.md").write_text(body, encoding="utf-8")
+          PY
+          gh pr comment "${PR_NUMBER}" --body-file /tmp/bayyinah-comment.md
 
       - name: Fail job if verdict is BLOCK
         if: |
@@ -199,11 +219,13 @@ jobs:
         if: steps.secrets-check.outputs.status == 'SKIPPED_UNVERIFIED'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
         run: |
-          PR_NUMBER=$([
-            "${{ github.event_name }}" == "issue_comment"
-          ] && echo "${{ github.event.issue.number }}" || echo "${{ github.event.pull_request.number }}")
+          set -euo pipefail
+          cat > /tmp/bayyinah-skipped.md <<'EOF'
+          ### [bayyinah][skipped]
 
-          gh pr comment "${PR_NUMBER}" --body \
-            $'### [bayyinah][skipped]\n\n`BAYYINAH_ENDPOINT` or `AGENT_API_TOKEN` is not configured.\nBayyinah Agent **SKIPPED_UNVERIFIED** — configure secrets to enable on-demand security review.' \
-            2>/dev/null || true
+          `BAYYINAH_ENDPOINT` or `AGENT_API_TOKEN` is not configured.
+          Bayyinah Agent **SKIPPED_UNVERIFIED** — configure secrets to enable on-demand security review.
+          EOF
+          gh pr comment "${PR_NUMBER}" --body-file /tmp/bayyinah-skipped.md 2>/dev/null || true
