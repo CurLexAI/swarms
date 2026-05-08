@@ -13,9 +13,13 @@ Codex Security scans GitHub repositories connected through [Codex Cloud](https:/
 
 Go to [Codex environments](https://chatgpt.com/codex/settings/environments) and check whether the repository already has an environment. If it doesn't, create one there before continuing.
 
+- [Open environments](https://chatgpt.com/codex/settings/environments)
+
 ## 2. New security scan
 
 After the environment exists, go to [Create a security scan](https://chatgpt.com/codex/security/scans/new) and choose the repository you just connected.
+
+- [Create a security scan](https://chatgpt.com/codex/security/scans/new)
 
 Codex Security scans repositories from newest commits backward first. It uses this to build and refresh scan context as new commits come in.
 
@@ -34,7 +38,11 @@ When you create the scan, Codex Security first runs a commit-level security pass
 The initial backfill can take a few hours, especially for larger repositories or longer windows.
 If findings aren't visible right away, this is expected. Wait for the initial scan to finish before opening a ticket or troubleshooting.
 
+Initial scan setup is automatic and thorough. This can take a few hours. Don’t be alarmed if the first set of findings is delayed.
+
 ## 4. Review scans and improve the threat model
+
+- [Review scans](https://chatgpt.com/codex/security/scans)
 
 When the initial scan finishes, open the scan and review the threat model that was generated.
 After initial findings appear, update the threat model so it matches your architecture, trust boundaries, and business context.
@@ -51,6 +59,8 @@ For a deeper explanation of threat models and how they affect criticality and tr
 
 After the initial backfill completes, review findings from the **Findings** view.
 
+- [Open findings](https://chatgpt.com/codex/security/findings)
+
 You can use two views:
 
 - **Recommended Findings**: an evolving top 10 list of the most critical issues in the repo
@@ -66,6 +76,8 @@ Click a finding to open its detail page, which includes:
 - validation steps and validation output
 
 You can review each finding and create a PR directly from the finding detail page.
+
+- [Review findings and create a PR](https://chatgpt.com/codex/security/findings)
 
 ## Related docs
 
