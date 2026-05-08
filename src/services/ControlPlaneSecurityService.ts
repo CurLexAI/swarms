@@ -10,6 +10,8 @@ export interface AuthenticatedPrincipal {
   mfaVerifiedAt: string;
   sessionId: string;
   ipAddress: string;
+  authMethod?: "cloudflare_access";
+  claims?: Record<string, unknown>;
 }
 
 export interface SessionPolicy {
@@ -53,6 +55,12 @@ const DEFAULT_SESSION_POLICY: SessionPolicy = {
 
 export class ControlPlaneSecurityService {
   private readonly authPath = "/enterprise/control";
+  private readonly acceptedAccessIssuers = new Set(
+    (process.env.CF_ACCESS_TRUSTED_ISSUERS ?? "")
+      .split(",")
+      .map((issuer) => issuer.trim())
+      .filter(Boolean)
+  );
 
   getControlAuthPath(): string {
     return this.authPath;
@@ -65,6 +73,34 @@ export class ControlPlaneSecurityService {
 
     if (protocol !== "OIDC" && protocol !== "SAML") {
       throw new Error("AUTH_INVALID: Unsupported enterprise SSO protocol");
+    }
+  }
+
+  enforceCloudflareAccess(headers: Record<string, string | undefined>, principal: AuthenticatedPrincipal): void {
+    const accessJwt = headers["cf-access-jwt-assertion"];
+    if (!accessJwt) {
+      throw new Error("AUTH_MISSING: Cloudflare Access token is required for control-plane access");
+    }
+
+    if (principal.authMethod !== "cloudflare_access") {
+      throw new Error("AUTH_INVALID: control-plane requires Cloudflare Access identity context");
+    }
+
+    const issuer = typeof principal.claims?.iss === "string" ? principal.claims.iss : "";
+    if (this.acceptedAccessIssuers.size > 0 && !this.acceptedAccessIssuers.has(issuer)) {
+      throw new Error("AUTH_INVALID: Cloudflare Access issuer is not trusted");
+    }
+
+    const amrClaim = principal.claims?.amr;
+    const hasMfaInAmr = Array.isArray(amrClaim)
+      && amrClaim.some((value) => String(value).toLowerCase() === "mfa");
+    const acrClaim = typeof principal.claims?.acr === "string"
+      ? principal.claims.acr.toLowerCase()
+      : "";
+    const hasMfaInAcr = acrClaim.includes("mfa");
+
+    if (!hasMfaInAmr && !hasMfaInAcr) {
+      throw new Error("AUTH_INVALID: MFA claim is required by Cloudflare Access policy");
     }
   }
 
