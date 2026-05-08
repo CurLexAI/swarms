@@ -1,16 +1,42 @@
-const write = (level, message, meta) => {
+const formatMessage = (value) => {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value instanceof Error) {
+    return value.message;
+  }
+
+  return String(value);
+};
+
+const isStructuredMeta = (value) =>
+  value !== null && typeof value === "object" && !(value instanceof Error);
+
+const write = (level, metaOrMessage, maybeMessage) => {
   const sink = level === "error" ? console.error : console.log;
-  if (meta === undefined) {
-    sink(`[${level.toUpperCase()}] ${message}`);
+  const prefix = `[${level.toUpperCase()}]`;
+
+  if (maybeMessage === undefined) {
+    sink(`${prefix} ${formatMessage(metaOrMessage)}`);
     return;
   }
-  sink(`[${level.toUpperCase()}] ${message}`, meta);
+
+  if (isStructuredMeta(metaOrMessage)) {
+    sink(`${prefix} ${formatMessage(maybeMessage)}`, metaOrMessage);
+    return;
+  }
+
+  sink(`${prefix} ${formatMessage(metaOrMessage)}`, maybeMessage);
 };
 
 const logger = {
-  info: (message, meta) => write("info", message, meta),
-  warn: (message, meta) => write("warn", message, meta),
-  error: (message, meta) => write("error", message, meta),
+  info: (metaOrMessage, maybeMessage) =>
+    write("info", metaOrMessage, maybeMessage),
+  warn: (metaOrMessage, maybeMessage) =>
+    write("warn", metaOrMessage, maybeMessage),
+  error: (metaOrMessage, maybeMessage) =>
+    write("error", metaOrMessage, maybeMessage),
 };
 
 export default logger;
