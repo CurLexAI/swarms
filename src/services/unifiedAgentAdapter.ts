@@ -237,13 +237,22 @@ class PythonEngineRuntimeError extends Error {
   code: RuntimeFailureClass;
   upstreamStatus: number | null;
   retryable: boolean;
-  constructor(message: string, code: RuntimeFailureClass, upstreamStatus: number | null, retryable: boolean, cause?: unknown) {
+
+  constructor(
+    message: string,
+    code: RuntimeFailureClass,
+    upstreamStatus: number | null,
+    retryable: boolean,
+    cause?: unknown
+  ) {
     super(message);
     this.name = "PythonEngineRuntimeError";
     this.code = code;
     this.upstreamStatus = upstreamStatus;
     this.retryable = retryable;
-    if (cause !== undefined) this.cause = cause;
+    if (cause !== undefined) {
+      this.cause = cause;
+    }
   }
 }
 
