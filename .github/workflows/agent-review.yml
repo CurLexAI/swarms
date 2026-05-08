@@ -33,6 +33,9 @@ jobs:
       - name: Modal boundary gate
         run: bash scripts/commander/modal-boundary-gate.sh .
 
+      - name: Public surface boundary gate
+        run: bash scripts/commander/public-surface-boundary-gate.sh .
+
       # 2. Python + dependencies
       - name: Set up Python
         uses: actions/setup-python@v6
