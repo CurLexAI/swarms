@@ -357,3 +357,83 @@ test("UnifiedAgentAdapter marks task FAILED when node dispatch throws runtime fa
   assert.equal(taskUpdates[0][1], "FAILED");
   assert.match(taskUpdates[0][2].error, /^RUNTIME_FAILURE: Node runtime execution failed for agent node-agent:/);
 });
+
+test("UnifiedAgentAdapter reports CONFIG_NOT_FOUND when node dispatcher module is unavailable", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter, NodeExecutionDispatchError } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const taskUpdates = [];
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => {
+    taskUpdates.push(args);
+  };
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
+      }
+    ],
+    [
+      "hybrid-agent",
+      {
+        id: "hybrid-agent",
+        name: "Hybrid Agent",
+        role: "test",
+        runtime: "hybrid",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
+      }
+    ]
+  ]);
+
+  for (const agentId of ["node-agent", "hybrid-agent"]) {
+    await assert.rejects(
+      () =>
+        adapter.executeAgent(
+          agentId,
+          "user-1",
+          {
+            tenant_id: "tenant-1",
+            input: "dispatch from missing module",
+            metadata: { trace_id: `${agentId}-missing-runner` }
+          },
+          ["scope:execute"],
+          "tenant-1"
+        ),
+      (error) => {
+        assert.equal(error instanceof NodeExecutionDispatchError, true);
+        assert.equal(error.code, "CONFIG_NOT_FOUND");
+        assert.equal(error.classification, "CONFIG_FAILURE");
+        return true;
+      }
+    );
+  }
+
+  assert.equal(taskUpdates.length, 2);
+  for (const update of taskUpdates) {
+    assert.equal(update[1], "FAILED");
+    assert.match(update[2].error, /^CONFIG_NOT_FOUND:/);
+  }
+});

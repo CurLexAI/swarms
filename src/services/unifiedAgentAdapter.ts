@@ -759,16 +759,7 @@ export class UnifiedAgentAdapter {
         ? error.code
         : undefined;
 
-
-    if (this.isNodeRunnerModuleNotFound(error)) {
-      return new NodeExecutionDispatchError(
-        agentId,
-        "CONFIG_NOT_FOUND",
-        `CONFIG_NOT_FOUND: Node runner module ../runners/agentRunner.js is missing for agent ${agentId}`,
-        error
-      );
-    }
-    if (errorCode === "MISSING_API_KEY") {
+    if (errorCode === "MISSING_API_KEY" || errorCode === "ERR_MODULE_NOT_FOUND") {
       return new NodeExecutionDispatchError(
         agentId,
         "CONFIG_NOT_FOUND",
