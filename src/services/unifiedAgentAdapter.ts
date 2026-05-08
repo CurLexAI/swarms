@@ -710,7 +710,7 @@ export class UnifiedAgentAdapter {
     };
 
     try {
-      const runAgent = await this.getNodeDispatcher(agent.id);
+      const runAgent = await this.getNodeDispatcher();
 
       return await runAgent({
         agentId: agent.id,
@@ -724,14 +724,9 @@ export class UnifiedAgentAdapter {
     }
   }
 
-
-  private async getNodeDispatcher(agentId: string) {
-    try {
-      const nodeRuntimeModule = await import("../runners/agentRunner.js");
-      return nodeRuntimeModule.runAgent;
-    } catch (error: unknown) {
-      throw this.mapNodeExecutionError(agentId, error);
-    }
+  private async getNodeDispatcher() {
+    const nodeRuntimeModule = await import("../runners/agentRunner.js");
+    return nodeRuntimeModule.runAgent;
   }
 
   private isNodeRunnerModuleNotFound(error: unknown) {
@@ -743,27 +738,46 @@ export class UnifiedAgentAdapter {
     const message = error.message.toLowerCase();
     const missingRunnerPath = "../runners/agentrunner.js";
     const missingRunnerUrl = "/runners/agentrunner.js";
+    const refersToRunner =
+      message.includes(missingRunnerPath) ||
+      message.includes(missingRunnerUrl) ||
+      (typeof err.url === "string" && err.url.toLowerCase().includes(missingRunnerUrl));
+
+    if (!refersToRunner) {
+      return false;
+    }
 
     return (
       err.code === "ERR_MODULE_NOT_FOUND" ||
-      (err.code === "MODULE_NOT_FOUND" && message.includes("agentrunner.js")) ||
-      (message.includes("cannot find module") && message.includes(missingRunnerPath)) ||
-      (message.includes("cannot find module") && message.includes(missingRunnerUrl)) ||
-      (typeof err.url === "string" && err.url.toLowerCase().includes(missingRunnerUrl))
+      err.code === "MODULE_NOT_FOUND" ||
+      message.includes("cannot find module")
     );
   }
 
   private mapNodeExecutionError(agentId: string, error: unknown) {
+    if (error instanceof NodeExecutionDispatchError) {
+      return error;
+    }
+
     const errorCode =
       typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
         ? error.code
         : undefined;
 
-    if (errorCode === "MISSING_API_KEY" || errorCode === "ERR_MODULE_NOT_FOUND") {
+    if (errorCode === "MISSING_API_KEY") {
       return new NodeExecutionDispatchError(
         agentId,
         "CONFIG_NOT_FOUND",
         `CONFIG_NOT_FOUND: Node runtime configuration missing for agent ${agentId}`,
+        error
+      );
+    }
+
+    if (this.isNodeRunnerModuleNotFound(error)) {
+      return new NodeExecutionDispatchError(
+        agentId,
+        "CONFIG_NOT_FOUND",
+        `CONFIG_NOT_FOUND: Node dispatcher module missing for agent ${agentId}`,
         error
       );
     }
