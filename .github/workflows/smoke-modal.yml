@@ -1,0 +1,200 @@
+# smoke-modal.yml — manually-triggered Modal smoke probe.
+#
+# Reads BAYYINAH_ENDPOINT / MIHWAR_ENDPOINT / AGENT_API_TOKEN from
+# repository Actions secrets. If any are missing, exits with a clear
+# UNVERIFIED notice and sends no probe. If present, sends a minimal
+# POST to each enabled endpoint and reports HTTP status + response
+# shape in the job summary.
+#
+# Boundary (per ADR-0001 / ADR-0002):
+# - workflow_dispatch only — no automatic trigger, no `/slash` command.
+# - Read-only probes; no PR review, no commit, no merge.
+# - Endpoint URLs and tokens are masked from logs via ::add-mask::.
+# - Response bodies are NOT echoed; only HTTP status + presence-of-key
+#   metadata is reported.
+# - No auto-start, no broad swarm enablement, no production-readiness
+#   claim. A successful probe yields a VERIFIED label on the
+#   smoke-only path; downstream evidence (model-runtime-evidence.md)
+#   must be updated in a separate PR.
+
+name: Modal Smoke Probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe_bayyinah:
+        description: "Probe BAYYINAH_ENDPOINT"
+        type: boolean
+        default: true
+      probe_mihwar:
+        description: "Probe MIHWAR_ENDPOINT"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Modal smoke probe
+    runs-on: ubuntu-latest
+    # Cold start for vLLM with DeepSeek-Coder-V2 (236B MoE) or
+    # Qwen2.5-Coder-32B can take several minutes; cap matches Modal
+    # web function timeouts (180s Bayyinah, 360s Mihwar) plus margin.
+    timeout-minutes: 15
+
+    steps:
+      - name: Mask endpoint URLs and token from logs
+        env:
+          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
+          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${BAYYINAH_ENDPOINT:-}" ]]; then
+            echo "::add-mask::${BAYYINAH_ENDPOINT}"
+          fi
+          if [[ -n "${MIHWAR_ENDPOINT:-}" ]]; then
+            echo "::add-mask::${MIHWAR_ENDPOINT}"
+          fi
+          if [[ -n "${AGENT_API_TOKEN:-}" ]]; then
+            echo "::add-mask::${AGENT_API_TOKEN}"
+          fi
+          echo "Masking applied for any present secret values."
+
+      - name: Verify secret presence (names only, no values)
+        id: secrets
+        env:
+          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
+          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          bayyinah_present=false
+          mihwar_present=false
+          token_present=false
+          [[ -n "${BAYYINAH_ENDPOINT:-}" ]] && bayyinah_present=true
+          [[ -n "${MIHWAR_ENDPOINT:-}" ]] && mihwar_present=true
+          [[ -n "${AGENT_API_TOKEN:-}" ]] && token_present=true
+          echo "bayyinah_present=$bayyinah_present" >> "$GITHUB_OUTPUT"
+          echo "mihwar_present=$mihwar_present" >> "$GITHUB_OUTPUT"
+          echo "token_present=$token_present" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Modal smoke probe — secret presence"
+            echo ""
+            echo "| Secret | Present |"
+            echo "|---|---|"
+            echo "| \`BAYYINAH_ENDPOINT\` | $bayyinah_present |"
+            echo "| \`MIHWAR_ENDPOINT\`   | $mihwar_present |"
+            echo "| \`AGENT_API_TOKEN\`   | $token_present |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Probe Bayyinah endpoint
+        id: bayyinah
+        if: ${{ inputs.probe_bayyinah && steps.secrets.outputs.bayyinah_present == 'true' && steps.secrets.outputs.token_present == 'true' }}
+        env:
+          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -nc \
+            --arg t "$AGENT_API_TOKEN" \
+            '{token:$t, code:"def add(a,b): return a+b\n", context:"smoke probe"}')"
+          status="$(curl -sS \
+            --max-time 240 \
+            -o /tmp/bayyinah-resp.json \
+            -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -X POST \
+            -d "$payload" \
+            "$BAYYINAH_ENDPOINT" || echo 000)"
+
+          verdict="UNVERIFIED"
+          shape="missing"
+          unauthorized=false
+          if [[ "$status" == "200" ]]; then
+            if jq -e '.error == "unauthorized"' /tmp/bayyinah-resp.json >/dev/null 2>&1; then
+              unauthorized=true
+              shape="error=unauthorized"
+            elif jq -e '.verdict' /tmp/bayyinah-resp.json >/dev/null 2>&1; then
+              verdict="VERIFIED"
+              shape="verdict field present"
+            fi
+          fi
+
+          {
+            echo ""
+            echo "## Bayyinah probe"
+            echo ""
+            echo "- HTTP status: \`$status\`"
+            echo "- Response shape: \`$shape\`"
+            echo "- Authorization mismatch: \`$unauthorized\`"
+            echo "- Verdict: **$verdict**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          rm -f /tmp/bayyinah-resp.json
+
+          if [[ "$verdict" != "VERIFIED" ]]; then
+            echo "::warning::Bayyinah smoke UNVERIFIED (status=$status, unauthorized=$unauthorized)."
+          fi
+
+      - name: Probe Mihwar endpoint
+        id: mihwar
+        if: ${{ inputs.probe_mihwar && steps.secrets.outputs.mihwar_present == 'true' && steps.secrets.outputs.token_present == 'true' }}
+        env:
+          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -nc \
+            --arg t "$AGENT_API_TOKEN" \
+            '{token:$t, task:"return the integer 1", context_files:{}}')"
+          status="$(curl -sS \
+            --max-time 420 \
+            -o /tmp/mihwar-resp.json \
+            -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -X POST \
+            -d "$payload" \
+            "$MIHWAR_ENDPOINT" || echo 000)"
+
+          verdict="UNVERIFIED"
+          shape="missing"
+          unauthorized=false
+          if [[ "$status" == "200" ]]; then
+            if jq -e '.error == "unauthorized"' /tmp/mihwar-resp.json >/dev/null 2>&1; then
+              unauthorized=true
+              shape="error=unauthorized"
+            elif jq -e '.response' /tmp/mihwar-resp.json >/dev/null 2>&1; then
+              verdict="VERIFIED"
+              shape="response field present"
+            fi
+          fi
+
+          {
+            echo ""
+            echo "## Mihwar probe"
+            echo ""
+            echo "- HTTP status: \`$status\`"
+            echo "- Response shape: \`$shape\`"
+            echo "- Authorization mismatch: \`$unauthorized\`"
+            echo "- Verdict: **$verdict**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          rm -f /tmp/mihwar-resp.json
+
+          if [[ "$verdict" != "VERIFIED" ]]; then
+            echo "::warning::Mihwar smoke UNVERIFIED (status=$status, unauthorized=$unauthorized)."
+          fi
+
+      - name: UNVERIFIED notice if required secrets missing
+        if: ${{ steps.secrets.outputs.bayyinah_present != 'true' || steps.secrets.outputs.mihwar_present != 'true' || steps.secrets.outputs.token_present != 'true' }}
+        run: |
+          set -euo pipefail
+          echo "::warning::One or more required secrets missing in repository Actions secrets. Probe skipped. UNVERIFIED."
+          {
+            echo ""
+            echo "**UNVERIFIED** — required secrets are not populated in repository Actions secrets. No probe was sent."
+            echo ""
+            echo "Required: \`BAYYINAH_ENDPOINT\`, \`MIHWAR_ENDPOINT\`, \`AGENT_API_TOKEN\`."
+          } >> "$GITHUB_STEP_SUMMARY"
