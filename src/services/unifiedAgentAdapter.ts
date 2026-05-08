@@ -231,7 +231,7 @@ function isRetryableNetworkError(error: unknown) {
 }
 
 type RuntimeFailureClass = "RUNTIME_FAILURE" | "UNVERIFIED_RUNTIME" | "PYTHON_ENGINE_TIMEOUT";
-type BlockerStatus = "AUTH_MISSING" | "AUTH_INVALID" | "AUTH_EXPIRED" | "CONFIG_NOT_FOUND" | "SYNTAX_FAILURE" | "TYPE_FAILURE" | "TEST_FAILURE" | "PYTHON_ENGINE_TIMEOUT" | "RUNTIME_FAILURE" | "WORKFLOW_CONFLICT" | "HOT_SURFACE_CONFLICT" | "SECRET_MISSING" | "DEPLOYMENT_BLOCKED" | "UNVERIFIED_RUNTIME";
+type BlockerStatus = "AUTH_MISSING" | "AUTH_INVALID" | "AUTH_EXPIRED" | "CONFIG_NOT_FOUND" | "REGISTRY_LOAD_FAILURE" | "SYNTAX_FAILURE" | "TYPE_FAILURE" | "TEST_FAILURE" | "PYTHON_ENGINE_TIMEOUT" | "RUNTIME_FAILURE" | "WORKFLOW_CONFLICT" | "HOT_SURFACE_CONFLICT" | "SECRET_MISSING" | "DEPLOYMENT_BLOCKED" | "UNVERIFIED_RUNTIME";
 
 class PythonEngineRuntimeError extends Error {
   code: RuntimeFailureClass;
@@ -256,6 +256,7 @@ function classifyBlocker(error: unknown): BlockerStatus {
   if (error instanceof PythonEngineRuntimeError) return error.code;
   if (error instanceof Error) {
     if (error.message.includes("CONFIG_NOT_FOUND")) return "CONFIG_NOT_FOUND";
+    if (error.message.includes("REGISTRY_LOAD_FAILURE")) return "REGISTRY_LOAD_FAILURE";
     if (error.message.includes("UNAUTHORIZED_SCOPE")) return "AUTH_MISSING";
     if (error.message.includes("AUTH_INVALID")) return "AUTH_INVALID";
     if (error.message.includes("AUTH_EXPIRED")) return "AUTH_EXPIRED";
@@ -401,7 +402,6 @@ export class UnifiedAgentAdapter {
             e
           );
       this.registryStartupError = startupError;
-      throw startupError;
     }
   }
 
@@ -432,6 +432,11 @@ export class UnifiedAgentAdapter {
     scopes: string[],
     serverPrincipalTenantId: string
   ) {
+    if (this.registryStartupError) {
+      const startupBlocker = this.registryStartupError.code;
+      throw new Error(`${startupBlocker}: ${this.registryStartupError.message}`);
+    }
+
     const agent = this.agents.get(agentId);
     if (!agent) throw new Error("Agent not found");
 
