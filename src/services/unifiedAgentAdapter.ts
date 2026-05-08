@@ -117,7 +117,7 @@ const ALLOWED_BACKEND_HOSTS: readonly string[] = (
   process.env.PYTHON_BACKEND_ALLOWED_HOSTS ?? ""
 )
   .split(",")
-  .map((h) => h.trim())
+  .map((h: string) => h.trim())
   .filter(Boolean);
 
 // ── P0: Audit redaction ────────────────────────────────────────────────────
@@ -224,6 +224,9 @@ class DefaultPolicyService implements PolicyService {
     }
 
     return { allowed: true, matchedRule: "allow_agent_execution", reasonCode: "ALLOW" };
+  }
+}
+
 function getPythonEngineMaxAttempts() {
   const parsed = Number(process.env.PYTHON_BACKEND_MAX_ATTEMPTS);
   if (!Number.isFinite(parsed) || parsed < 1) {
@@ -609,7 +612,7 @@ export class UnifiedAgentAdapter {
           request_metadata: sanitizeForAudit(safePayload.metadata ?? {})
         }
       });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error({ err: error, taskId, agentId }, "RUNTIME_FAILURE: audit task initialization failed");
       throw new Error(`RUNTIME_FAILURE: audit initialization failed for task ${taskId}`);
     }
@@ -656,7 +659,7 @@ export class UnifiedAgentAdapter {
       await AuditService.updateTaskStatus(taskId, "COMPLETED", sanitizeForAudit(verifiedResult));
 
       return { taskId, status: "success", data: verifiedResult };
-    } catch (error) {
+    } catch (error: unknown) {
       const blocker = classifyBlocker(error);
       const structuredFailure = error instanceof PythonEngineRuntimeError
         ? { failure_class: error.code, upstream_status: error.upstreamStatus, retryable: error.retryable }
@@ -765,8 +768,6 @@ export class UnifiedAgentAdapter {
     }
 
     const normalizedBackendUrl = backendUrl.replace(/\/+$/, "");
-
-    // P0: Backend URL allowlist — validate hostname and protocol when allowlist is configured.
     const urlValidation = validateBackendUrl(normalizedBackendUrl);
     if (!urlValidation.valid) {
       logger.error(
@@ -778,42 +779,25 @@ export class UnifiedAgentAdapter {
 
     const timeoutMs = getPythonEngineTimeoutMs();
     const maxAttempts = getPythonEngineMaxAttempts();
+    const endpoint = `${normalizedBackendUrl}/api/v1/workflow/query`;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const abortController = new AbortController();
       const timeoutHandle = setTimeout(() => abortController.abort(), timeoutMs);
+      const requestId = randomUUID();
+
       try {
-        const response = await fetch(`${normalizedBackendUrl}/api/v1/workflow/query`, {
+        const response = await fetch(endpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-request-id": randomUUID(),
+            "x-request-id": requestId,
             "x-task-id": taskId,
           },
           body: JSON.stringify(safeBody),
           signal: abortController.signal
         });
 
-    try {
-      const endpoint = `${normalizedBackendUrl}/api/v1/workflow/query`;
-      const requestId = randomUUID();
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-request-id": requestId,  // P0: request tracing
-          "x-task-id": taskId,            // P0: task correlation
-        },
-        body: JSON.stringify(safeBody),
-        signal: abortController.signal
-      });
-
-      if (!response.ok) {
-        const correlationId = randomUUID().slice(0, 8);
-        const errorText = await response.text();
-        const boundedText = boundedSnippet(errorText);
-        const sanitizedBackendError = sanitizeBackendErrorText(errorText);
-        const auditErrorExcerpt = sanitizeBackendErrorForAudit(boundedText);
         if (!response.ok) {
           const errorText = await response.text();
           const retryable = RETRYABLE_HTTP_STATUSES.has(response.status);
@@ -828,20 +812,12 @@ export class UnifiedAgentAdapter {
           const correlationId = randomUUID().slice(0, 8);
           const sanitizedBackendError = sanitizeBackendErrorText(errorText);
           const auditErrorExcerpt = sanitizeBackendErrorForAudit(errorText);
-
-          logger.error(
-            {
-              agentId: agent.id,
-              backendStatus: response.status,
-              correlationId,
-              backendError: sanitizedBackendError
-            },
-            "Python engine downstream error"
-          );
-
+          logger.error({ agentId: agent.id, backendStatus: response.status, correlationId, backendError: sanitizedBackendError }, "Python engine downstream error");
           await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", {
             status_code: response.status,
             correlation_id: correlationId,
+            request_id: requestId,
+            endpoint,
             backend_error_excerpt: auditErrorExcerpt
           });
 
@@ -855,18 +831,12 @@ export class UnifiedAgentAdapter {
 
         const responseBody: unknown = await response.json();
         return responseBody;
-      } catch (error) {
+      } catch (error: unknown) {
         if ((error instanceof Error && error.name === "AbortError") || abortController.signal.aborted) {
-          throw new PythonEngineRuntimeError(
-            `Python engine timed out after ${timeoutMs}ms for agent ${agent.id}`,
-            "PYTHON_ENGINE_TIMEOUT",
-            null,
-            false,
-            error
-          );
+          throw new PythonEngineTimeoutError(agent.id, timeoutMs, error);
         }
 
-        if (error instanceof PythonEngineRuntimeError) {
+        if (error instanceof PythonEngineRuntimeError || error instanceof PythonEngineResponseError || error instanceof PythonEngineTimeoutError) {
           throw error;
         }
 
@@ -879,129 +849,23 @@ export class UnifiedAgentAdapter {
         }
 
         const correlationId = randomUUID().slice(0, 8);
+        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", {
+          correlation_id: correlationId,
+          request_id: requestId,
+          endpoint
+        });
         logger.error(
-          {
-            errorClass: "PythonEngineResponseError",
-            agentId: agent.id,
-            endpoint,
-            backendStatus: response.status,
-            correlationId,
-            requestId,
-            backendError: sanitizedBackendError
-            err: error,
-            agentId: agent.id,
-            correlationId,
-            attempt,
-            maxAttempts
-          },
+          { err: error, agentId: agent.id, endpoint, correlationId, requestId, attempt, maxAttempts },
           "Python engine request failed before response"
         );
 
-        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", {
-          status_code: response.status,
-          correlation_id: correlationId,
-          request_id: requestId,
-          endpoint,
-          backend_error_excerpt: auditErrorExcerpt
-        });
-
-        throw new PythonEngineResponseError({
-          code: "RUNTIME_FAILURE",
-          classification: "APPLICATION_FAILURE",
-          endpoint,
-          status: response.status,
-          correlationId,
-          message: buildClientSafePythonEngineError(response.status, correlationId)
-        });
-      }
-
-      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-      if (!contentType.includes("application/json")) {
-        const correlationId = randomUUID().slice(0, 8);
-        const rawPayload = boundedSnippet(await response.text());
-        logger.error(
-          {
-            errorClass: "PythonEngineResponseError",
-            agentId: agent.id,
-            endpoint,
-            backendStatus: response.status,
-            correlationId,
-            requestId,
-            contentType
-          },
-          "Python engine returned non-JSON response"
-        );
-        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_CONTENT_TYPE_MISMATCH", {
-          status_code: response.status,
-          content_type: contentType || "missing",
-          correlation_id: correlationId,
-          request_id: requestId,
-          task_id: taskId,
-          endpoint,
-          backend_error_excerpt: sanitizeBackendErrorForAudit(rawPayload)
-        });
-
-        throw new PythonEngineResponseError({
-          code: "UNVERIFIED_RUNTIME",
-          classification: "TRANSPORT_FAILURE",
-          endpoint,
-          status: response.status,
-          correlationId,
-          message: buildClientSafePythonEngineError(response.status, correlationId)
-        });
-      }
-
-      try {
-        return await response.json();
-      } catch {
-        const correlationId = randomUUID().slice(0, 8);
-        const rawPayload = boundedSnippet(await response.text());
-        logger.error(
-          {
-            errorClass: "PythonEngineResponseError",
-            agentId: agent.id,
-            endpoint,
-            backendStatus: response.status,
-            correlationId,
-            requestId
-          },
-          "Python engine JSON parse failure"
-        );
-        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_JSON_PARSE_FAILURE", {
-          status_code: response.status,
-          correlation_id: correlationId,
-          request_id: requestId,
-          task_id: taskId,
-          endpoint,
-          backend_error_excerpt: sanitizeBackendErrorForAudit(rawPayload)
-        });
-        throw new PythonEngineResponseError({
-          code: "UNVERIFIED_RUNTIME",
-          classification: "TRANSPORT_FAILURE",
-          endpoint,
-          status: response.status,
-          correlationId,
-          message: buildClientSafePythonEngineError(response.status, correlationId)
-        });
-      }
-    } catch (error) {
-      if ((error instanceof Error && error.name === "AbortError") || abortController.signal.aborted) {
-        throw new PythonEngineTimeoutError(agent.id, timeoutMs, error);
-      }
-
-      if (error instanceof Error && CLIENT_SAFE_PYTHON_ENGINE_ERROR_PATTERN.test(error.message)) {
-        throw error;
-        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", {
-          correlation_id: correlationId
-        });
-
-        const errorCode: RuntimeFailureClass = error instanceof Error ? "RUNTIME_FAILURE" : "UNVERIFIED_RUNTIME";
+        const message = error instanceof Error ? error.message : String(error);
         throw new PythonEngineRuntimeError(
           buildClientSafePythonEngineError(502, correlationId),
-          errorCode,
+          "RUNTIME_FAILURE",
           502,
           false,
-          error
+          new Error(message)
         );
       } finally {
         clearTimeout(timeoutHandle);
@@ -1034,7 +898,7 @@ export class UnifiedAgentAdapter {
         context: "api",
         isAdmin: true
       });
-    } catch (error) {
+    } catch (error: unknown) {
       throw this.mapNodeExecutionError(agent.id, error);
     }
   }

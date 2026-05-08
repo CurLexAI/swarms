@@ -7,9 +7,7 @@
     "noEmit": false,
     "allowJs": false,
     "skipLibCheck": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "declaration": false
+    "types": ["node"]
   },
   "include": [
     "src/**/*.ts"
