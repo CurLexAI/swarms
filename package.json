@@ -13,7 +13,7 @@
     "security:radar:url": "tsx src/security/sovereignCyberRadar.ts scan-url",
     "security:radar:text": "tsx src/security/sovereignCyberRadar.ts scan-text",
     "security:radar:command": "tsx src/security/sovereignCyberRadar.ts scan-command",
-    "security:radar:simulate": "tsx src/security/sovereignCyberRadar.ts simulate"
+    "security:radar:simulate": "tsx src/security/sovereignCyberRadar.ts simulate",
     "integrity:frontend": "node scripts/generate-frontend-integrity.mjs"
   },
   "dependencies": {

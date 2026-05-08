@@ -6,3 +6,7 @@ __pycache__/
 
 # Node dependency artifacts
 node_modules/
+
+# tsc-emitted artifacts not paired with hand-maintained companions
+# (AuditService.js and unifiedAgentAdapter.js ARE tracked and paired)
+src/services/ControlPlaneSecurityService.js
