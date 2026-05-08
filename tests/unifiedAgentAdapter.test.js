@@ -63,3 +63,14 @@ test("live .agents/config/agents.yaml declares mihwar/bayyinah and matches Modal
   assert.match(modalSrc, /class MihwarAgent\b/);
   assert.match(modalSrc, /class BayyinahAgent\b/);
 });
+
+
+test("python engine attempt budget contract uses total attempts semantics", () => {
+  const source = fs.readFileSync(adapterPath, "utf8");
+
+  assert.match(source, /const DEFAULT_PYTHON_ENGINE_MAX_ATTEMPTS = 3;/);
+  assert.match(source, /function getPythonEngineMaxAttempts\(\)/);
+  assert.match(source, /process\.env\.PYTHON_BACKEND_MAX_ATTEMPTS/);
+  assert.match(source, /parsed < 1\) return DEFAULT_PYTHON_ENGINE_MAX_ATTEMPTS;/);
+  assert.match(source, /const maxAttempts = getPythonEngineMaxAttempts\(\); \/\/ total attempts, including the initial request/);
+});
