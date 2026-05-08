@@ -10,11 +10,14 @@ permissions:
   contents: read
   pull-requests: read
   issues: read
-  id-token: write
 
 jobs:
   opencode:
     if: |
+      (
+        (github.event_name == 'issue_comment' && github.event.issue.pull_request != null) ||
+        github.event_name == 'pull_request_review_comment'
+      ) &&
       (
         startsWith(github.event.comment.body, '/oc') ||
         contains(github.event.comment.body, ' /oc') ||
@@ -23,8 +26,7 @@ jobs:
       ) &&
       (
         github.event.comment.author_association == 'OWNER' ||
-        github.event.comment.author_association == 'MEMBER' ||
-        github.event.comment.author_association == 'COLLABORATOR'
+        github.event.comment.author_association == 'MEMBER'
       )
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -36,8 +38,7 @@ jobs:
           persist-credentials: false
 
       - name: Run OpenCode
-        # TODO: pin to a commit SHA after verifying the trusted upstream revision.
-        uses: anomalyco/opencode/github@latest
+        uses: anomalyco/opencode/github@8ba2a9171597262df9d19516c82a5e14f18f5c63
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
