@@ -1,7 +1,7 @@
 {
   "name": "curlexai-swarms",
   "version": "1.0.0",
-  "description": "CurLexAI agent operations layer — swarm tooling, review automation, and agent orchestration",
+  "description": "CurLexAI agent operations layer \u2014 swarm tooling, review automation, and agent orchestration",
   "type": "module",
   "scripts": {
     "test": "node --test tests/unifiedAgentAdapter.test.js tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js tests/unifiedAgentAdapter.nodeDispatch.integration.test.js",
@@ -10,12 +10,14 @@
     "build": "tsc -p tsconfig.json",
     "check:service-divergence": "node scripts/check-service-divergence.mjs",
     "check:boundary": "bash scripts/commander/adr-0001-boundary-gate.sh .",
-    "check": "npm run check:service-divergence && npm run test:unit && npm run check:boundary",
+    "check": "npm run check:service-divergence && npm run test:unit && npm run check:boundary && npm run check:cdn-sri",
     "security:radar:url": "tsx src/security/sovereignCyberRadar.ts scan-url",
     "security:radar:text": "tsx src/security/sovereignCyberRadar.ts scan-text",
     "security:radar:command": "tsx src/security/sovereignCyberRadar.ts scan-command",
     "security:radar:simulate": "tsx src/security/sovereignCyberRadar.ts simulate",
-    "integrity:frontend": "node scripts/generate-frontend-integrity.mjs"
+    "integrity:frontend": "node scripts/generate-frontend-integrity.mjs",
+    "check:cdn-sri": "node scripts/check-cdn-sri.mjs",
+    "test:cdn-sri": "node --test tests/cdn-sri-validation.test.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0",
