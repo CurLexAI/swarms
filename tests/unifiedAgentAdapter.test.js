@@ -47,7 +47,8 @@ test("node dispatcher CONFIG_NOT_FOUND is limited to the canonical agentRunner m
   assert.match(source, /private isNodeRunnerModuleNotFound\(error: unknown\)/);
   assert.match(source, /if \(this\.isNodeRunnerModuleNotFound\(error\)\) \{/);
   assert.match(source, /CONFIG_NOT_FOUND: Node dispatcher module missing for agent/);
-  assert.doesNotMatch(source, /errorCode === "MISSING_API_KEY" \|\| errorCode === "ERR_MODULE_NOT_FOUND"/);
+  assert.match(source, /if \(errorCode === "MISSING_API_KEY"\) \{/);
+  assert.match(source, /CONFIG_NOT_FOUND: Node runtime configuration missing for agent/);
 });
 
 test("live .agents/config/agents.yaml declares mihwar/bayyinah and matches Modal deployment", () => {
