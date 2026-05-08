@@ -6,3 +6,10 @@ __pycache__/
 
 # Node dependency artifacts
 node_modules/
+
+# tsc-emitted artifacts not paired with hand-maintained companions
+# (AuditService.js, unifiedAgentAdapter.js, sovereignCyberRadar.js ARE tracked)
+src/services/ControlPlaneSecurityService.js
+
+# Transient fixtures emitted by node --test for the unified agent adapter
+src/services/unifiedAgentAdapter.*.mjs

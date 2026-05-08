@@ -153,9 +153,11 @@ else
 fi
 
 # ── 7. ADR-0001 boundary regression gate ────────────────────────────────────
+# We have already cd'd into ROOT_DIR earlier, so pass "." to the chained gate
+# rather than the original (possibly relative) ROOT_DIR argument.
 ADR_GATE=scripts/commander/adr-0001-boundary-gate.sh
 if [[ -f "$ADR_GATE" ]]; then
-  if bash "$ADR_GATE" "$ROOT_DIR"; then
+  if bash "$ADR_GATE" .; then
     ok "ADR-0001 boundary gate passed"
   else
     fail "ADR_0001_BOUNDARY_REGRESSION"

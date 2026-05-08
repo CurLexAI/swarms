@@ -564,12 +564,38 @@ export class UnifiedAgentAdapter {
         const nodeRuntimeModule = await import("../runners/agentRunner.js");
         return nodeRuntimeModule.runAgent;
     }
+    isNodeRunnerModuleNotFound(error) {
+        if (!(error instanceof Error)) {
+            return false;
+        }
+        const err = error;
+        const code = err.code;
+        const isModuleNotFound = code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND";
+        if (!isModuleNotFound) {
+            return false;
+        }
+        const runnerSpecifier = "agentrunner.js";
+        if (typeof err.url === "string") {
+            return err.url.toLowerCase().endsWith(runnerSpecifier);
+        }
+        const match = /cannot find (?:module|package) ['"]([^'"]+)['"]/i.exec(err.message);
+        if (match) {
+            return match[1].toLowerCase().endsWith(runnerSpecifier);
+        }
+        return false;
+    }
     mapNodeExecutionError(agentId, error) {
+        if (error instanceof NodeExecutionDispatchError) {
+            return error;
+        }
         const errorCode = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
             ? error.code
             : undefined;
         if (errorCode === "MISSING_API_KEY") {
             return new NodeExecutionDispatchError(agentId, "CONFIG_NOT_FOUND", `CONFIG_NOT_FOUND: Node runtime configuration missing for agent ${agentId}`, error);
+        }
+        if (this.isNodeRunnerModuleNotFound(error)) {
+            return new NodeExecutionDispatchError(agentId, "CONFIG_NOT_FOUND", `CONFIG_NOT_FOUND: Node dispatcher module missing for agent ${agentId}`, error);
         }
         const message = error instanceof Error ? error.message : "Node agent execution failed";
         return new NodeExecutionDispatchError(agentId, "RUNTIME_FAILURE", `RUNTIME_FAILURE: Node runtime execution failed for agent ${agentId}: ${message}`, error);
