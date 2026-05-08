@@ -214,23 +214,34 @@ export class NodeExecutionDispatchError extends Error {
 }
 export class UnifiedAgentAdapter {
     registryPath;
-    fallbackRegistryPath;
     agents = new Map();
     registryStartupError = null;
     policyService;
     constructor(policyService = new DefaultPolicyService()) {
-        this.registryPath = path.join(process.cwd(), ".agents/config/agents.yaml");
-        this.fallbackRegistryPath = path.join(process.cwd(), "agents/registry.yaml");
+        const moduleDefaultRegistryPath = path.resolve(__dirname, "../../.agents/config/agents.yaml");
+        const envRegistryPath = process.env.AGENT_REGISTRY_PATH?.trim();
+        const resolvedEnvRegistryPath = envRegistryPath ? path.resolve(envRegistryPath) : null;
+        const registryPathSource = resolvedEnvRegistryPath ? "env" : "default";
+        const selectedRegistryPath = resolvedEnvRegistryPath ?? moduleDefaultRegistryPath;
+        this.registryPath = selectedRegistryPath;
         this.policyService = policyService;
+        logger.info({ registryPathSource, registryPath: selectedRegistryPath }, "Registry startup integrity check");
         this.loadRegistry();
     }
     loadRegistry() {
+        const selectedRegistryPath = this.registryPath;
         try {
-            const selectedRegistryPath = fs.existsSync(this.registryPath)
-                ? this.registryPath
-                : this.fallbackRegistryPath;
+            if (!fs.existsSync(selectedRegistryPath)) {
+                throw new RegistryStartupError("CONFIG_NOT_FOUND", selectedRegistryPath, `CONFIG_NOT_FOUND: Required registry file was not found at ${selectedRegistryPath}`);
+            }
             const fileContents = fs.readFileSync(selectedRegistryPath, "utf8");
-            const data = yaml.load(fileContents);
+            let data;
+            try {
+                data = yaml.load(fileContents);
+            }
+            catch (parseError) {
+                throw new RegistryStartupError("SYNTAX_FAILURE", selectedRegistryPath, `SYNTAX_FAILURE: Failed to parse registry file at ${selectedRegistryPath}`, parseError);
+            }
             let loadedAgents = 0;
             let reasoningEnabledAgents = 0;
             if (!data || typeof data !== "object" || Array.isArray(data)) {
@@ -294,12 +305,9 @@ export class UnifiedAgentAdapter {
             logger.error({ err: e }, "❌ Registry Integrity Breach");
             const startupError = e instanceof RegistryStartupError
                 ? e
-                : new RegistryStartupError(e && typeof e === "object" && "code" in e && e.code === "ENOENT"
-                    ? "CONFIG_NOT_FOUND"
-                    : "REGISTRY_LOAD_FAILURE", fs.existsSync(this.registryPath) ? this.registryPath : this.fallbackRegistryPath, e && typeof e === "object" && "code" in e && e.code === "ENOENT"
-                    ? `CONFIG_NOT_FOUND: Required registry file was not found at ${this.registryPath} or ${this.fallbackRegistryPath}`
-                    : `REGISTRY_LOAD_FAILURE: Failed to load registry from ${this.registryPath} or ${this.fallbackRegistryPath}`, e);
+                : new RegistryStartupError("REGISTRY_LOAD_FAILURE", selectedRegistryPath, `REGISTRY_LOAD_FAILURE: Failed to load registry from ${selectedRegistryPath}`, e);
             this.registryStartupError = startupError;
+            throw startupError;
         }
     }
     getServiceHealth() {
