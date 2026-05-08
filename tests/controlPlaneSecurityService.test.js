@@ -18,5 +18,8 @@ test('control plane security service enforces enterprise auth, RBAC, session har
   assert.match(source, /rotateMs >= policy\.rotateAfterMinutes \* 60_000/);
   assert.match(source, /event: "control_plane_audit"/);
   assert.match(source, /exportAuditTrail\(entries: AuditTrailEntry\[\]\): string/);
+  assert.match(source, /enforceCloudflareAccess\(headers: Record<string, string \| undefined>, principal: AuthenticatedPrincipal\): void/);
+  assert.match(source, /cf-access-jwt-assertion/);
+  assert.match(source, /AUTH_MISSING: Cloudflare Access token is required for control-plane access/);
+  assert.match(source, /AUTH_INVALID: MFA claim is required by Cloudflare Access policy/);
 });
-
