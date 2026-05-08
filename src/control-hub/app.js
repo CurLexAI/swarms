@@ -387,7 +387,7 @@ createApp({
             { name: 'www.lexprim.com', url: 'https://www.lexprim.com/', route: 'Primary Canonical' },
             { name: 'lexprim.com/chat', url: 'https://lexprim.com/chat', route: 'Advanced Chat' },
             { name: 'lexprim.com/app', url: 'https://lexprim.com/app', route: 'App Surface' },
-            { name: 'lexprim.com/control', url: 'https://lexprim.com/control/', route: 'Control Hub' },
+            { name: 'lexprim.com/enterprise/control', url: 'https://lexprim.com/enterprise/control/', route: 'Control Hub' },
             { name: 'lexprim.com/ios-app', url: 'https://lexprim.com/ios-app', route: 'iOS Surface' },
             { name: 'lexprim.com/miniapp', url: 'https://lexprim.com/miniapp', route: 'Mini App' },
             { name: 'lexprim.com/admin', url: 'https://lexprim.com/admin', route: 'Admin Panel' },

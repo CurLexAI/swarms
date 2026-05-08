@@ -710,7 +710,7 @@ export class UnifiedAgentAdapter {
     };
 
     try {
-      const runAgent = await this.getNodeDispatcher();
+      const runAgent = await this.getNodeDispatcher(agent.id);
 
       return await runAgent({
         agentId: agent.id,
@@ -725,9 +725,32 @@ export class UnifiedAgentAdapter {
   }
 
 
-  private async getNodeDispatcher() {
-    const nodeRuntimeModule = await import("../runners/agentRunner.js");
-    return nodeRuntimeModule.runAgent;
+  private async getNodeDispatcher(agentId: string) {
+    try {
+      const nodeRuntimeModule = await import("../runners/agentRunner.js");
+      return nodeRuntimeModule.runAgent;
+    } catch (error: unknown) {
+      throw this.mapNodeExecutionError(agentId, error);
+    }
+  }
+
+  private isNodeRunnerModuleNotFound(error: unknown) {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const err = error as NodeJS.ErrnoException & { url?: string };
+    const message = error.message.toLowerCase();
+    const missingRunnerPath = "../runners/agentrunner.js";
+    const missingRunnerUrl = "/runners/agentrunner.js";
+
+    return (
+      err.code === "ERR_MODULE_NOT_FOUND" ||
+      (err.code === "MODULE_NOT_FOUND" && message.includes("agentrunner.js")) ||
+      (message.includes("cannot find module") && message.includes(missingRunnerPath)) ||
+      (message.includes("cannot find module") && message.includes(missingRunnerUrl)) ||
+      (typeof err.url === "string" && err.url.toLowerCase().includes(missingRunnerUrl))
+    );
   }
 
   private mapNodeExecutionError(agentId: string, error: unknown) {
