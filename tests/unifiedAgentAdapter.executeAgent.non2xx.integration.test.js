@@ -396,3 +396,110 @@ test("UnifiedAgentAdapter.executeAgent performs a single outbound attempt for re
   await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"));
   assert.equal(fetchCalls, 1);
 });
+
+test("UnifiedAgentAdapter.executeAgent blocks forwarding in strict mode when allowlist is empty", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalFetch = global.fetch;
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalEnforceAllowlist = process.env.ENFORCE_BACKEND_ALLOWLIST;
+  const originalAllowedHosts = process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+
+  let fetchCalls = 0;
+  global.fetch = async () => {
+    fetchCalls += 1;
+    return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => ({ output: "ok" }) };
+  };
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+    if (originalEnforceAllowlist === undefined) delete process.env.ENFORCE_BACKEND_ALLOWLIST;
+    else process.env.ENFORCE_BACKEND_ALLOWLIST = originalEnforceAllowlist;
+    if (originalAllowedHosts === undefined) delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+    else process.env.PYTHON_BACKEND_ALLOWED_HOSTS = originalAllowedHosts;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+  process.env.PYTHON_BACKEND_URL = "https://python-backend.example";
+  process.env.ENFORCE_BACKEND_ALLOWLIST = "true";
+  delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+
+  await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"), /CONFIG_NOT_FOUND: PYTHON_BACKEND_ALLOWED_HOSTS is required when strict backend allowlist mode is enabled/);
+  assert.equal(fetchCalls, 0);
+});
+
+test("UnifiedAgentAdapter.executeAgent blocks non-https backend URLs in strict mode", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const originalEnforceAllowlist = process.env.ENFORCE_BACKEND_ALLOWLIST;
+  const originalAllowedHosts = process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+  const originalFetch = global.fetch;
+  let fetchCalls = 0;
+  global.fetch = async () => { fetchCalls += 1; throw new Error("unexpected fetch"); };
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    if (originalEnforceAllowlist === undefined) delete process.env.ENFORCE_BACKEND_ALLOWLIST;
+    else process.env.ENFORCE_BACKEND_ALLOWLIST = originalEnforceAllowlist;
+    if (originalAllowedHosts === undefined) delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+    else process.env.PYTHON_BACKEND_ALLOWED_HOSTS = originalAllowedHosts;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.example";
+  process.env.ENFORCE_BACKEND_ALLOWLIST = "true";
+  process.env.PYTHON_BACKEND_ALLOWED_HOSTS = "python-backend.example";
+
+  await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"), /CONFIG_NOT_FOUND: PYTHON_BACKEND_URL must use HTTPS/);
+  assert.equal(fetchCalls, 0);
+});
+
+test("UnifiedAgentAdapter.executeAgent allows strict mode forwarding when host is allowlisted and https", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalEnforceAllowlist = process.env.ENFORCE_BACKEND_ALLOWLIST;
+  const originalAllowedHosts = process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  let fetchCalls = 0;
+  global.fetch = async () => {
+    fetchCalls += 1;
+    return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => ({ output: "ok" }) };
+  };
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    if (originalEnforceAllowlist === undefined) delete process.env.ENFORCE_BACKEND_ALLOWLIST;
+    else process.env.ENFORCE_BACKEND_ALLOWLIST = originalEnforceAllowlist;
+    if (originalAllowedHosts === undefined) delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+    else process.env.PYTHON_BACKEND_ALLOWED_HOSTS = originalAllowedHosts;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+  process.env.PYTHON_BACKEND_URL = "https://python-backend.example";
+  process.env.ENFORCE_BACKEND_ALLOWLIST = "true";
+  process.env.PYTHON_BACKEND_ALLOWED_HOSTS = "python-backend.example";
+
+  await assert.doesNotReject(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"));
+  assert.equal(fetchCalls, 1);
+});
