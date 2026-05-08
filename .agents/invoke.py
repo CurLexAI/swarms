@@ -63,10 +63,10 @@ def _load_minimal_agents_yaml(config_text: str) -> dict[str, Any]:
 
     root: dict[str, Any] = {}
     stack: list[tuple[int, Any]] = [(-1, root)]
-    list_keys = {"tasks", "human_review_required_for"}
     skip_literal_parent_indent: int | None = None
+    lines = config_text.splitlines()
 
-    for raw_line in config_text.splitlines():
+    for index, raw_line in enumerate(lines):
         if not raw_line.strip() or raw_line.lstrip().startswith("#"):
             continue
 
@@ -103,13 +103,34 @@ def _load_minimal_agents_yaml(config_text: str) -> dict[str, Any]:
             parent[key] = ""
             skip_literal_parent_indent = indent
         elif raw_value == "":
-            child: dict[str, Any] | list[Any] = [] if key in list_keys else {}
+            next_significant = _next_significant_line(lines, index)
+            if next_significant is None:
+                child = {}
+            else:
+                _, next_indent, next_line = next_significant
+                if next_indent <= indent:
+                    child = {}
+                else:
+                    child = [] if next_line.startswith("- ") else {}
             parent[key] = child
             stack.append((indent, child))
         else:
             parent[key] = _parse_yaml_scalar(raw_value)
 
     return root
+
+
+def _next_significant_line(lines: list[str], start_index: int) -> tuple[int, int, str] | None:
+    for i in range(start_index + 1, len(lines)):
+        raw_line = lines[i]
+        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+            continue
+        indent = len(raw_line) - len(raw_line.lstrip(" "))
+        line = _strip_yaml_comment(raw_line.strip())
+        if not line:
+            continue
+        return i, indent, line
+    return None
 
 
 def _strip_yaml_comment(value: str) -> str:
