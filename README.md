@@ -68,7 +68,7 @@ or an open audit in `docs/audits/`.
 
 ```bash
 pip install -r requirements-agent.txt
-npm install
+npm ci
 ```
 
 ### Python agent gates
