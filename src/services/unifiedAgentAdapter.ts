@@ -659,8 +659,7 @@ export class UnifiedAgentAdapter {
       const requestId = randomUUID();
 
       try {
-        const requestId = randomUUID();
-        const response = await fetch(`${normalizedBackendUrl}/api/v1/workflow/query`, { method: "POST", headers: { "Content-Type": "application/json", "x-request-id": requestId, "x-task-id": taskId }, body: JSON.stringify(safeBody), signal: abortController.signal });
+        const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", "x-request-id": requestId, "x-task-id": taskId }, body: JSON.stringify(safeBody), signal: abortController.signal });
         if (!response.ok) {
           const rawError = await response.text();
           const retryable = RETRYABLE_HTTP_STATUSES.has(response.status);
