@@ -34,6 +34,10 @@ interface NormalizedAgentDefinition extends AgentDefinition {
 
 type ExecuteAgentMetadata = Record<string, unknown>;
 
+interface TrustedExecutionContext {
+  isAdmin?: boolean;
+}
+
 export interface ExecuteAgentPayload {
   tenant_id: string;
   input: string;
@@ -453,7 +457,8 @@ export class UnifiedAgentAdapter {
     userId: string,
     payload: unknown,
     scopes: string[],
-    serverPrincipalTenantId: string
+    serverPrincipalTenantId: string,
+    trustedExecutionContext?: TrustedExecutionContext
   ) {
     if (this.registryStartupError) {
       const startupBlocker = this.registryStartupError.code;
@@ -570,7 +575,7 @@ export class UnifiedAgentAdapter {
       const result =
         agent.runtime === "python"
           ? await this.forwardToPythonEngine(agent, safePayload, userId, taskId)
-          : await this.executeNodeInternal(agent, safePayload);
+          : await this.executeNodeInternal(agent, safePayload, trustedExecutionContext?.isAdmin ?? false);
 
       const verifiedResult = await this.verifyOutputQuality(result);
 
@@ -762,7 +767,11 @@ export class UnifiedAgentAdapter {
    * - node runtime   -> canonical Node runner (runAgent)
    * - hybrid runtime -> canonical Node runner (runAgent) with validated payload passthrough
    */
-  private async executeNodeInternal(agent: NormalizedAgentDefinition, payload: ExecuteAgentPayload) {
+  private async executeNodeInternal(
+    agent: NormalizedAgentDefinition,
+    payload: ExecuteAgentPayload,
+    isAdmin: boolean
+  ) {
     const dispatchPayload = {
       tenant_id: payload.tenant_id,
       input: payload.input,
@@ -777,7 +786,7 @@ export class UnifiedAgentAdapter {
         input: payload.input,
         payload: dispatchPayload,
         context: "api",
-        isAdmin: true
+        isAdmin
       });
     } catch (error: unknown) {
       throw this.mapNodeExecutionError(agent.id, error);

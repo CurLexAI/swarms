@@ -312,7 +312,7 @@ export class UnifiedAgentAdapter {
     // P0: serverPrincipalTenantId must come from server-side auth context (session/JWT),
     // never from the request payload. The caller is responsible for deriving this value
     // from a trusted source before invoking executeAgent.
-    async executeAgent(agentId, userId, payload, scopes, serverPrincipalTenantId) {
+    async executeAgent(agentId, userId, payload, scopes, serverPrincipalTenantId, trustedExecutionContext) {
         if (this.registryStartupError) {
             const startupBlocker = this.registryStartupError.code;
             throw new Error(`${startupBlocker}: ${this.registryStartupError.message}`);
@@ -412,7 +412,7 @@ export class UnifiedAgentAdapter {
         try {
             const result = agent.runtime === "python"
                 ? await this.forwardToPythonEngine(agent, safePayload, userId, taskId)
-                : await this.executeNodeInternal(agent, safePayload);
+                : await this.executeNodeInternal(agent, safePayload, trustedExecutionContext?.isAdmin ?? false);
             const verifiedResult = await this.verifyOutputQuality(result);
             // P0: Sanitize result before audit write — never log raw LLM output or legal text.
             await AuditService.updateTaskStatus(taskId, "COMPLETED", sanitizeForAudit(verifiedResult));
@@ -588,7 +588,7 @@ export class UnifiedAgentAdapter {
      * - node runtime   -> canonical Node runner (runAgent)
      * - hybrid runtime -> canonical Node runner (runAgent) with validated payload passthrough
      */
-    async executeNodeInternal(agent, payload) {
+    async executeNodeInternal(agent, payload, isAdmin) {
         const dispatchPayload = {
             tenant_id: payload.tenant_id,
             input: payload.input,
@@ -601,7 +601,7 @@ export class UnifiedAgentAdapter {
                 input: payload.input,
                 payload: dispatchPayload,
                 context: "api",
-                isAdmin: true
+                isAdmin
             });
         }
         catch (error) {
