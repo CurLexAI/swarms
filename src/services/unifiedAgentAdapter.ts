@@ -38,6 +38,7 @@ export interface ExecuteAgentPayload {
   tenant_id: string;
   input: string;
   metadata?: ExecuteAgentMetadata;
+  context?: Record<string, unknown>;
 }
 
 interface ValidationResult {
@@ -90,7 +91,7 @@ export class RegistryStartupError extends Error {
   }
 }
 
-const ALLOWED_PAYLOAD_FIELDS = ["tenant_id", "input", "metadata"] as const;
+const ALLOWED_PAYLOAD_FIELDS = ["tenant_id", "input", "metadata", "context"] as const;
 const MAX_TENANT_ID_LENGTH = 128;
 const MAX_INPUT_LENGTH = 8000;
 const DEFAULT_PYTHON_ENGINE_TIMEOUT_MS = 15000;
@@ -634,6 +635,16 @@ export class UnifiedAgentAdapter {
       }
 
       safeMetadata = rawPayload.metadata as ExecuteAgentMetadata;
+    }
+
+    if (rawPayload.context !== undefined) {
+      if (!rawPayload.context || typeof rawPayload.context !== "object" || Array.isArray(rawPayload.context)) {
+        return { isValid: false, reason: "context must be an object when provided" };
+      }
+      safeMetadata = {
+        ...(safeMetadata ?? {}),
+        context: rawPayload.context as Record<string, unknown>
+      };
     }
 
     return {
