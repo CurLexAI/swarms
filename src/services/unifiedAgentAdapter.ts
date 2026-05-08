@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import yaml from "js-yaml";
 import { randomUUID } from "crypto";
 import logger from "../utils/logger.js";
@@ -115,6 +116,8 @@ const RUNTIME_CAPABILITY_MAP: Readonly<Record<string, string>> = {
   node: "node_execution",
   hybrid: "node_execution",
 } as const;
+
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 // ── P0: Backend URL allowlist ──────────────────────────────────────────────
 function getAllowedBackendHosts(): readonly string[] {
@@ -317,9 +320,9 @@ function normalizeError(err: unknown): NormalizedError {
   const stackAllowed = process.env.NODE_ENV !== "production";
   if (err instanceof PythonEngineRuntimeError) {
     return {
-      message: sanitizeForAudit(err.message),
+      message: String(sanitizeForAudit(err.message)),
       code: err.code,
-      ...(stackAllowed && err.stack ? { stack: sanitizeForAudit(err.stack) } : {})
+      ...(stackAllowed && err.stack ? { stack: String(sanitizeForAudit(err.stack)) } : {})
     };
   }
 
@@ -328,9 +331,9 @@ function normalizeError(err: unknown): NormalizedError {
       ? (err as { code: string }).code
       : undefined;
     return {
-      message: sanitizeForAudit(err.message),
+      message: String(sanitizeForAudit(err.message)),
       ...(maybeCode ? { code: maybeCode } : {}),
-      ...(stackAllowed && err.stack ? { stack: sanitizeForAudit(err.stack) } : {})
+      ...(stackAllowed && err.stack ? { stack: String(sanitizeForAudit(err.stack)) } : {})
     };
   }
 
@@ -358,7 +361,7 @@ export class UnifiedAgentAdapter {
   private policyService: PolicyService;
 
   constructor(policyService: PolicyService = new DefaultPolicyService()) {
-    const moduleDefaultRegistryPath = path.resolve(__dirname, "../../.agents/config/agents.yaml");
+    const moduleDefaultRegistryPath = path.resolve(MODULE_DIR, "../../.agents/config/agents.yaml");
     const envRegistryPath = process.env.AGENT_REGISTRY_PATH?.trim();
     const resolvedEnvRegistryPath = envRegistryPath ? path.resolve(envRegistryPath) : null;
     const registryPathSource = resolvedEnvRegistryPath ? "env" : "default";
