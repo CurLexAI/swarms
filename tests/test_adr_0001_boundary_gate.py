@@ -1,0 +1,59 @@
+"""Regression tests for scripts/commander/adr-0001-boundary-gate.sh."""
+
+from __future__ import annotations
+
+import subprocess
+import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+GATE = REPO_ROOT / "scripts" / "commander" / "adr-0001-boundary-gate.sh"
+
+
+def _run_gate(repo: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["bash", str(GATE), str(repo)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
+class AdrBoundaryGateTests(unittest.TestCase):
+    def test_clean_repo_passes(self) -> None:
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            (tmp / ".agents").mkdir(parents=True, exist_ok=True)
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("[RESULT] PASS", result.stdout)
+
+    def test_public_control_surface_fails(self) -> None:
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            (tmp / "public" / "control").mkdir(parents=True, exist_ok=True)
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("BOUNDARY_DRIFT: forbidden path present: public/control", result.stdout)
+
+    def test_src_routes_fails(self) -> None:
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            (tmp / "src" / "routes").mkdir(parents=True, exist_ok=True)
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("BOUNDARY_DRIFT: forbidden path present: src/routes", result.stdout)
+
+    def test_autostart_flag_fails(self) -> None:
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            (tmp / ".agents").mkdir(parents=True, exist_ok=True)
+            (tmp / ".agents" / "config.txt").write_text("autoStart: true\n")
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("BOUNDARY_DRIFT: autoStart activation flag detected", result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()
