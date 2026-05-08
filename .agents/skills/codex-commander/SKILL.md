@@ -1,6 +1,6 @@
 ---
 name: codex-commander
-description: Codex commander operating doctrine for CurLexAI/swarms and Qarar. Use when asked to make Codex the lead coding agent, coordinate repository changes, review PRs, run tests, manage Render/Cloudflare/Modal integration, connect Copilot custom agents to private Modal-backed models, enforce secure coding gates, or produce commander reports for repository work.
+description: codex commander operating doctrine for CurLexAI/swarms. use when coordinating repository work, planning pull requests, enforcing swarms repository boundaries, running validation gates, reviewing agent operations, preparing launch evidence, or producing verified commander reports for Bayyinah, Mihwar, Modal, Render, Cloudflare, and Qarar-related agent control-plane work.
 ---
 
 # Codex Commander
