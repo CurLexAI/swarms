@@ -32,7 +32,7 @@ test("loadRegistry logs loaded and reasoning-enabled counters for mixed definiti
 test("loadRegistry supports primary and fallback registry paths and accepts dict-keyed agents", () => {
   const source = fs.readFileSync(adapterPath, 'utf8');
 
-  assert.match(source, /path\.resolve\(__dirname,\s*"\.\.\/\.\.\/\.agents\/config\/agents\.yaml"\)/);
+  assert.match(source, /path\.resolve\(MODULE_DIR,\s*"\.\.\/\.\.\/\.agents\/config\/agents\.yaml"\)/);
   assert.match(source, /process\.env\.AGENT_REGISTRY_PATH\?\.trim\(\)/);
   assert.match(source, /registryPathSource = resolvedEnvRegistryPath \? "env" : "default"/);
   assert.match(source, /CONFIG_NOT_FOUND: Required registry file was not found at \$\{selectedRegistryPath\}/);
