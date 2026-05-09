@@ -126,7 +126,7 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
     payload: {
       tenant_id: "tenant-1",
       input: "run test",
-      metadata: { trace_id: "trace-123" }
+      metadata: { trace_id: "trace-123", context: {} }
     },
     context: "api",
     isAdmin: false

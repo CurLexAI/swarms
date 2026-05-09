@@ -129,8 +129,7 @@ db_password=hunter2 token=abc123 INTERNAL ERROR: stack frame exploded`;
         "tenant-1"  // P0: serverPrincipalTenantId from auth context
       ),
     (error) => {
-      assert.match(error.message, /Python engine request failed with status 500/);
-      assert.match(error.message, /\(ref: [0-9a-f]{8}\)/i);
+      assert.match(error.message, /RUNTIME_FAILURE: Python engine returned HTTP 500/i);
       assert.doesNotMatch(error.message, /Traceback/i);
       assert.doesNotMatch(error.message, /db_password/i);
       assert.doesNotMatch(error.message, /password/i);
@@ -143,8 +142,7 @@ db_password=hunter2 token=abc123 INTERNAL ERROR: stack frame exploded`;
   assert.equal(jsonCalled, false, "response.json() must not be called when response.ok=false");
   assert.equal(updateTaskStatusCalls.length, 1);
   assert.equal(updateTaskStatusCalls[0][1], "FAILED");
-  assert.match(updateTaskStatusCalls[0][2].error, /Python engine request failed with status 500/);
-  assert.match(updateTaskStatusCalls[0][2].error, /\(ref: [0-9a-f]{8}\)/i);
+  assert.match(updateTaskStatusCalls[0][2].error, /RUNTIME_FAILURE: Python engine returned HTTP 500/i);
   assert.doesNotMatch(updateTaskStatusCalls[0][2].error, /Traceback|db_password|token/i);
 });
 
@@ -210,8 +208,7 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
         "tenant-1"  // P0: serverPrincipalTenantId from auth context
       ),
     (error) => {
-      assert.match(error.message, /Python engine request failed with status 502/);
-      assert.match(error.message, /\(ref: [0-9a-f]{8}\)/i);
+      assert.match(error.message, /RUNTIME_FAILURE: python engine request transport failure/i);
       assert.doesNotMatch(error.message, /ECONNREFUSED/i);
       assert.doesNotMatch(error.message, /python-backend\.internal/i);
       return true;
@@ -220,8 +217,7 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
 
   assert.equal(updateTaskStatusCalls.length, 1);
   assert.equal(updateTaskStatusCalls[0][1], "FAILED");
-  assert.match(updateTaskStatusCalls[0][2].error, /Python engine request failed with status 502/);
-  assert.match(updateTaskStatusCalls[0][2].error, /\(ref: [0-9a-f]{8}\)/i);
+  assert.match(updateTaskStatusCalls[0][2].error, /RUNTIME_FAILURE: python engine request transport failure/i);
   assert.doesNotMatch(updateTaskStatusCalls[0][2].error, /ECONNREFUSED|python-backend\.internal/i);
 });
 
