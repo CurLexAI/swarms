@@ -95,7 +95,7 @@ jobs:
 
       - name: Checkout repository
         if: steps.secrets-check.outputs.status == 'READY'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
