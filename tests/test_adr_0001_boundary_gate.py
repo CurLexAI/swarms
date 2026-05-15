@@ -29,13 +29,26 @@ class AdrBoundaryGateTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             self.assertIn("[RESULT] PASS", result.stdout)
 
-    def test_public_control_surface_fails(self) -> None:
+    def test_public_control_surface_is_adr2_allowed(self) -> None:
+        # ADR-0002 (accepted 2026-05-08) carves out public/control as an
+        # operator-only static surface. The gate must not reject it.
         with TemporaryDirectory() as tmp_str:
             tmp = Path(tmp_str)
             (tmp / "public" / "control").mkdir(parents=True, exist_ok=True)
             result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("[RESULT] PASS", result.stdout)
+            self.assertNotIn("BOUNDARY_DRIFT: forbidden path present: public/control", result.stdout)
+
+    def test_public_about_surface_fails(self) -> None:
+        # Marketing pages under public/ (about, contact, privacy, terms) remain
+        # forbidden per ADR-0001 — ADR-0002 does not carve them out.
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            (tmp / "public" / "about").mkdir(parents=True, exist_ok=True)
+            result = _run_gate(tmp)
             self.assertEqual(result.returncode, 1)
-            self.assertIn("BOUNDARY_DRIFT: forbidden path present: public/control", result.stdout)
+            self.assertIn("BOUNDARY_DRIFT: forbidden path present: public/about", result.stdout)
 
     def test_src_routes_fails(self) -> None:
         with TemporaryDirectory() as tmp_str:
