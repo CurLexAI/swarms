@@ -597,6 +597,49 @@ test("UnifiedAgentAdapter reports CONFIG_NOT_FOUND when node dispatcher module i
   }
 });
 
+test("UnifiedAgentAdapter normalizes non-Error throw to 'Unknown error' in audit on node dispatch", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalCreateTask = AuditService.createTask;
+  const taskUpdates = [];
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.createTask = async () => {};
+  AuditService.updateTaskStatus = async (...args) => { taskUpdates.push(args); };
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    AuditService.createTask = originalCreateTask;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => {
+    // eslint-disable-next-line no-throw-literal
+    throw "unexpected string thrown from dispatcher";
+  };
+  adapter.agents = new Map([
+    ["node-agent", { id: "node-agent", name: "Node Agent", role: "test", runtime: "node", allowedScopes: ["scope:execute"], capabilities: ["node_execution"] }]
+  ]);
+
+  await assert.rejects(
+    () => adapter.executeAgent("node-agent", "user-1", { tenant_id: "tenant-1", input: "trigger non-Error throw", metadata: {} }, ["scope:execute"], "tenant-1")
+  );
+
+  assert.equal(taskUpdates.length, 1);
+  assert.equal(taskUpdates[0][1], "FAILED");
+  assert.equal(taskUpdates[0][2].error, "Unknown error");
+});
+
 test("UnifiedAgentAdapter keeps transitive ERR_MODULE_NOT_FOUND as runtime failure", async (t) => {
   const loaded = await loadUnifiedAgentAdapterFromTs(t);
   if (!loaded) return;

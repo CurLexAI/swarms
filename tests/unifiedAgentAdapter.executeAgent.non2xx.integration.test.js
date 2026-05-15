@@ -499,3 +499,54 @@ test("UnifiedAgentAdapter.executeAgent allows strict mode forwarding when host i
   await assert.doesNotReject(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"));
   assert.equal(fetchCalls, 1);
 });
+
+test("UnifiedAgentAdapter.executeAgent maps AbortError timeout to PYTHON_ENGINE_TIMEOUT and marks task FAILED", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalBackendUrl = process.env.PYTHON_BACKEND_URL;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalCreateTask = AuditService.createTask;
+  const taskUpdates = [];
+
+  const abortError = Object.assign(new Error("The operation was aborted"), { name: "AbortError" });
+  global.fetch = async () => { throw abortError; };
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.createTask = async () => {};
+  AuditService.updateTaskStatus = async (...args) => { taskUpdates.push(args); };
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    AuditService.createTask = originalCreateTask;
+    if (originalBackendUrl === undefined) delete process.env.PYTHON_BACKEND_URL;
+    else process.env.PYTHON_BACKEND_URL = originalBackendUrl;
+  });
+
+  process.env.PYTHON_BACKEND_URL = "https://python-backend.example";
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+
+  await assert.rejects(
+    () => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"),
+    (err) => {
+      assert.match(err.code ?? err.message, /PYTHON_ENGINE_TIMEOUT|timed out/i);
+      return true;
+    }
+  );
+
+  assert.equal(taskUpdates.length, 1);
+  assert.equal(taskUpdates[0][1], "FAILED");
+  assert.match(taskUpdates[0][2].blocker ?? taskUpdates[0][2].failure_class ?? "", /PYTHON_ENGINE_TIMEOUT/);
+  const errorText = taskUpdates[0][2].error ?? "";
+  assert.doesNotMatch(errorText, /password|token|secret|api.?key|bearer/i);
+});

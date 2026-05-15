@@ -281,7 +281,21 @@ export class UnifiedAgentAdapter {
             const rawAgents = data.agents;
             let agentsList;
             if (Array.isArray(rawAgents)) {
-                agentsList = rawAgents;
+                agentsList = [];
+                for (let idx = 0; idx < rawAgents.length; idx++) {
+                    const entry = rawAgents[idx];
+                    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+                        logger.warn({ index: idx, entryType: Array.isArray(entry) ? "array" : typeof entry }, "Skipping non-object agent entry in registry");
+                        continue;
+                    }
+                    const candidate = entry;
+                    const candidateId = typeof candidate.id === "string" && candidate.id.trim().length > 0 ? candidate.id.trim() : null;
+                    if (!candidateId) {
+                        logger.warn({ index: idx, hasIdField: Object.prototype.hasOwnProperty.call(candidate, "id") }, "Skipping agent entry with missing or empty id");
+                        continue;
+                    }
+                    agentsList.push(entry);
+                }
             }
             else if (rawAgents && typeof rawAgents === "object") {
                 agentsList = Object.entries(rawAgents).map(([key, raw]) => {
@@ -410,6 +424,7 @@ export class UnifiedAgentAdapter {
         }
         const taskId = randomUUID();
         const safePayload = validation.safePayload;
+        // Defensive copy — executionPayload is independent of the caller's payload.
         const executionPayload = {
             ...safePayload,
             ...(safePayload.metadata
