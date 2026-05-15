@@ -94,21 +94,16 @@ jobs:
             echo "status=READY" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Checkout repository
-        if: steps.secrets-check.outputs.status == 'READY'
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
       - name: Fetch PR diff
         id: fetch-diff
         if: steps.secrets-check.outputs.status == 'READY'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          gh pr diff "${PR_NUMBER}" > /tmp/pr.diff 2>/dev/null || : > /tmp/pr.diff
+          gh pr diff "${PR_NUMBER}" --repo "${REPOSITORY}" > /tmp/pr.diff 2>/dev/null || : > /tmp/pr.diff
 
       - name: Fetch PR metadata
         id: fetch-meta
@@ -116,9 +111,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           gh pr view "${PR_NUMBER}" \
+            --repo "${REPOSITORY}" \
             --json title,body,headRefName,baseRefName,files \
             > /tmp/pr-meta.json 2>/dev/null || echo '{}' > /tmp/pr-meta.json
 
@@ -177,6 +174,7 @@ jobs:
           ACTOR: ${{ github.event.comment.user.login }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
           VERDICT: ${{ steps.bayyinah-invoke.outputs.verdict }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           case "${VERDICT}" in
@@ -205,7 +203,7 @@ jobs:
           """
           Path("/tmp/bayyinah-comment.md").write_text(body, encoding="utf-8")
           PY
-          gh pr comment "${PR_NUMBER}" --body-file /tmp/bayyinah-comment.md
+          gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/bayyinah-comment.md
 
       - name: Fail job if verdict is BLOCK
         if: |
@@ -220,6 +218,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           cat > /tmp/bayyinah-skipped.md <<'EOF'
@@ -228,4 +227,4 @@ jobs:
           `BAYYINAH_ENDPOINT` or `AGENT_API_TOKEN` is not configured.
           Bayyinah Agent **SKIPPED_UNVERIFIED** — configure secrets to enable on-demand security review.
           EOF
-          gh pr comment "${PR_NUMBER}" --body-file /tmp/bayyinah-skipped.md 2>/dev/null || true
+          gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/bayyinah-skipped.md 2>/dev/null || true
