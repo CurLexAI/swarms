@@ -53,6 +53,25 @@ test("node dispatcher CONFIG_NOT_FOUND is limited to the canonical agentRunner m
   assert.match(source, /CONFIG_NOT_FOUND: Node runtime configuration missing for agent/);
 });
 
+test("loadRegistry array path skips non-object and missing-id entries without logging raw objects", () => {
+  const source = fs.readFileSync(adapterPath, "utf8");
+
+  // Validates loop structure is present instead of blind cast
+  assert.match(source, /for \(let idx = 0; idx < rawAgents\.length; idx\+\+\) \{/);
+  assert.doesNotMatch(source, /agentsList = rawAgents as AgentDefinition\[\];/,
+    "blind cast must be removed");
+
+  // Validates safe logging — no raw entry object in warn calls
+  assert.doesNotMatch(source, /logger\.warn\(\s*\{ entry\b/,
+    "raw entry must not be logged — security boundary");
+  assert.match(source, /entryType: Array\.isArray\(entry\) \? "array" : typeof entry/);
+  assert.match(source, /hasIdField: Object\.prototype\.hasOwnProperty\.call\(e, "id"\)/);
+
+  // Validates id check
+  assert.match(source, /candidateId = typeof e\.id === "string" && e\.id\.trim\(\)\.length > 0 \? e\.id\.trim\(\) : null/);
+  assert.match(source, /if \(!candidateId\) \{/);
+});
+
 test("live .agents/config/agents.yaml declares mihwar/bayyinah and matches Modal deployment", () => {
   const cfgPath = path.join(process.cwd(), '.agents/config/agents.yaml');
   const raw = fs.readFileSync(cfgPath, 'utf8');
