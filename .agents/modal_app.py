@@ -19,8 +19,16 @@ Environment secrets required in Modal dashboard:
     agent-api-secret    →  AGENT_API_TOKEN   (shared token for GitHub Actions auth)
 """
 
-import modal
+from __future__ import annotations
+
+import hmac
+import json
+import os
+import uuid
 from typing import Optional, Dict
+
+import modal
+from fastapi import Header, HTTPException
 
 # ── Shared base image ──────────────────────────────────────────────────────
 
@@ -35,6 +43,9 @@ vllm_image = (
 )
 
 hf_secret = modal.Secret.from_name("huggingface-secret")
+MAX_REVIEW_PAYLOAD_BYTES = 40000
+MAX_GENERATE_PAYLOAD_BYTES = 120000
+MAX_CONTEXT_BYTES = 8000
 
 # ── Agent 1: MIHWAR ───────────────────────────────────────────────────────
 # DeepSeek-Coder-V2-Instruct — strongest open-source coding model
@@ -59,7 +70,7 @@ app = modal.App("curlexai-agents")
     secrets=[hf_secret],
     timeout=300,
     max_containers=1,
-    min_containers=1,
+    min_containers=0,
 )
 class MihwarAgent:
     model_id: str = MIHWAR_MODEL
@@ -153,7 +164,7 @@ BAYYINAH_SYSTEM = (
     secrets=[hf_secret],
     timeout=120,
     max_containers=4,
-    min_containers=1,
+    min_containers=0,
 )
 class BayyinahAgent:
     model_id: str = BAYYINAH_MODEL
@@ -237,6 +248,44 @@ def _build_chat_prompt(system: str, user: str, model_family: str) -> str:
         return f"### System:\n{system}\n\n### User:\n{user}\n\n### Assistant:\n"
 
 
+def _make_request_id(header_value: str | None) -> str:
+    if header_value:
+        trimmed = header_value.strip()[:128]
+        if trimmed:
+            return trimmed
+    return str(uuid.uuid4())
+
+
+def _verify_bearer_token(authorization: str | None) -> None:
+    expected_token = os.environ.get("AGENT_API_TOKEN", "")
+    if not expected_token:
+        raise HTTPException(status_code=503, detail="agent_api_token_missing")
+
+    if not authorization:
+        raise HTTPException(status_code=401, detail="missing_authorization")
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="invalid_authorization_scheme")
+
+    if not hmac.compare_digest(token, expected_token):
+        raise HTTPException(status_code=401, detail="invalid_token")
+
+
+def _limit_payload_bytes(payload: dict, max_bytes: int) -> None:
+    raw = json.dumps(payload, ensure_ascii=False)
+    if len(raw.encode("utf-8")) > max_bytes:
+        raise HTTPException(status_code=413, detail="payload_too_large")
+
+
+def _trimmed_text(value: object, max_bytes: int) -> str:
+    text = str(value or "")
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+    return encoded[:max_bytes].decode("utf-8", errors="ignore")
+
+
 # ── Web endpoints (called by GitHub Actions) ───────────────────────────────
 #
 # After `modal deploy .agents/modal_app.py`, Modal provides stable HTTPS URLs.
@@ -252,52 +301,67 @@ api_secret = modal.Secret.from_name("agent-api-secret")
     image=vllm_image,
     secrets=[hf_secret, api_secret],
     timeout=180,
-    min_containers=1,
+    min_containers=0,
 )
 @modal.fastapi_endpoint(method="POST", label="bayyinah-review")
-def bayyinah_review_web(payload: dict) -> dict:
+def bayyinah_review_web(
+    payload: dict,
+    authorization: str | None = Header(default=None),
+    x_request_id: str | None = Header(default=None),
+) -> dict:
     """
     HTTP POST endpoint for Bayyinah.
-    Body: { "token": "...", "code": "...", "context": "..." }
-    Called by GitHub Actions on every PR.
+    Called by GitHub Actions on every PR using Authorization: Bearer.
     """
-    import os
-
-    expected_token = os.environ.get("AGENT_API_TOKEN", "")
-    if not expected_token or payload.get("token") != expected_token:
-        return {"error": "unauthorized", "verdict": "BLOCKED", "report": ""}
+    request_id = _make_request_id(x_request_id)
+    _verify_bearer_token(authorization)
+    _limit_payload_bytes(payload, MAX_REVIEW_PAYLOAD_BYTES)
 
     agent = BayyinahAgent()
-    return agent.review.remote(
-        payload.get("code", ""),
-        payload.get("context", ""),
+    result = agent.review.remote(
+        _trimmed_text(payload.get("code"), MAX_REVIEW_PAYLOAD_BYTES),
+        _trimmed_text(payload.get("context"), MAX_CONTEXT_BYTES),
     )
+    result["request_id"] = request_id
+    return result
 
 
 @app.function(
     image=vllm_image,
     secrets=[hf_secret, api_secret],
     timeout=360,
-    min_containers=1,
+    min_containers=0,
 )
 @modal.fastapi_endpoint(method="POST", label="mihwar-generate")
-def mihwar_generate_web(payload: dict) -> dict:
+def mihwar_generate_web(
+    payload: dict,
+    authorization: str | None = Header(default=None),
+    x_request_id: str | None = Header(default=None),
+) -> dict:
     """
     HTTP POST endpoint for Mihwar.
-    Body: { "token": "...", "task": "...", "context_files": {} }
-    Called by GitHub Actions when Bayyinah requests changes.
+    Called by GitHub Actions using Authorization: Bearer.
     """
-    import os
+    request_id = _make_request_id(x_request_id)
+    _verify_bearer_token(authorization)
+    _limit_payload_bytes(payload, MAX_GENERATE_PAYLOAD_BYTES)
 
-    expected_token = os.environ.get("AGENT_API_TOKEN", "")
-    if not expected_token or payload.get("token") != expected_token:
-        return {"error": "unauthorized", "response": ""}
+    context_files = payload.get("context_files")
+    if not isinstance(context_files, dict):
+        context_files = {}
+
+    sanitized_context_files = {
+        str(path): _trimmed_text(content, MAX_CONTEXT_BYTES)
+        for path, content in context_files.items()
+    }
 
     agent = MihwarAgent()
-    return agent.review_and_generate.remote(
-        payload.get("task", ""),
-        payload.get("context_files", {}),
+    result = agent.review_and_generate.remote(
+        _trimmed_text(payload.get("task"), MAX_GENERATE_PAYLOAD_BYTES),
+        sanitized_context_files,
     )
+    result["request_id"] = request_id
+    return result
 
 
 # ── Smoke test ─────────────────────────────────────────────────────────────
