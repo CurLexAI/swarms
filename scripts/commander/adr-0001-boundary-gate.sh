@@ -13,6 +13,8 @@ info() { echo "[INFO] $*"; }
 info "ADR-0001 boundary gate"
 info "repo=$(pwd)"
 
+# public/control is allowed per ADR-0002 (operator-only static artifacts boundary).
+# public/trust is allowed per ADR-0002. public/index.html remains forbidden.
 FORBIDDEN_PATHS=(
   "backend_fastapi"
   "src/routes"
@@ -22,7 +24,6 @@ FORBIDDEN_PATHS=(
   "src/api"
   "src/apiSecurity.js"
   "public/index.html"
-  "public/control"
   "public/about"
   "public/contact"
   "public/privacy"

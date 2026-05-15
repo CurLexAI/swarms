@@ -149,10 +149,13 @@ class ModalBoundaryGateTests(unittest.TestCase):
             self.assertIn("RELAY_MISSING", result.stdout)
 
     def test_boundary_regression_bubbles_up(self) -> None:
+        # Verify that an ADR-0001 violation (e.g. src/routes) surfaces as
+        # ADR_0001_BOUNDARY_REGRESSION inside the modal gate.
+        # Note: public/control is no longer a violation (ADR-0002 allows it).
         with TemporaryDirectory() as tmp_str:
             tmp = Path(tmp_str)
             _build_fixture(tmp)
-            (tmp / "public" / "control").mkdir(parents=True, exist_ok=True)
+            (tmp / "src" / "routes").mkdir(parents=True, exist_ok=True)
             result = _run_gate(tmp)
             self.assertEqual(result.returncode, 1)
             self.assertIn("ADR_0001_BOUNDARY_REGRESSION", result.stdout)
