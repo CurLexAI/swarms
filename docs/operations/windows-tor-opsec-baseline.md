@@ -10,16 +10,29 @@ Use **Tor Browser on Windows only for medium-risk private browsing and research 
 
 Best Windows path:
 
-1. Install Tor Browser only from the official Tor Project distribution channel.
-2. Run Tor Browser as a dedicated research profile, not as a daily browser replacement.
-3. Set Tor Browser security level to **Safer** by default.
-4. Move to **Safest** for hostile websites, unknown documents, or high-risk investigations.
-5. Do not install browser extensions.
-6. Do not sign in to personal Google, Microsoft, Apple, GitHub, bank, telecom, or social accounts through the same identity compartment.
-7. Prefer `.onion` services where available.
-8. Keep downloads inside a disposable folder and open documents only after metadata stripping or inside a sandbox/VM.
-9. Do not maximize or frequently resize Tor Browser windows; preserve fingerprinting resistance.
-10. Run the Windows baseline checker in `scripts/commander/windows-tor-opsec-baseline.ps1` before sensitive sessions.
+1. Install Tor Browser for Windows only from the official Tor Project download page: `https://www.torproject.org/download/`.
+2. Verify the Windows download signature before using it when the session is sensitive.
+3. Run Tor Browser as a dedicated research profile, not as a daily browser replacement.
+4. Set Tor Browser security level to **Safer** by default.
+5. Move to **Safest** for hostile websites, unknown documents, or high-risk investigations.
+6. Do not install browser extensions.
+7. Do not sign in to personal Google, Microsoft, Apple, GitHub, bank, telecom, or social accounts through the same identity compartment.
+8. Prefer `.onion` services where available.
+9. Keep downloads inside a disposable folder and open documents only after metadata stripping or inside a sandbox/VM.
+10. Do not maximize or frequently resize Tor Browser windows; preserve fingerprinting resistance.
+11. Run the Windows baseline checker in `scripts/commander/windows-tor-opsec-baseline.ps1` before sensitive sessions.
+
+## Official Windows source
+
+The authoritative Windows download source is the Tor Project download page:
+
+```text
+https://www.torproject.org/download/
+```
+
+Use the **Download for Windows** option from that page. For sensitive sessions, also use the adjacent **Signature** link to verify the installer before first launch.
+
+Do not use repackaged installers, third-party mirrors, browser-extension bundles, cracked installers, or download sites that add wrappers around the Tor Browser installer.
 
 ## Why Windows is not the strongest OPSEC host
 
@@ -170,4 +183,4 @@ Stop and change environment if any of these are true:
 
 For Windows, the best practical answer is:
 
-> Use Tor Browser with `Safer` as the default, `Safest` for high-risk sessions, no extensions, no personal accounts, no host document opening, and a dedicated identity compartment. Treat Windows as acceptable for research, not as the final architecture for strong anonymity.
+> Use Tor Browser for Windows from `https://www.torproject.org/download/`, verify the signature for sensitive sessions, use `Safer` as the default, `Safest` for high-risk sessions, no extensions, no personal accounts, no host document opening, and a dedicated identity compartment. Treat Windows as acceptable for research, not as the final architecture for strong anonymity.
