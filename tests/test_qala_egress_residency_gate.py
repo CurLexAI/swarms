@@ -21,8 +21,6 @@ Contracts under test (per ADR-0003 §Q8 and the gate's policy doc):
 
 from __future__ import annotations
 
-import os
-import shutil
 import subprocess
 import tempfile
 import unittest
