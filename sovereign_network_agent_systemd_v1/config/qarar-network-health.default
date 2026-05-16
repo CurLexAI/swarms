@@ -1,0 +1,14 @@
+# Qarar Sovereign Network Health Guard defaults.
+# Safe by default: monitoring only. Do not disable dry-run without direct approval.
+QARAR_APP_ID=sovereign-agent-v2
+QARAR_NETWORK_DRY_RUN=true
+QARAR_ENABLE_ROUTER_REBOOT=false
+QARAR_INTERVAL=60
+QARAR_LOG_PATH=/var/log/qarar-network-agent/network-health.jsonl
+QARAR_TARGETS=1.1.1.1:53,8.8.8.8:53,192.168.3.1:80
+QARAR_CONNECT_TIMEOUT=2.0
+QARAR_FAILURE_THRESHOLD=3
+QARAR_LOG_MAX_BYTES=5242880
+QARAR_ENABLE_PING_FALLBACK=true
+PYTHONUNBUFFERED=1
+PYTHONDONTWRITEBYTECODE=1

@@ -1,0 +1,31 @@
+[Unit]
+Description=Qarar Sovereign Network Health Guard
+Documentation=file:/opt/sovereign-network-agent/docs/audits/lexprim-recovery-audit.md
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=qarar-netguard
+Group=qarar-netguard
+WorkingDirectory=/opt/sovereign-network-agent
+EnvironmentFile=-/etc/default/qarar-network-health
+ExecStart=/opt/sovereign-network-agent/.venv/bin/python -u /opt/sovereign-network-agent/network_health_guard.py
+Restart=always
+RestartSec=15s
+KillSignal=SIGTERM
+TimeoutStopSec=20s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/qarar-network-agent /var/lib/qarar-network-agent
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target
