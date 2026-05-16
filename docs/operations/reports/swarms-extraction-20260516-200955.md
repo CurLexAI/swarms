@@ -1,0 +1,11 @@
+Execution Verdict:
+- Status: BLOCKED
+- Scope: Verify swarms extraction workflow script prerequisites and repository shape.
+- Canonical Path: scripts/verify_swarms_extraction.sh
+- Files Touched: docs/operations/reports/swarms-extraction-20260516-200955.md
+- Blockers: AUTH_MISSING (gh auth status failed for github.com)
+- Hot Surface Risk: LOW
+- What Was Actually Changed: Generated blocker report only.
+- What Was Actually Verified: none
+- What Remains Unverified: GitHub clone and extraction checks.
+- Next Valid Action: Authenticate with GitHub CLI and rerun this script.
