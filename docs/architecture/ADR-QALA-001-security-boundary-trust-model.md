@@ -1,6 +1,6 @@
 # ADR-QALA-001: QAL'A Security Boundary and Trust Model
 
-- Status: Proposed
+- Status: Accepted (Phase 1 Discovery approval: PROCEED_WITH_ADR_ONLY)
 - Date: 2026-05-15
 - Decision Owner: CurLexAI Security Engineering
 - Scope: CurLexAI/swarms (agent operations repository)
@@ -127,6 +127,20 @@ Rollback is mandatory if any of the following occurs:
 - false deny on critical control-plane path without mitigation,
 - inability to prove fail-closed behavior where required,
 - security regression in boundary gates.
+
+
+## Phase sequencing guard (authoritative)
+
+Execution order under QAL'A is locked as:
+
+1. ADR-QALA-001 (this document)
+2. Shared trace + audit schema implementation PR
+3. Separate ADR for Modal-edge HMAC auth
+4. HMAC implementation PR
+5. Separate ADR for fail-closed egress
+6. Egress implementation PR
+
+No parallel PRs are allowed on the same hot surface while a prior prerequisite ADR is open.
 
 ## Consequences
 
