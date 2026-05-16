@@ -36,7 +36,7 @@ import re
 from typing import Optional
 
 import modal
-from fastapi import Header, HTTPException
+from fastapi import Body, Header, HTTPException
 
 # ── Modal app (separate from curlexai-agents) ────────────────────────────────
 
@@ -228,8 +228,8 @@ class PDPLIngestor:
 )
 @modal.fastapi_endpoint(method="POST", label="pdpl-ingest")
 def ingest_web(
-    payload: dict,
     authorization: str | None = Header(default=None),
+    payload: dict = Body(default={}),
 ) -> dict:
     _verify_bearer_token(authorization)
     ingestor = PDPLIngestor()
@@ -244,8 +244,8 @@ def ingest_web(
 )
 @modal.fastapi_endpoint(method="POST", label="pdpl-verify")
 def verify_web(
-    payload: dict,
     authorization: str | None = Header(default=None),
+    payload: dict = Body(default={}),
 ) -> dict:
     _verify_bearer_token(authorization)
     query: str = payload.get("query", "نقل البيانات الشخصية")
