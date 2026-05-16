@@ -93,21 +93,16 @@ jobs:
             echo "status=READY" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Checkout repository
-        if: steps.secrets-check.outputs.status == 'READY'
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
       - name: Fetch PR diff
         id: fetch-diff
         if: steps.secrets-check.outputs.status == 'READY'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          gh pr diff "${PR_NUMBER}" > /tmp/pr.diff 2>/dev/null || : > /tmp/pr.diff
+          gh pr diff "${PR_NUMBER}" --repo "${REPOSITORY}" > /tmp/pr.diff 2>/dev/null || : > /tmp/pr.diff
           echo "diff_path=/tmp/pr.diff" >> "$GITHUB_OUTPUT"
 
       - name: Invoke Mihwar endpoint
@@ -153,6 +148,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACTOR: ${{ github.event.comment.user.login }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -173,13 +169,14 @@ jobs:
           """
           Path("/tmp/mihwar-comment.md").write_text(body, encoding="utf-8")
           PY
-          gh pr comment "${PR_NUMBER}" --body-file /tmp/mihwar-comment.md
+          gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/mihwar-comment.md
 
       - name: Post SKIPPED_UNVERIFIED notice
         if: steps.secrets-check.outputs.status == 'SKIPPED_UNVERIFIED'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           cat > /tmp/mihwar-skipped.md <<'EOF'
@@ -188,4 +185,4 @@ jobs:
           `MIHWAR_ENDPOINT` or `AGENT_API_TOKEN` is not configured.
           Mihwar Agent **SKIPPED_UNVERIFIED** — configure secrets to enable SWE execution.
           EOF
-          gh pr comment "${PR_NUMBER}" --body-file /tmp/mihwar-skipped.md 2>/dev/null || true
+          gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/mihwar-skipped.md 2>/dev/null || true

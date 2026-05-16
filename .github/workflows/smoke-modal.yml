@@ -97,14 +97,13 @@ jobs:
           AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
         run: |
           set -euo pipefail
-          payload="$(jq -nc \
-            --arg t "$AGENT_API_TOKEN" \
-            '{token:$t, code:"def add(a,b): return a+b\n", context:"smoke probe"}')"
+          payload="$(jq -nc '{code:"def add(a,b): return a+b\n", context:"smoke probe"}')"
           status="$(curl -sS \
             --max-time 240 \
             -o /tmp/bayyinah-resp.json \
             -w '%{http_code}' \
             -H 'Content-Type: application/json' \
+            -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
             -X POST \
             -d "$payload" \
             "$BAYYINAH_ENDPOINT" || echo 000)"
@@ -113,12 +112,12 @@ jobs:
           shape="missing"
           unauthorized=false
           if [[ "$status" == "200" ]]; then
-            if jq -e '.error == "unauthorized"' /tmp/bayyinah-resp.json >/dev/null 2>&1; then
-              unauthorized=true
-              shape="error=unauthorized"
-            elif jq -e '.verdict' /tmp/bayyinah-resp.json >/dev/null 2>&1; then
+            if jq -e '.request_id and .verdict' /tmp/bayyinah-resp.json >/dev/null 2>&1; then
               verdict="VERIFIED"
-              shape="verdict field present"
+              shape="request_id + verdict present"
+            elif jq -e '.detail == "invalid_token" or .detail == "missing_authorization" or .detail == "invalid_authorization_scheme"' /tmp/bayyinah-resp.json >/dev/null 2>&1; then
+              unauthorized=true
+              shape="detail=authorization_failure"
             fi
           fi
 
@@ -146,14 +145,13 @@ jobs:
           AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
         run: |
           set -euo pipefail
-          payload="$(jq -nc \
-            --arg t "$AGENT_API_TOKEN" \
-            '{token:$t, task:"return the integer 1", context_files:{}}')"
+          payload="$(jq -nc '{task:"return the integer 1", context_files:{}}')"
           status="$(curl -sS \
             --max-time 420 \
             -o /tmp/mihwar-resp.json \
             -w '%{http_code}' \
             -H 'Content-Type: application/json' \
+            -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
             -X POST \
             -d "$payload" \
             "$MIHWAR_ENDPOINT" || echo 000)"
@@ -162,12 +160,12 @@ jobs:
           shape="missing"
           unauthorized=false
           if [[ "$status" == "200" ]]; then
-            if jq -e '.error == "unauthorized"' /tmp/mihwar-resp.json >/dev/null 2>&1; then
-              unauthorized=true
-              shape="error=unauthorized"
-            elif jq -e '.response' /tmp/mihwar-resp.json >/dev/null 2>&1; then
+            if jq -e '.request_id and .response' /tmp/mihwar-resp.json >/dev/null 2>&1; then
               verdict="VERIFIED"
-              shape="response field present"
+              shape="request_id + response present"
+            elif jq -e '.detail == "invalid_token" or .detail == "missing_authorization" or .detail == "invalid_authorization_scheme"' /tmp/mihwar-resp.json >/dev/null 2>&1; then
+              unauthorized=true
+              shape="detail=authorization_failure"
             fi
           fi
 
