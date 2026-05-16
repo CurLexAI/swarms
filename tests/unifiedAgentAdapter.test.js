@@ -35,7 +35,13 @@ test("loadRegistry supports primary and fallback registry paths and accepts dict
 
   assert.match(source, /path\.resolve\(MODULE_DIR,\s*"\.\.\/\.\.\/\.agents\/config\/agents\.yaml"\)/);
   assert.match(source, /process\.env\.AGENT_REGISTRY_PATH\?\.trim\(\)/);
-  assert.match(source, /registryPathSource = resolvedEnvRegistryPath \? "env" : "default"/);
+  assert.match(source, /if \(resolvedEnvRegistryPath\) \{/);
+  assert.match(source, /registryPathSource = "env"/);
+  assert.match(source, /else if \(fs\.existsSync\(moduleDefaultRegistryPath\)\) \{/);
+  assert.match(source, /registryPathSource = "default"/);
+  assert.match(source, /else if \(fs\.existsSync\(moduleLegacyRegistryPath\)\) \{/);
+  assert.match(source, /registryPathSource = "legacy_fallback"/);
+  assert.match(source, /path\.resolve\(MODULE_DIR,\s*"\.\.\/\.\.\/agents\/registry\.yaml"\)/);
   assert.match(source, /CONFIG_NOT_FOUND: Required registry file was not found at \$\{selectedRegistryPath\}/);
   assert.match(source, /SYNTAX_FAILURE: Failed to parse registry file at \$\{selectedRegistryPath\}/);
   assert.match(source, /if \(Array\.isArray\(rawAgents\)\) \{/);
@@ -122,6 +128,7 @@ test("loadRegistry array path skips non-object and missing-id entries without lo
   assert.match(source, /candidateId = typeof e\.id === "string" && e\.id\.trim\(\)\.length > 0 \? e\.id\.trim\(\) : null/);
   assert.match(source, /if \(!candidateId\) \{/);
 });
+
 
 test("live .agents/config/agents.yaml declares mihwar/bayyinah and matches Modal deployment", () => {
   const cfgPath = path.join(process.cwd(), '.agents/config/agents.yaml');

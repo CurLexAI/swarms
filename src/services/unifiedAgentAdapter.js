@@ -247,10 +247,27 @@ export class UnifiedAgentAdapter {
     policyService;
     constructor(policyService = new DefaultPolicyService()) {
         const moduleDefaultRegistryPath = path.resolve(MODULE_DIR, "../../.agents/config/agents.yaml");
+        const moduleLegacyRegistryPath = path.resolve(MODULE_DIR, "../../agents/registry.yaml");
         const envRegistryPath = process.env.AGENT_REGISTRY_PATH?.trim();
         const resolvedEnvRegistryPath = envRegistryPath ? path.resolve(envRegistryPath) : null;
-        const registryPathSource = resolvedEnvRegistryPath ? "env" : "default";
-        const selectedRegistryPath = resolvedEnvRegistryPath ?? moduleDefaultRegistryPath;
+        let registryPathSource;
+        let selectedRegistryPath;
+        if (resolvedEnvRegistryPath) {
+            registryPathSource = "env";
+            selectedRegistryPath = resolvedEnvRegistryPath;
+        }
+        else if (fs.existsSync(moduleDefaultRegistryPath)) {
+            registryPathSource = "default";
+            selectedRegistryPath = moduleDefaultRegistryPath;
+        }
+        else if (fs.existsSync(moduleLegacyRegistryPath)) {
+            registryPathSource = "legacy_fallback";
+            selectedRegistryPath = moduleLegacyRegistryPath;
+        }
+        else {
+            registryPathSource = "default";
+            selectedRegistryPath = moduleDefaultRegistryPath;
+        }
         this.registryPath = selectedRegistryPath;
         this.policyService = policyService;
         logger.info({ registryPathSource, registryPath: selectedRegistryPath }, "Registry startup integrity check");

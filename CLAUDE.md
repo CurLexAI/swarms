@@ -102,7 +102,7 @@ Default collaboration: Mihwar generates → Bayyinah reviews → up to 3 revisio
 
 ### Key components
 
-- **`.agents/config/agents.yaml`** — canonical agent profiles (model id, Modal endpoint, system prompts, tasks). The single source of truth for agent identity. `agents/registry.yaml` is the runtime-side registry consumed by `unifiedAgentAdapter`.
+- **`.agents/config/agents.yaml`** — canonical agent profiles (model id, Modal endpoint, system prompts, tasks). This is the single source of truth for `unifiedAgentAdapter`; `agents/registry.yaml` is legacy-only and used strictly as an automatic fallback when `.agents/config/agents.yaml` is absent.
 - **`.agents/modal_app.py`** — Modal deployment surface (vLLM endpoints `MihwarAgent`, `BayyinahAgent`).
 - **`.agents/invoke.py`** — CLI to call agents. Has a fallback YAML parser so `info` works without PyYAML installed.
 - **`.agents/pr_review.py`** + **`.github/workflows/agent-review.yml`** — Bayyinah review of PR diffs on `main`. Workflow runs boundary gates *before* reading secrets.
