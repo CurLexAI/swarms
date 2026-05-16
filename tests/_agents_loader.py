@@ -60,3 +60,7 @@ bayyinah_gate = _load_module(
     "_agents_pkg.validators.bayyinah_validation_gate",
     AGENTS_DIR / "validators" / "bayyinah_validation_gate.py",
 )
+qala_trace = _load_module(
+    "_agents_pkg.validators.qala_trace",
+    AGENTS_DIR / "validators" / "qala_trace.py",
+)
