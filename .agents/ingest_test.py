@@ -113,12 +113,15 @@ def _qdrant_client():  # type: ignore[return]  # qdrant_client not available at 
 def _verify_bearer_token(authorization: Optional[str]) -> None:
     expected = os.environ.get("AGENT_API_TOKEN", "")
     if not expected:
-        raise HTTPException(status_code=500, detail="AGENT_API_TOKEN not configured on server")
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization header required")
-    token = authorization.removeprefix("Bearer ").strip()
-    if not hmac.compare_digest(token.encode(), expected.encode()):
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=503, detail="agent_api_token_missing")
+    if not authorization:
+        raise HTTPException(status_code=401, detail="missing_authorization")
+    # HTTP auth scheme is case-insensitive (RFC 7235) — matches modal_app.py pattern
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="invalid_authorization_scheme")
+    if not hmac.compare_digest(token, expected):
+        raise HTTPException(status_code=401, detail="invalid_token")
 
 
 # ── Ingestor class (holds bge-m3 warm across calls) ─────────────────────────
