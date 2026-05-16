@@ -245,6 +245,7 @@ export class UnifiedAgentAdapter {
     agents = new Map();
     registryStartupError = null;
     policyService;
+    reasoningHook = null;
     constructor(policyService = new DefaultPolicyService()) {
         const moduleDefaultRegistryPath = path.resolve(MODULE_DIR, "../../.agents/config/agents.yaml");
         const envRegistryPath = process.env.AGENT_REGISTRY_PATH?.trim();
@@ -367,6 +368,23 @@ export class UnifiedAgentAdapter {
             registryPath: this.registryPath
         };
     }
+    setReasoningHook(reasoningHook) {
+        this.reasoningHook = reasoningHook;
+    }
+    async prepareReasoningPlan(agent, executionPayload) {
+        const generatedPlan = await this.generateExecutionPlan(agent, executionPayload);
+        if (!this.reasoningHook)
+            return generatedPlan;
+        const hookResult = await this.reasoningHook({
+            agent,
+            payload: executionPayload,
+            plan: generatedPlan
+        });
+        if (typeof hookResult === "string" && hookResult.trim().length > 0) {
+            return hookResult;
+        }
+        return generatedPlan;
+    }
     // P0: serverPrincipalTenantId must come from server-side auth context (session/JWT),
     // never from the request payload. The caller is responsible for deriving this value
     // from a trusted source before invoking executeAgent.
@@ -425,13 +443,16 @@ export class UnifiedAgentAdapter {
         const taskId = randomUUID();
         const safePayload = validation.safePayload;
         // Defensive copy — executionPayload is independent of the caller's payload.
+        const currentContext = safePayload.context && typeof safePayload.context === "object" && !Array.isArray(safePayload.context)
+            ? safePayload.context
+            : {};
         const executionPayload = {
             ...safePayload,
+            context: { ...currentContext },
             ...(safePayload.metadata
                 ? {
                     metadata: {
-                        ...safePayload.metadata,
-                        context: { ...(safePayload.metadata.context ?? {}) }
+                        ...safePayload.metadata
                     }
                 }
                 : {})
@@ -455,18 +476,13 @@ export class UnifiedAgentAdapter {
         }
         if (agent.enable_reasoning) {
             logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
-            const plan = await this.generateExecutionPlan(agent, executionPayload);
-            const existingMetadata = executionPayload.metadata ?? {};
-            const metadataContext = existingMetadata.context;
-            const currentContext = metadataContext && typeof metadataContext === "object" && !Array.isArray(metadataContext)
-                ? metadataContext
+            const plan = await this.prepareReasoningPlan(agent, executionPayload);
+            const currentContext = executionPayload.context && typeof executionPayload.context === "object" && !Array.isArray(executionPayload.context)
+                ? executionPayload.context
                 : {};
-            executionPayload.metadata = {
-                ...existingMetadata,
-                context: {
-                    ...currentContext,
-                    execution_plan: plan
-                }
+            executionPayload.context = {
+                ...currentContext,
+                execution_plan: plan
             };
         }
         // P0: Audit entries sanitized before write; input body never logged.
@@ -589,7 +605,7 @@ export class UnifiedAgentAdapter {
             });
             throw new Error(validation.reason ?? "Invalid payload for python forwarding");
         }
-        const safeBody = { agent_id: agent.id, tenant_id: validation.safePayload.tenant_id, input: validation.safePayload.input, metadata: validation.safePayload.metadata ?? {} };
+        const safeBody = { agent_id: agent.id, tenant_id: validation.safePayload.tenant_id, input: validation.safePayload.input, metadata: validation.safePayload.metadata ?? {}, context: validation.safePayload.context ?? {} };
         const backendUrl = process.env.PYTHON_BACKEND_URL?.trim();
         if (!backendUrl) {
             logger.error({ agentId: agent.id, configKey: "PYTHON_BACKEND_URL" }, "CONFIG_NOT_FOUND: PYTHON_BACKEND_URL is required for python agent forwarding");

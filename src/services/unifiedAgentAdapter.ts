@@ -39,6 +39,12 @@ interface TrustedExecutionContext {
   isAdmin?: boolean;
 }
 
+type ReasoningHook = (params: {
+  agent: NormalizedAgentDefinition;
+  payload: ExecuteAgentPayload;
+  plan: string;
+}) => Promise<string | null | undefined> | string | null | undefined;
+
 export interface ExecuteAgentPayload {
   tenant_id: string;
   input: string;
@@ -359,6 +365,7 @@ export class UnifiedAgentAdapter {
   private agents: Map<string, NormalizedAgentDefinition> = new Map();
   private registryStartupError: RegistryStartupError | null = null;
   private policyService: PolicyService;
+  private reasoningHook: ReasoningHook | null = null;
 
   constructor(policyService: PolicyService = new DefaultPolicyService()) {
     const moduleDefaultRegistryPath = path.resolve(MODULE_DIR, "../../.agents/config/agents.yaml");
@@ -534,6 +541,28 @@ export class UnifiedAgentAdapter {
     };
   }
 
+
+  setReasoningHook(reasoningHook: ReasoningHook | null) {
+    this.reasoningHook = reasoningHook;
+  }
+
+  private async prepareReasoningPlan(agent: NormalizedAgentDefinition, executionPayload: ExecuteAgentPayload) {
+    const generatedPlan = await this.generateExecutionPlan(agent, executionPayload);
+    if (!this.reasoningHook) return generatedPlan;
+
+    const hookResult = await this.reasoningHook({
+      agent,
+      payload: executionPayload,
+      plan: generatedPlan
+    });
+
+    if (typeof hookResult === "string" && hookResult.trim().length > 0) {
+      return hookResult;
+    }
+
+    return generatedPlan;
+  }
+
   // P0: serverPrincipalTenantId must come from server-side auth context (session/JWT),
   // never from the request payload. The caller is responsible for deriving this value
   // from a trusted source before invoking executeAgent.
@@ -609,13 +638,18 @@ export class UnifiedAgentAdapter {
     const taskId = randomUUID();
     const safePayload = validation.safePayload;
     // Defensive copy — executionPayload is independent of the caller's payload.
+    const currentContext =
+      safePayload.context && typeof safePayload.context === "object" && !Array.isArray(safePayload.context)
+        ? safePayload.context
+        : {};
+
     const executionPayload: ExecuteAgentPayload = {
       ...safePayload,
+      context: { ...currentContext },
       ...(safePayload.metadata
         ? {
             metadata: {
-              ...safePayload.metadata,
-              context: { ...(safePayload.metadata.context ?? {}) }
+              ...safePayload.metadata
             }
           }
         : {})
@@ -639,20 +673,15 @@ export class UnifiedAgentAdapter {
 
     if (agent.enable_reasoning) {
       logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
-      const plan = await this.generateExecutionPlan(agent, executionPayload);
-      const existingMetadata = executionPayload.metadata ?? {};
-      const metadataContext = existingMetadata.context;
+      const plan = await this.prepareReasoningPlan(agent, executionPayload);
       const currentContext =
-        metadataContext && typeof metadataContext === "object" && !Array.isArray(metadataContext)
-          ? (metadataContext as Record<string, unknown>)
+        executionPayload.context && typeof executionPayload.context === "object" && !Array.isArray(executionPayload.context)
+          ? executionPayload.context
           : {};
 
-      executionPayload.metadata = {
-        ...existingMetadata,
-        context: {
-          ...currentContext,
-          execution_plan: plan
-        }
+      executionPayload.context = {
+        ...currentContext,
+        execution_plan: plan
       };
     }
 
@@ -745,14 +774,12 @@ export class UnifiedAgentAdapter {
       safeMetadata = rawPayload.metadata as ExecuteAgentMetadata;
     }
 
+    let safeContext: Record<string, unknown> | undefined;
     if (rawPayload.context !== undefined) {
       if (!rawPayload.context || typeof rawPayload.context !== "object" || Array.isArray(rawPayload.context)) {
         return { isValid: false, reason: "context must be an object when provided" };
       }
-      safeMetadata = {
-        ...(safeMetadata ?? {}),
-        context: rawPayload.context as Record<string, unknown>
-      };
+      safeContext = rawPayload.context as Record<string, unknown>;
     }
 
     return {
@@ -760,7 +787,8 @@ export class UnifiedAgentAdapter {
       safePayload: {
         tenant_id: rawPayload.tenant_id.trim(),
         input: rawPayload.input,
-        ...(safeMetadata ? { metadata: safeMetadata } : {})
+        ...(safeMetadata ? { metadata: safeMetadata } : {}),
+        ...(safeContext ? { context: safeContext } : {})
       }
     };
   }
@@ -808,7 +836,7 @@ export class UnifiedAgentAdapter {
       });
       throw new Error(validation.reason ?? "Invalid payload for python forwarding");
     }
-    const safeBody = { agent_id: agent.id, tenant_id: validation.safePayload.tenant_id, input: validation.safePayload.input, metadata: validation.safePayload.metadata ?? {} };
+    const safeBody = { agent_id: agent.id, tenant_id: validation.safePayload.tenant_id, input: validation.safePayload.input, metadata: validation.safePayload.metadata ?? {}, context: validation.safePayload.context ?? {} };
     const backendUrl = process.env.PYTHON_BACKEND_URL?.trim();
     if (!backendUrl) {
       logger.error({ agentId: agent.id, configKey: "PYTHON_BACKEND_URL" }, "CONFIG_NOT_FOUND: PYTHON_BACKEND_URL is required for python agent forwarding");
@@ -879,7 +907,8 @@ export class UnifiedAgentAdapter {
     const dispatchPayload = {
       tenant_id: payload.tenant_id,
       input: payload.input,
-      metadata: payload.metadata ?? {}
+      metadata: payload.metadata ?? {},
+      context: payload.context ?? {}
     };
 
     try {
