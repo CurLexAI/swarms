@@ -126,7 +126,8 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
     payload: {
       tenant_id: "tenant-1",
       input: "run test",
-      metadata: { trace_id: "trace-123", context: {} }
+      metadata: { trace_id: "trace-123" },
+      context: {}
     },
     context: "api",
     isAdmin: false
@@ -710,4 +711,70 @@ test("UnifiedAgentAdapter keeps transitive ERR_MODULE_NOT_FOUND as runtime failu
   assert.equal(taskUpdates[0][1], "FAILED");
   assert.match(taskUpdates[0][2].error, /^RUNTIME_FAILURE:/);
   assert.equal(taskUpdates[0][2].blocker, "RUNTIME_FAILURE");
+});
+
+
+test("UnifiedAgentAdapter reasoning path stores execution plan in payload.context and applies optional hook", async (t) => {
+  const runAgentCalls = [];
+  const runAgentStub = async (payload) => {
+    runAgentCalls.push(payload);
+    return { output: "node-result", provider: "stub" };
+  };
+
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => runAgentStub;
+  adapter.setReasoningHook(({ plan }) => `${plan} [hooked]`);
+  adapter.agents = new Map([
+    [
+      "reasoning-node-agent",
+      {
+        id: "reasoning-node-agent",
+        name: "Reasoning Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution", "reasoning"],
+        enable_reasoning: true
+      }
+    ]
+  ]);
+
+  const result = await adapter.executeAgent(
+    "reasoning-node-agent",
+    "user-1",
+    {
+      tenant_id: "tenant-1",
+      input: "run reasoning",
+      metadata: { trace_id: "trace-reasoning" },
+      context: { existing: "context" }
+    },
+    ["scope:execute"],
+    "tenant-1"
+  );
+
+  assert.equal(result.status, "success");
+  assert.equal(runAgentCalls.length, 1);
+  assert.equal(typeof runAgentCalls[0].payload.context.execution_plan, "string");
+  assert.match(runAgentCalls[0].payload.context.execution_plan, /\[hooked\]$/);
+  assert.equal(runAgentCalls[0].payload.context.existing, "context");
 });
