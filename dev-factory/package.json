@@ -1,0 +1,20 @@
+{
+  "name": "dev-factory",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Automated Windows development workstation bootstrap for engineering, productivity, and local databases.",
+  "scripts": {
+    "bootstrap": "pwsh -ExecutionPolicy Bypass -File ./scripts/bootstrap.ps1",
+    "bootstrap:core": "pwsh -ExecutionPolicy Bypass -File ./scripts/bootstrap.ps1 -Profile core",
+    "bootstrap:full": "pwsh -ExecutionPolicy Bypass -File ./scripts/bootstrap.ps1 -Profile full",
+    "bootstrap:apps": "pwsh -ExecutionPolicy Bypass -File ./scripts/bootstrap.ps1 -Profile apps",
+    "bootstrap:db": "pwsh -ExecutionPolicy Bypass -File ./scripts/bootstrap.ps1 -Profile db",
+    "compose:up": "docker compose -f ./config/docker-compose.yml up -d",
+    "compose:down": "docker compose -f ./config/docker-compose.yml down -v",
+    "compose:logs": "docker compose -f ./config/docker-compose.yml logs -f",
+    "healthcheck": "node ./src/healthcheck.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

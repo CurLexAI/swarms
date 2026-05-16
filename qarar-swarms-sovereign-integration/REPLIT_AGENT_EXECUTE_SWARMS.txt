@@ -1,0 +1,35 @@
+Use the uploaded qarar-swarms-sovereign-integration.zip.
+
+Extract it at the repository root.
+
+Do not run another read-only audit.
+
+Execute:
+
+bash qarar-swarms-sovereign-integration/install_swarms_patch.sh .
+
+Expected behavior:
+- add Bayyinah Swarms integration files under qarar/packages/bayyinah/src/swarms
+- add Swarms integration tests under qarar/packages/bayyinah/tests
+- add Python bridge under integrations/python/qarar_swarms
+- add MCP manifest under mcp/qarar-sovereign-models.manifest.json
+- add docs/operations/swarms-qarar-integration.md
+- copy requirements.swarms.txt with pinned production dependencies
+- run the Bayyinah Swarms tests when the Bayyinah scaffold exists
+- run the Python adapter tests
+- write docs/operations/swarms-qarar-integration-report.md
+- write swarms-qarar-integration-summary.json
+
+Do not overwrite existing differing files. If a file differs, create .candidate and report the conflict.
+
+Do not deploy.
+Do not write secrets.
+Do not drop/reset/truncate databases.
+Do not disable auth, CSP, Helmet, rate limits, or security middleware.
+
+When finished, show:
+- created files
+- skipped files
+- conflicts
+- test result
+- final status
