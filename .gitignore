@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 .venv/
+.venv-modal/
 
 # Node dependency artifacts
 node_modules/

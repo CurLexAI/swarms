@@ -982,6 +982,10 @@ export class UnifiedAgentAdapter {
       return error;
     }
 
+    if (!(error instanceof Error)) {
+      return error;
+    }
+
     const errorCode =
       typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
         ? error.code

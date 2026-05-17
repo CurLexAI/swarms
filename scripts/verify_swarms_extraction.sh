@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="https://github.com/CurLexAI/swarms.git"
+REPO_URL_HOST="${SWARMS_REPO_HOST:-github.com}"
+REPO_URL_PATH="${SWARMS_REPO_PATH:-CurLexAI/swarms.git}"
+REPO_URL="https://${REPO_URL_HOST}/${REPO_URL_PATH}"
 WORK_ROOT="${WORK_ROOT:-/tmp/swarms-extraction}"
 CLONE_DIR="${WORK_ROOT}/repo"
 NOW_UTC="$(date -u +%Y%m%d-%H%M%S)"
