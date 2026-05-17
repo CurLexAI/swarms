@@ -1,78 +1,49 @@
-# GitHub Copilot Private Agents over Modal
+# GitHub Copilot Private Agents and CurLexAI Runtime Identity
 
-## Decision
+## Current verified design
 
-GitHub Copilot's model picker cannot be renamed or replaced with CurLexAI private Modal models from this repository alone.
+- CurLexAI private agent profiles are **Mihwar**, **Bayyinah**, and **Qarar**.
+- `.github/agents/copilot-swe.agent.md` was removed and must not be treated as a CurLexAI private agent.
+- `.agents/config/agents.yaml` is the canonical runtime source of truth.
+- `agents/registry.yaml` may describe topology or fallback behavior, but it must not override `.agents/config/agents.yaml`.
 
-What this repository can provide:
+## Identity layers
 
-1. GitHub custom agent profiles under `.github/agents/` so Copilot can operate with CurLexAI-specific roles.
-2. A sovereign gateway pattern that routes private model work through Render -> Modal.
-3. GitHub Actions/MCP integration points that call Mihwar and Bayyinah when secrets are configured.
+1. **GitHub Copilot model picker**: provider UI surface controlled by GitHub.
+2. **`.github/agents/*.agent.md`**: Copilot-facing repository agent profiles.
+3. **`.agents/config/agents.yaml`**: canonical CurLexAI runtime agent configuration.
+4. **Modal / MCP / GitHub Actions**: execution and routing layer.
 
-## Expected UI Behavior
+## Copilot model picker boundary
 
-- Copilot's built-in model dropdown may still show GitHub-supported models such as GPT, Claude, Gemini, or similar provider models.
-- CurLexAI agents should appear as custom agents/profiles where GitHub supports repository custom agents.
-- If the desired UX is `@mihwar`, `@bayyinah`, or `@qarar` as chat participants, that requires a Copilot extension / GitHub App / MCP-compatible integration layer. It is not achieved by renaming the built-in model picker.
+- Copilot can be guided by repository agent profiles.
+- Private routing can go through MCP, GitHub Actions, and Modal endpoints.
+- The native Copilot model picker remains a GitHub-controlled provider surface.
+- This repository cannot rename or replace GitHub Copilot native model dropdown entries.
 
-## Agent Profiles Added
+## Intended private roles
 
-| Agent | File | Purpose |
-|---|---|---|
-| Qarar | `.github/agents/qarar.agent.md` | orchestration, topology, routing, plans |
-| Mihwar | `.github/agents/mihwar.agent.md` | coding architecture and generation |
-| Bayyinah | `.github/agents/bayyinah.agent.md` | validation, security review, merge blocking |
+- **Mihwar**: orchestration, implementation planning, and execution coordination.
+- **Bayyinah**: verification, audit evidence checking, and boundary enforcement.
+- **Qarar**: local policy router / decision selector that routes to Mihwar and Bayyinah; it does not replace them.
 
-## Runtime Routing
+## Verified state
 
-```text
-GitHub Copilot custom agent profile
-  -> repository instructions
-  -> GitHub Action / MCP / Render gateway
-  -> Modal sovereign runtime
-  -> Mihwar / Bayyinah / Qarar model endpoint
-```
+- Generic `copilot-swe` profile is removed.
+- `qarar_router` is `local_policy` and routes to `mihwar`/`bayyinah`.
+- MCP uses `Authorization: Bearer`.
+- No token-in-payload matches were found.
+- No public/client `*.modal.run` exposure was found in the reviewed surfaces.
 
-Do not expose Modal endpoints to browser clients, mobile clients, or untrusted prompts.
+## Unverified / blocked
 
-## Required Secrets
+- Modal/GitHub runtime activation remains unresolved.
+- Endpoint smoke tests are not proven.
+- Qdrant remains `UNVERIFIED`.
+- Commander bash gates were reported blocked locally by CRLF parsing, not by known policy logic failure.
 
-GitHub repository or environment secrets:
+## Do not claim
 
-```text
-BAYYINAH_ENDPOINT
-MIHWAR_ENDPOINT
-AGENT_API_TOKEN
-```
-
-Optional gateway secrets depending on deployment:
-
-```text
-SOVEREIGN_MODAL_BASE_URL
-SOVEREIGN_API_KEY
-```
-
-## Verification
-
-Run structural checks:
-
-```bash
-find .github/agents -maxdepth 1 -type f -name '*.agent.md' -print
-bash scripts/commander/agent-presence-gate.sh
-```
-
-Runtime remains `UNVERIFIED` until:
-
-1. GitHub secrets are configured.
-2. Modal endpoints are live.
-3. A smoke test calls Mihwar and Bayyinah successfully.
-
-## No-Go Claims
-
-Do not claim:
-
-- The Copilot model dropdown has been replaced.
-- GitHub will display private Modal models as native model names.
-- `@mihwar` or `@bayyinah` is available unless a chat participant/extension layer is actually installed.
-- Mihwar/Bayyinah are runtime verified without endpoint smoke evidence.
+- Do not claim private agents appear as native Copilot models.
+- Do not claim runtime activation until Modal secrets/apps/endpoints are proven.
+- Do not claim Qdrant ingestion/retrieval until `.agents/ingest_test.py` succeeds.
