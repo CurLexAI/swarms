@@ -1,0 +1,114 @@
+name: Qarar FastConnect — Build & Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "windows-agent/**"
+      - "mihwar-core/**"
+      - "nginx/**"
+      - "docker-compose.yml"
+      - "render.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ── 1. Boundary gates (run before any secret access) ────────────────────
+  boundary-gates:
+    name: Boundary Gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ADR-0001 boundary
+        run: bash scripts/commander/adr-0001-boundary-gate.sh .
+      - name: Modal boundary
+        run: bash scripts/commander/modal-boundary-gate.sh .
+
+  # ── 2. Windows Agent (C# .NET 8) ────────────────────────────────────────
+  build-windows-agent:
+    name: Build Windows Agent
+    needs: boundary-gates
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Restore
+        run: dotnet restore windows-agent/MihwarAgent.csproj
+      - name: Build
+        run: dotnet build windows-agent/MihwarAgent.csproj -c Release --no-restore
+      - name: Publish (self-contained win-x64)
+        run: >
+          dotnet publish windows-agent/MihwarAgent.csproj
+          -c Release -r win-x64 --self-contained true
+          -o windows-agent/publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mihwar-agent-win-x64
+          path: windows-agent/publish/
+          retention-days: 30
+
+  # ── 3. Mihwar Core (Go 1.22) ─────────────────────────────────────────────
+  build-mihwar-core:
+    name: Build Mihwar Core
+    needs: boundary-gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: mihwar-core/go.sum
+      - name: Vet
+        run: cd mihwar-core && go vet ./...
+      - name: Build
+        run: |
+          cd mihwar-core
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -trimpath -ldflags="-s -w" -o mihwar-core ./cmd/server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mihwar-core-linux-amd64
+          path: mihwar-core/mihwar-core
+          retention-days: 30
+
+  # ── 4. Docker image ───────────────────────────────────────────────────────
+  docker-build:
+    name: Docker Build
+    needs: build-mihwar-core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image (no push on PR)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mihwar-core
+          push: false
+          tags: mihwar-core:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── 5. Deploy to Render ───────────────────────────────────────────────────
+  deploy-render:
+    name: Deploy to Render
+    needs: [build-mihwar-core, docker-build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy via Render API
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          curl -sf -X POST \
+            "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache": false}'
+          echo "Render deploy triggered"

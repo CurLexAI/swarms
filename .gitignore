@@ -13,3 +13,18 @@ src/services/ControlPlaneSecurityService.js
 
 # Transient fixtures emitted by node --test for the unified agent adapter
 src/services/unifiedAgentAdapter.*.mjs
+
+# TLS certificates (never commit private keys or self-signed certs)
+certs/
+*.key
+*.crt
+*.csr
+*.srl
+
+# .NET build output
+windows-agent/bin/
+windows-agent/obj/
+windows-agent/publish/
+
+# Go build output
+mihwar-core/mihwar-core

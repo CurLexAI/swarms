@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: mihwar-core
+    runtime: docker
+    dockerfilePath: ./mihwar-core/Dockerfile
+    dockerContext: ./mihwar-core
+    plan: standard
+    region: frankfurt
+    branch: main
+    envVars:
+      - key: MIHWAR_ENV
+        value: production
+      - key: MIHWAR_REGION
+        value: SA
+      - key: HTTP_ADDR
+        value: ":8080"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mihwar-db
+          property: connectionString
+      - key: AGENT_API_TOKEN
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: false
+
+  - type: pserv
+    name: mihwar-wireguard
+    runtime: docker
+    dockerfilePath: ./infra/Dockerfile.wireguard
+    plan: standard
+    region: frankfurt
+    envVars:
+      - key: SERVERURL
+        value: mihwar.qarar.sa
+      - key: SERVERPORT
+        value: "51820"
+
+databases:
+  - name: mihwar-db
+    databaseName: mihwar
+    user: mihwar
+    plan: standard
+    region: frankfurt
+    ipAllowList: []
