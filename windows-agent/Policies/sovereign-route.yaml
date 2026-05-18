@@ -1,0 +1,31 @@
+policy: cellular-sovereign-route
+version: "1.0"
+priority: 100
+
+when:
+  device_attestation: valid
+  country_code: "SA"
+  risk_score_lt: 40
+  network_type: cellular
+
+then:
+  allow:
+    apn: "qarar-sovereign"
+    vpn: "mihwar-managed"
+    dns: "10.200.200.1"
+    proxy: "sovereign.qarar.sa:8443"
+  enforce:
+    - block_non_sovereign_dns
+    - force_tls13
+    - certificate_pinning
+
+else:
+  restrict:
+    network: quarantine
+    telemetry_only: true
+    alert_security_team: true
+
+audit:
+  log_level: debug
+  retention_days: 90
+  encrypt_at_rest: true

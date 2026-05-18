@@ -1,0 +1,9 @@
+# Mihwar WireGuard gateway — extends linuxserver/wireguard with sovereign defaults.
+# Runtime config (SERVERURL, PEERS, etc.) supplied via Render environment variables.
+FROM linuxserver/wireguard:latest
+
+# Sovereign DNS resolver overlay applied at runtime via PEERDNS env var.
+# No additional layers needed; linuxserver/wireguard handles wg-quick and
+# kernel module loading.
+
+EXPOSE 51820/udp
