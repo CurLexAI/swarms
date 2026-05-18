@@ -28,8 +28,8 @@
 
 ## Verified state
 
-- Generic Copilot profile file `.github/agents/copilot-swe.agent.md` is absent.
-- `qarar-router` runtime is `local_policy` and routes to Mihwar/Bayyinah decision paths.
+- Repository-level generic Copilot profile file `.github/agents/copilot-swe.agent.md` is absent.
+- `qarar-router` runtime is `local_policy` and routes to Mihwar/Bayyinah decision paths in canonical runtime config.
 - MCP path uses `Authorization: Bearer` for authenticated requests.
 - No token-in-payload transport pattern was identified in reviewed MCP paths.
 - No public/client `*.modal.run` exposure was identified in reviewed client-facing surfaces.
@@ -45,7 +45,7 @@
 
 - **HIGH**: Runtime activation is still `UNVERIFIED` because Modal secrets/apps were intentionally not checked in this documentation-only scope.
 - **MEDIUM**: CRLF normalization issues can block local bash gate execution before policy logic runs.
-- **MEDIUM**: Any legacy reference to `copilot_swe` in non-profile config must not be interpreted as a CurLexAI private Modal agent profile.
+- **MEDIUM**: Legacy references such as `copilot_swe` in non-profile config are treated as non-canonical unless aligned to `.agents/config/agents.yaml`.
 
 ## Do not claim
 
