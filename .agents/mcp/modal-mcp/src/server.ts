@@ -1,4 +1,5 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 import { loadConfig } from './config.js';
 import { newModalClient } from './modalClient.js';
 import { Result, ToolError } from './types.js';
@@ -29,6 +30,25 @@ async function parseBody(req: IncomingMessage): Promise<Result<ToolCall, ToolErr
   } catch {
     return { ok: false, error: { code: 'BAD_REQUEST', message: 'Invalid JSON body' } };
   }
+}
+
+// Constant-time comparison prevents timing-based token oracle attacks.
+function authIsValid(header: string, token: string): boolean {
+  const expected = Buffer.from(`Bearer ${token}`, 'utf8');
+  const actual   = Buffer.from(header, 'utf8');
+  if (expected.length !== actual.length) return false;
+  return timingSafeEqual(expected, actual);
+}
+
+// Allow only safe alphanumeric IDs from caller-supplied args.
+// Rejects path-traversal attempts like `../other` or URL-encoded variants.
+const SAFE_ID_RE = /^[a-zA-Z0-9_-]{1,128}$/;
+function validateId(raw: unknown, field: string): Result<string, ToolError> {
+  const s = String(raw ?? '');
+  if (!SAFE_ID_RE.test(s)) {
+    return { ok: false, error: { code: 'INVALID_ARG', message: `${field} must match [a-zA-Z0-9_-]{1,128}` } };
+  }
+  return { ok: true, value: s };
 }
 
 const cfg = loadConfig(process.env);
@@ -66,8 +86,7 @@ const server = createServer(async (req, res) => {
     return json(res, 404, { error: 'Not found' });
   }
 
-  const auth = req.headers.authorization ?? '';
-  if (auth !== `Bearer ${cfg.value.mcpBearerToken}`) {
+  if (!authIsValid(req.headers.authorization ?? '', cfg.value.mcpBearerToken)) {
     return json(res, 401, { error: 'Unauthorized' });
   }
 
@@ -103,21 +122,24 @@ const server = createServer(async (req, res) => {
     case 'modal_list_deployments':
       return json(res, 200, await modal.listDeployments());
     case 'modal_get_deployment_status': {
-      const deploymentId = String(args?.deploymentId ?? '');
-      return json(res, 200, await modal.getDeploymentStatus(deploymentId));
+      const id = validateId(args?.deploymentId, 'deploymentId');
+      if (!id.ok) return json(res, 400, { error: id.error.message });
+      return json(res, 200, await modal.getDeploymentStatus(id.value));
     }
     case 'modal_list_model_endpoints':
       return json(res, 200, await modal.listModelEndpoints());
     case 'modal_get_recent_logs': {
-      const deploymentId = String(args?.deploymentId ?? '');
+      const id = validateId(args?.deploymentId, 'deploymentId');
+      if (!id.ok) return json(res, 400, { error: id.error.message });
       const requested = Number(args?.limit ?? cfg.value.maxLogLines);
       const limit = Math.min(Math.max(1, requested), cfg.value.maxLogLines);
-      return json(res, 200, await modal.getRecentLogs(deploymentId, limit));
+      return json(res, 200, await modal.getRecentLogs(id.value, limit));
     }
     case 'modal_run_safe_inference': {
-      const endpointId = String(args?.endpointId ?? '');
+      const id = validateId(args?.endpointId, 'endpointId');
+      if (!id.ok) return json(res, 400, { error: id.error.message });
       const prompt = String(args?.prompt ?? '');
-      return json(res, 200, await modal.runSafeInference(endpointId, prompt));
+      return json(res, 200, await modal.runSafeInference(id.value, prompt));
     }
     default:
       return json(res, 400, { error: `Unknown tool: ${tool}` });
