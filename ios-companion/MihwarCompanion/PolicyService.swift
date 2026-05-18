@@ -9,6 +9,23 @@ struct NetworkDecision: Codable {
     let vpnEndpoint:     String?
     let quarantineMode:  Bool
     let telemetryOnly:   Bool
+
+    // Map server snake_case keys via CodingKeys
+    enum CodingKeys: String, CodingKey {
+        case allowConnection = "allow_connection"
+        case requiredApn     = "required_apn"
+        case forceVpn        = "force_vpn"
+        case vpnEndpoint     = "vpn_endpoint"
+        case quarantineMode  = "quarantine_mode"
+        case telemetryOnly   = "telemetry_only"
+    }
+}
+
+// MARK: - PolicyRequest envelope
+
+private struct PolicyRequest: Encodable {
+    let posture:  DevicePosture
+    let cellular: [String: String]   // iOS has no direct cellular API; server tolerates empty
 }
 
 // MARK: - PolicyService
@@ -40,7 +57,7 @@ final class PolicyService: ObservableObject {
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.setValue("iOS", forHTTPHeaderField: "X-Device-Platform")
-            request.httpBody = try JSONEncoder().encode(posture)
+            request.httpBody = try JSONEncoder().encode(PolicyRequest(posture: posture, cellular: [:]))
 
             let (data, response) = try await session.data(for: request)
 

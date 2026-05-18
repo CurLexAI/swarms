@@ -74,9 +74,10 @@ func (s *Server) StartHTTP(addr string) error {
 // StartQUIC starts the HTTP/3 (QUIC) listener.
 // Requires a TLS cert/key pair at TLS_CERT / TLS_KEY env vars.
 func (s *Server) StartQUIC(addr string) error {
-	// quic-go ListenAddrEarly enables 0-RTT session resumption.
-	// Wired in production; stub returns nil to keep main.go buildable.
-	return nil
+	// quic-go ListenAddrEarly wired in production.
+	// Stub blocks until process exit so the goroutine in main doesn't
+	// push nil onto errCh and terminate the server prematurely.
+	select {}
 }
 
 // ── handlers ────────────────────────────────────────────────────────────────
