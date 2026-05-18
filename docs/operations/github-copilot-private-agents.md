@@ -47,3 +47,13 @@
 - Do not claim private agents appear as native Copilot models.
 - Do not claim runtime activation until Modal secrets/apps/endpoints are proven.
 - Do not claim Qdrant ingestion/retrieval until `.agents/ingest_test.py` succeeds.
+
+## Validation evidence (local)
+
+- `python .agents/validate.py`: PASS.
+- `python -m py_compile .agents/ingest_test.py .agents/modal_app.py .agents/mcp/server.py .agents/mcp/mcp_server.py .agents/mcp/openai_compat_server.py .agents/github_clone_repo.py .agents/modal_secret_smoke.py`: BLOCKED (`CONFIG_NOT_FOUND` for missing files under `.agents/` in this branch).
+- `git diff --check`: PASS.
+- `bash scripts/commander/agent-presence-gate.sh`: PASS, with `SECRET_MISSING` warnings for runtime secrets expected outside local runtime.
+- `bash scripts/commander/modal-boundary-gate.sh .`: PASS, with `SECRET_MISSING` warnings for runtime secrets expected outside local runtime.
+- `bash scripts/commander/adr-0001-boundary-gate.sh .`: PASS.
+- CRLF status for commander gates: no current CRLF gate failure reproduced in this run.
