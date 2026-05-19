@@ -4,44 +4,56 @@ import { AppInfo, DeploymentInfo, ModelEndpointInfo, Result, ToolError } from '.
 class ModalClient {
   constructor(private readonly config: Config) {}
 
-  private async getJson<T>(path: string): Promise<Result<T, ToolError>> {
-    const response = await fetch(`${this.config.modalApiBaseUrl}${path}`, {
-      headers: {
-        Authorization: `Bearer ${this.config.modalApiToken}`,
-        'Content-Type': 'application/json'
-      }
-    });
+  private modalError(message: string): Result<never, ToolError> {
+    return {
+      ok: false,
+      error: { code: 'MODAL_API_ERROR', message }
+    };
+  }
 
+  private async parseJson<T>(response: Response): Promise<Result<T, ToolError>> {
     if (!response.ok) {
-      return {
-        ok: false,
-        error: { code: 'MODAL_API_ERROR', message: `Modal API returned ${response.status}` }
-      };
+      return this.modalError(`Modal API returned ${response.status}`);
     }
 
-    const payload = (await response.json()) as T;
-    return { ok: true, value: payload };
+    try {
+      const payload = (await response.json()) as T;
+      return { ok: true, value: payload };
+    } catch {
+      return this.modalError('Modal API returned invalid JSON');
+    }
+  }
+
+  private async getJson<T>(path: string): Promise<Result<T, ToolError>> {
+    try {
+      const response = await fetch(`${this.config.modalApiBaseUrl}${path}`, {
+        headers: {
+          Authorization: `Bearer ${this.config.modalApiToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      return this.parseJson<T>(response);
+    } catch {
+      return this.modalError('Modal API request failed');
+    }
   }
 
   private async postJson<T>(path: string, body: unknown): Promise<Result<T, ToolError>> {
-    const response = await fetch(`${this.config.modalApiBaseUrl}${path}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.config.modalApiToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
-    });
+    try {
+      const response = await fetch(`${this.config.modalApiBaseUrl}${path}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.config.modalApiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
 
-    if (!response.ok) {
-      return {
-        ok: false,
-        error: { code: 'MODAL_API_ERROR', message: `Modal API returned ${response.status}` }
-      };
+      return this.parseJson<T>(response);
+    } catch {
+      return this.modalError('Modal API request failed');
     }
-
-    const payload = (await response.json()) as T;
-    return { ok: true, value: payload };
   }
 
   listApps(): Promise<Result<AppInfo[], ToolError>> {
@@ -70,8 +82,6 @@ class ModalClient {
       `/v1/model-endpoints/${endpointId}/infer`,
       { safe: true, prompt }
     );
-  runSafeInference(endpointId: string, prompt: string): Promise<Result<{ output: string }, ToolError>> {
-    return this.getJson<{ output: string }>(`/v1/model-endpoints/${endpointId}/infer?safe=true&prompt=${encodeURIComponent(prompt)}`);
   }
 }
 
