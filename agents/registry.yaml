@@ -107,6 +107,29 @@ agents:
       endpoint_env: "BAYYINAH_ENDPOINT"
       token_env: "AGENT_API_TOKEN"
 
+  - id: pr-fix-conflict
+    name: "PR Fix Conflict"
+    role: "merge_conflict_resolver"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.merge"
+        - "scope:code.review"
+    capabilities:
+      - "reasoning"
+      - "merge_resolution"
+      - "conflict_analysis"
+      - "code_review"
+    enable_reasoning: true
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
   # ── External provider agents (UNVERIFIED until env is configured) ────────
   # Gated by ALLOW_EXTERNAL_AI=true. Transports for these providers are NOT
   # implemented in this operations repo; see .agents/providers/ for the gate.
