@@ -17,6 +17,7 @@ Read-only MCP scaffold to connect ChatGPT to Modal project surfaces over **HTTPS
 - `modal_list_model_endpoints`
 - `modal_get_recent_logs`
 - `modal_run_safe_inference`
+- `modal_list_tools`
 
 ## Mutating tools (disabled by default)
 

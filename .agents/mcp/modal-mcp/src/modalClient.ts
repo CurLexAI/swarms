@@ -23,6 +23,27 @@ class ModalClient {
     return { ok: true, value: payload };
   }
 
+  private async postJson<T>(path: string, body: unknown): Promise<Result<T, ToolError>> {
+    const response = await fetch(`${this.config.modalApiBaseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.config.modalApiToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: { code: 'MODAL_API_ERROR', message: `Modal API returned ${response.status}` }
+      };
+    }
+
+    const payload = (await response.json()) as T;
+    return { ok: true, value: payload };
+  }
+
   listApps(): Promise<Result<AppInfo[], ToolError>> {
     return this.getJson<AppInfo[]>('/v1/apps');
   }
@@ -43,6 +64,12 @@ class ModalClient {
     return this.getJson<string[]>(`/v1/deployments/${deploymentId}/logs?limit=${limit}`);
   }
 
+  // Prompt is sent in the POST body to avoid it appearing in server access logs.
+  runSafeInference(endpointId: string, prompt: string): Promise<Result<{ output: string }, ToolError>> {
+    return this.postJson<{ output: string }>(
+      `/v1/model-endpoints/${endpointId}/infer`,
+      { safe: true, prompt }
+    );
   runSafeInference(endpointId: string, prompt: string): Promise<Result<{ output: string }, ToolError>> {
     return this.getJson<{ output: string }>(`/v1/model-endpoints/${endpointId}/infer?safe=true&prompt=${encodeURIComponent(prompt)}`);
   }
