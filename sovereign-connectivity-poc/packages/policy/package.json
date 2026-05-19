@@ -1,0 +1,10 @@
+{
+  "name": "@poc/policy",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@poc/shared": "workspace:*",
+    "uuid": "^11.0.5"
+  }
+}
