@@ -18,8 +18,15 @@ Execution Verdict:
   - Live API path validation for `/` and `/control/` under production runtime.
   - Auth enforcement behavior for authorized/unauthorized operator-key calls.
   - Runtime environment-variable loading behavior in the external deployment surface (Render/Replit).
+- Secret Contract (current runtime vs. target normalized contract):
+  - Current checked-in runtime reads:
+    - `CORS_ALLOWED_ORIGINS_PROD`
+    - `CORS_ALLOWED_ORIGINS_STAGING`
+  - Target normalized contract:
+    - `CORS_ALLOWED_ORIGINS`
+  - Until the runtime rename is implemented and verified, operators must configure the current runtime-specific variables. The singular `CORS_ALLOWED_ORIGINS` name is the intended future contract and must not be treated as active runtime behavior yet. `OPERATOR_API_KEYS` is documented as the intended operator-key contract, but runtime support remains unverified unless confirmed in the target deployment surface.
 - Next Valid Action:
-  1) Set secrets in the true runtime (not only local repo): `CORS_ALLOWED_ORIGINS` and `OPERATOR_API_KEYS`.
+  1) Set secrets in the true runtime (not only local repo). For today's checked-in runtime configure `CORS_ALLOWED_ORIGINS_PROD` and `CORS_ALLOWED_ORIGINS_STAGING` (and `OPERATOR_API_KEYS` only after runtime support is confirmed in the target deployment surface). The singular `CORS_ALLOWED_ORIGINS` form is the future contract and must not be relied on yet.
   2) Restart the runtime service.
   3) Execute authenticated and unauthenticated endpoint probes on the real runtime and capture evidence.
   4) Promote status to VERIFIED_FIXED only after those runtime checks succeed.
