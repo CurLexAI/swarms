@@ -68,6 +68,7 @@ const readOnlyTools = [
 ] as const;
 
 const mutatingToolsList = [
+const mutatingTools = new Set([
   'modal_deploy',
   'modal_update_gpu',
   'modal_update_secrets',
@@ -76,6 +77,7 @@ const mutatingToolsList = [
 ] as const;
 
 const mutatingTools = new Set<string>(mutatingToolsList);
+]);
 
 const server = createServer(async (req, res) => {
   if (req.url === '/healthz' && req.method === 'GET') {
@@ -87,6 +89,8 @@ const server = createServer(async (req, res) => {
   }
 
   if (!authIsValid(req.headers.authorization ?? '', cfg.value.mcpBearerToken)) {
+  const auth = req.headers.authorization ?? '';
+  if (auth !== `Bearer ${cfg.value.mcpBearerToken}`) {
     return json(res, 401, { error: 'Unauthorized' });
   }
 
@@ -125,6 +129,8 @@ const server = createServer(async (req, res) => {
       const id = validateId(args?.deploymentId, 'deploymentId');
       if (!id.ok) return json(res, 400, { error: id.error.message });
       return json(res, 200, await modal.getDeploymentStatus(id.value));
+      const deploymentId = String(args?.deploymentId ?? '');
+      return json(res, 200, await modal.getDeploymentStatus(deploymentId));
     }
     case 'modal_list_model_endpoints':
       return json(res, 200, await modal.listModelEndpoints());
@@ -140,6 +146,15 @@ const server = createServer(async (req, res) => {
       if (!id.ok) return json(res, 400, { error: id.error.message });
       const prompt = String(args?.prompt ?? '');
       return json(res, 200, await modal.runSafeInference(id.value, prompt));
+      const deploymentId = String(args?.deploymentId ?? '');
+      const requested = Number(args?.limit ?? cfg.value.maxLogLines);
+      const limit = Math.min(Math.max(1, requested), cfg.value.maxLogLines);
+      return json(res, 200, await modal.getRecentLogs(deploymentId, limit));
+    }
+    case 'modal_run_safe_inference': {
+      const endpointId = String(args?.endpointId ?? '');
+      const prompt = String(args?.prompt ?? '');
+      return json(res, 200, await modal.runSafeInference(endpointId, prompt));
     }
     default:
       return json(res, 400, { error: `Unknown tool: ${tool}` });

@@ -70,6 +70,8 @@ class ModalClient {
       `/v1/model-endpoints/${endpointId}/infer`,
       { safe: true, prompt }
     );
+  runSafeInference(endpointId: string, prompt: string): Promise<Result<{ output: string }, ToolError>> {
+    return this.getJson<{ output: string }>(`/v1/model-endpoints/${endpointId}/infer?safe=true&prompt=${encodeURIComponent(prompt)}`);
   }
 }
 

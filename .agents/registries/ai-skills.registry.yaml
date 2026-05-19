@@ -1,0 +1,60 @@
+version: 1
+name: ai-skills-registry
+purpose: "single source of truth for agent/operator skills across gemini, codex, claude-code, and chatgpt"
+status: draft
+rules:
+  no_autostart: true
+  no_secrets: true
+  no_modal_public_urls: true
+  require_boundary_gates: true
+  require_smoke_tests_for_runtime_claims: true
+
+clients:
+  gemini:
+    local_path_example: "C:\\Users\\moteb\\.gemini\\skills"
+    activation: "local client-specific"
+  codex:
+    repo_path: ".agents/skills/codex-commander"
+    activation: "repository playbook"
+  claude_code:
+    repo_file: "CLAUDE.md"
+    activation: "repository instruction loading"
+  chatgpt:
+    source_path: ".agents/skills"
+    activation: "package/upload as ChatGPT Skill when needed"
+
+skills:
+  - id: codex-commander
+    path: ".agents/skills/codex-commander"
+    clients: ["codex", "claude-code", "gemini", "chatgpt"]
+    role: "repository execution lead and gate runner"
+    risk: "high"
+    runtime_activation: false
+
+  - id: api-auditor
+    path: ".agents/skills/api-auditor"
+    clients: ["gemini", "claude-code", "codex", "chatgpt"]
+    role: "read-only API and public surface security audit"
+    risk: "medium"
+    runtime_activation: false
+
+  - id: repo-production-auditor
+    path: ".agents/skills/repo-production-auditor"
+    clients: ["gemini", "claude-code", "codex", "chatgpt"]
+    role: "repository readiness, CI/CD, secrets, dependency and deployment audit"
+    risk: "high"
+    runtime_activation: false
+
+  - id: modal-runtime-operator
+    path: ".agents/skills/modal-runtime-operator"
+    clients: ["gemini", "claude-code", "codex", "chatgpt"]
+    role: "Modal deploy/update/smoke-test operator for backend-only agent runtime"
+    risk: "critical"
+    runtime_activation: false
+
+  - id: agent-runtime-auditor
+    path: ".agents/skills/agent-runtime-auditor"
+    clients: ["gemini", "claude-code", "codex", "chatgpt"]
+    role: "Mihwar, Bayyinah, Qarar runtime, model routing and endpoint verification"
+    risk: "critical"
+    runtime_activation: false

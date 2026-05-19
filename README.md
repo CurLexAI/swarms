@@ -11,6 +11,37 @@ CurLexAI `swarms` is the private operator repository for Qarar/Bayyinah/Mihwar a
 - **Cloudflare** is the edge layer for DNS/TLS/WAF concerns.
 - **Modal** is backend-only model runtime. Public browser, iPhone, or frontend code must not call `*.modal.run` directly.
 
+
+## Instruction loading architecture
+
+Instruction loading must be deterministic to prevent instruction sprawl and mode collisions.
+
+- Canonical policy: [`INSTRUCTION_LOADING_ORDER.md`](INSTRUCTION_LOADING_ORDER.md)
+- Required fixed layer: Kernel + sovereignty/connector/execution policies
+- Dynamic layer: one task mode + only directly relevant domain files
+- Output layer: templates only for formatting, not background reasoning
+
+### Priority rule (conflict resolution)
+
+Apply this precedence strictly (highest to lowest):
+
+1. System instructions
+2. Safety rules
+3. Kernel
+4. Policies
+5. Project files
+6. Mode files
+7. Domain files
+8. Agent profiles
+9. User preference
+
+### File header convention
+
+Every instruction file should begin with:
+
+- `Purpose:`
+- `When to load:`
+
 ## Plans
 
 - `docs/legal-compliance-skill-intake-plan.md` — disciplined intake plan for the `legal-compliance` skill package.

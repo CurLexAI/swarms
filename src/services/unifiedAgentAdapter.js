@@ -306,10 +306,10 @@ export class UnifiedAgentAdapter {
                         logger.warn({ index: idx, entryType: Array.isArray(entry) ? "array" : typeof entry }, "Skipping non-object agent entry in registry");
                         continue;
                     }
-                    const candidate = entry;
-                    const candidateId = typeof candidate.id === "string" && candidate.id.trim().length > 0 ? candidate.id.trim() : null;
+                    const e = entry;
+                    const candidateId = typeof e.id === "string" && e.id.trim().length > 0 ? e.id.trim() : null;
                     if (!candidateId) {
-                        logger.warn({ index: idx, hasIdField: Object.prototype.hasOwnProperty.call(candidate, "id") }, "Skipping agent entry with missing or empty id");
+                        logger.warn({ index: idx, hasIdField: Object.prototype.hasOwnProperty.call(e, "id") }, "Skipping agent entry with missing or empty id");
                         continue;
                     }
                     agentsList.push(entry);
@@ -570,21 +570,20 @@ export class UnifiedAgentAdapter {
             }
             safeMetadata = rawPayload.metadata;
         }
+        let safeContext;
         if (rawPayload.context !== undefined) {
             if (!rawPayload.context || typeof rawPayload.context !== "object" || Array.isArray(rawPayload.context)) {
                 return { isValid: false, reason: "context must be an object when provided" };
             }
-            safeMetadata = {
-                ...(safeMetadata ?? {}),
-                context: rawPayload.context
-            };
+            safeContext = rawPayload.context;
         }
         return {
             isValid: true,
             safePayload: {
                 tenant_id: rawPayload.tenant_id.trim(),
                 input: rawPayload.input,
-                ...(safeMetadata ? { metadata: safeMetadata } : {})
+                ...(safeMetadata ? { metadata: safeMetadata } : {}),
+                ...(safeContext ? { context: safeContext } : {})
             }
         };
     }
@@ -699,7 +698,8 @@ export class UnifiedAgentAdapter {
         const dispatchPayload = {
             tenant_id: payload.tenant_id,
             input: payload.input,
-            metadata: payload.metadata ?? {}
+            metadata: payload.metadata ?? {},
+            context: payload.context ?? {}
         };
         try {
             const runAgent = await this.getNodeDispatcher();
@@ -741,6 +741,9 @@ export class UnifiedAgentAdapter {
     }
     mapNodeExecutionError(agentId, error) {
         if (error instanceof NodeExecutionDispatchError) {
+            return error;
+        }
+        if (!(error instanceof Error)) {
             return error;
         }
         const errorCode = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"

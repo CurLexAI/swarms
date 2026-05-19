@@ -1,0 +1,130 @@
+name: PDPL Article 22 Ingestion
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          for key in MODAL_TOKEN_ID MODAL_TOKEN_SECRET AGENT_API_TOKEN; do
+            if [ -z "${!key:-}" ]; then
+              echo "FAILED_AT_PHASE_SECRET_VALIDATION: missing $key" | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+          done
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements-agent.txt
+
+      - name: Modal auth check
+        run: |
+          set -euo pipefail
+          modal token set --token-id "$MODAL_TOKEN_ID" --token-secret "$MODAL_TOKEN_SECRET"
+          modal profile current
+
+      - name: Ensure ingestion entrypoint exists
+        run: |
+          set -euo pipefail
+          test -f .agents/ingest_test.py || { echo "FAILED_AT_PHASE_FILE_CHECK: .agents/ingest_test.py missing" | tee -a "$GITHUB_STEP_SUMMARY"; exit 1; }
+
+      - name: Deploy ingestion app
+        id: deploy
+        run: |
+          set -euo pipefail
+          modal deploy .agents/ingest_test.py 2>&1 | tee modal_deploy.log
+          endpoint=$(python - <<'PY'
+import re
+text=open('modal_deploy.log','r',encoding='utf-8',errors='ignore').read()
+match=re.findall(r'https://[^\s]*\.modal\.run', text)
+print(match[-1] if match else '')
+PY
+)
+          if [ -z "$endpoint" ]; then
+            echo "FAILED_AT_PHASE_DEPLOY: endpoint not found" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "endpoint=$endpoint" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger ingestion endpoint
+        run: |
+          set -euo pipefail
+          endpoint='${{ steps.deploy.outputs.endpoint }}'
+          http_code=$(curl -sS -o ingestion_response.json -w '%{http_code}' \
+            -H "Authorization: Bearer $AGENT_API_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -X POST "$endpoint")
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "FAILED_AT_PHASE_ENDPOINT_CALL: HTTP $http_code" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Validate Qdrant and semantic search evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+import json,sys
+path='ingestion_response.json'
+try:
+    data=json.load(open(path,'r',encoding='utf-8'))
+except Exception as e:
+    print(f'FAILED_AT_PHASE_RESPONSE_PARSE: {e}')
+    sys.exit(1)
+collection=((data.get('qdrant') or {}).get('collection') if isinstance(data,dict) else None)
+count=((data.get('qdrant') or {}).get('point_count') if isinstance(data,dict) else None)
+query=((data.get('semantic_search') or {}).get('query') if isinstance(data,dict) else None)
+if collection!='qarar_regulatory_test':
+    print('FAILED_AT_PHASE_QDRANT_COLLECTION')
+    sys.exit(1)
+if not isinstance(count,int) or count < 3:
+    print('FAILED_AT_PHASE_QDRANT_POINT_COUNT')
+    sys.exit(1)
+if query!='نقل البيانات الشخصية خارج المملكة':
+    print('FAILED_AT_PHASE_SEMANTIC_QUERY')
+    sys.exit(1)
+open('step_verdict.txt','w',encoding='utf-8').write('INGESTION_VERIFIED_END_TO_END\n')
+print('INGESTION_VERIFIED_END_TO_END')
+PY
+
+      - name: Upload evidence artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdpl-article22-ingestion-evidence
+          path: |
+            modal_deploy.log
+            ingestion_response.json
+
+      - name: Write execution report
+        if: always()
+        run: |
+          {
+            echo '## INGESTION EXECUTION REPORT'
+            echo ''
+            if grep -q 'INGESTION_VERIFIED_END_TO_END' "$GITHUB_WORKSPACE"/step_verdict.txt 2>/dev/null; then
+              echo 'VERDICT:'
+              echo '  ✓ INGESTION_VERIFIED_END_TO_END'
+            else
+              echo 'VERDICT:'
+              echo '  FAILED_AT_PHASE_* (see step logs)'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
