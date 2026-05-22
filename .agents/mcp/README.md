@@ -1,6 +1,12 @@
 # MCP Server for CurLexAI Private Agents
 
-This directory contains an MCP (Model Context Protocol) server that exposes the Modal-hosted **Mihwar** and **Bayyinah** agents as callable tools inside MCP-compatible clients (GitHub Copilot, Claude Desktop, Cursor, etc.).
+This directory contains MCP (Model Context Protocol) servers that expose the Modal-hosted **Mihwar** and **Bayyinah** agents as callable tools inside MCP-compatible clients.
+
+**Two deployment models:**
+1. **Local** (`.agents/mcp/server.py`) — Python stdio server for GitHub Copilot, Claude Desktop, Cursor
+2. **Remote** (`.agents/mcp/modal-mcp/`) — Node.js HTTPS server on Render for ChatGPT, Claude web, and other remote clients
+
+See [RENDER_MCP_INTEGRATION.md](./RENDER_MCP_INTEGRATION.md) for remote deployment instructions.
 
 ---
 
