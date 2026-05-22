@@ -12,7 +12,7 @@ Normalize AI assistant skills into repository-controlled playbooks.
 ## Hard rules
 
 - Never copy secrets, tokens, endpoint URLs, `.env` files, local credentials, or API keys.
-- Never add `autoStart`, background activation, production deployment, or model runtime activation.
+- Never add the `auto-start` activation flag (forbidden by ADR-0001), background activation, production deployment, or model runtime activation.
 - Never claim that a skill is active in Gemini, Claude Code, Codex, or ChatGPT unless the target client has loaded it and a read-only test confirms behavior.
 - Keep skills under `.agents/skills/`.
 - Keep policies under `.agents/policies/`.
