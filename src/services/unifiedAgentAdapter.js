@@ -143,11 +143,44 @@ function getPythonEngineMaxAttempts() {
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
+const RETRYABLE_TRANSPORT_CODES = new Set([
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "EAI_AGAIN",
+    "ECONNREFUSED",
+    "ENOTFOUND",
+    "EHOSTUNREACH",
+    "ENETUNREACH",
+    "UND_ERR_CONNECT_TIMEOUT",
+    "UND_ERR_SOCKET",
+    "UND_ERR_HEADERS_TIMEOUT",
+    "UND_ERR_BODY_TIMEOUT",
+    "UND_ERR_REQUEST_ABORTED"
+]);
+function getTransportErrorCodes(error) {
+    if (!(error instanceof Error))
+        return {};
+    const errorCode = "code" in error && typeof error.code === "string"
+        ? error.code
+        : undefined;
+    const cause = "cause" in error ? error.cause : undefined;
+    const causeCode = cause &&
+        typeof cause === "object" &&
+        "code" in cause &&
+        typeof cause.code === "string"
+        ? cause.code
+        : undefined;
+    return { errorCode, causeCode };
+}
 function isRetryableNetworkError(error) {
     if (!(error instanceof Error) || error.name === "AbortError")
         return false;
-    const code = error.code;
-    return code === "ECONNRESET" || code === "ETIMEDOUT" || code === "EAI_AGAIN" || code === "UND_ERR_CONNECT_TIMEOUT";
+    const { errorCode, causeCode } = getTransportErrorCodes(error);
+    if (errorCode && RETRYABLE_TRANSPORT_CODES.has(errorCode))
+        return true;
+    if (causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode))
+        return true;
+    return error.name === "TypeError" && error.message === "fetch failed" && Boolean(causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode));
 }
 class PythonEngineRuntimeError extends Error {
     code;
@@ -674,7 +707,23 @@ export class UnifiedAgentAdapter {
                     throw createPythonRuntimeError({ code: "PYTHON_ENGINE_TIMEOUT", status: null, retryable: false, message: `Python engine timed out after ${timeoutMs}ms for agent ${agent.id}`, cause: error });
                 if (error instanceof PythonEngineRuntimeError)
                     throw error;
-                if (isRetryableNetworkError(error) && attempt < maxAttempts) {
+                const { errorCode, causeCode } = getTransportErrorCodes(error);
+                const retryable = isRetryableNetworkError(error);
+                logger.error({
+                    classification: "RUNTIME_FAILURE",
+                    stage: "python_engine_fetch",
+                    attempt,
+                    maxAttempts,
+                    timeoutMs,
+                    retryable,
+                    errorName: error instanceof Error ? error.name : "UnknownError",
+                    errorCode: errorCode ?? null,
+                    causeName: error instanceof Error && "cause" in error && error.cause instanceof Error
+                        ? (error.cause?.name ?? null)
+                        : null,
+                    causeCode: causeCode ?? null
+                }, "Python engine fetch failed");
+                if (retryable && attempt < maxAttempts) {
                     await sleep(DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1));
                     continue;
                 }
