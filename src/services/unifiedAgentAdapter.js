@@ -413,7 +413,8 @@ export class UnifiedAgentAdapter {
         const agent = this.agents.get(agentId);
         if (!agent)
             throw new Error("Agent not found");
-        const validation = this.validateAndSanitizePayload(payload);
+        const normalizedInboundPayload = this.normalizeInboundPayload(payload);
+        const validation = this.validateAndSanitizePayload(normalizedInboundPayload);
         if (!validation.isValid || !validation.safePayload) {
             await AuditService.logSecurityViolation(userId, agentId, "INVALID_EXECUTE_AGENT_PAYLOAD", {
                 reason: validation.reason,
@@ -538,9 +539,21 @@ export class UnifiedAgentAdapter {
             throw error;
         }
     }
+    normalizeInboundPayload(payload) {
+        const rawPayload = payload && typeof payload === "object" && !Array.isArray(payload)
+            ? payload
+            : {};
+        const normalizedContext = rawPayload.context && typeof rawPayload.context === "object" && !Array.isArray(rawPayload.context)
+            ? rawPayload.context
+            : {};
+        return {
+            ...rawPayload,
+            context: normalizedContext
+        };
+    }
     validateAndSanitizePayload(payload) {
         if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-            return { isValid: false, reason: "Payload must be an object" };
+            return { isValid: false, reason: "tenant_id is required and must be a non-empty string" };
         }
         const rawPayload = payload;
         const unknownFields = Object.keys(rawPayload).filter((key) => !ALLOWED_PAYLOAD_FIELDS.includes(key));
