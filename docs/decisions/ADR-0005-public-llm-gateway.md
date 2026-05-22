@@ -1,7 +1,9 @@
 # ADR-0005 — Public OpenAI-Compatible LLM Gateway in Front of Modal (Mihwar / Bayyinah)
 
+- **Status:** Decided — Option A (sovereign posture preserved). Revisit only when both conditions met: (a) ADR-0006 fully drafted and reviewed; (b) at least one operator user blocked by current platform.
 - **Status:** Decided — Option A. Revisit only when both conditions met: (a) ADR-0006 fully drafted and reviewed; (b) at least one operator user blocked by current platform
 - **Decision date:** 2026-05-22
+- **Decision recorded:** 2026-05-22
 - **Decision owner:** Repository operator
 - **Supersedes:** none
 - **Superseded by:** none
@@ -149,6 +151,38 @@ Until **all seven** are in place, Option C cannot be implemented; a
 partial implementation would create a public surface without policy
 backing.
 
+## Decision record (2026-05-22)
+
+Operator selected **Option A — Reject; sovereign posture preserved.**
+The Option B and Option C bodies above are retained for historical
+context only; neither is in effect under this decision.
+
+Rationale (verbatim from operator):
+
+1. ADR-0006 is not yet drafted. Authentication model, rate limits,
+   billing, and log-retention posture for a public gateway are all
+   undefined; standing up the surface before those exist would create a
+   public attack surface without policy backing.
+2. No operator-tier user has been demonstrated to be blocked by the
+   current Modal-private posture. The proposal solves a hypothetical
+   need, not an observed one.
+3. Option C would break Bayyinah's `validator-of-Mihwar` role: external
+   OpenAI-compatible clients could call Mihwar directly, bypassing
+   Bayyinah review and degrading the two-tier guarantee that the rest of
+   the architecture is built on.
+
+Revisit conditions (both must be met before this decision is reopened):
+
+- ADR-0006 is fully drafted and reviewed, covering threat model,
+  authentication, rate limits, billing, log retention, and
+  incident-response ownership.
+- At least one operator-tier user is concretely blocked by the current
+  Modal-private posture, with the blocking workflow named.
+
+The `.agents/gateway/` scaffolding stub (PR #195) is intentionally left
+in place as inert exploration; it is not activated by this decision and
+is not deleted, by explicit operator instruction.
+
 ## Out of scope for this ADR
 
 - The choice between Cloudflare Worker, Render service, or self-hosted
@@ -190,20 +224,13 @@ backing.
 
 ## Verification
 
-This ADR is satisfied when **one of the following is true**:
+This ADR has been satisfied. On 2026-05-22 the operator selected
+**Option A** (see "Decision record" above). Revisit requires both
+conditions in the Status line — ADR-0006 drafted and reviewed, AND at
+least one operator user blocked by the current platform.
 
-- The operator records "Status: Rejected" with a date and reason,
-  preserving sovereign posture (Option A); or
-- The operator records "Status: Accepted — Option B" together with the
-  new policy file and SKILL.md clarification listed above; or
-- The operator records "Status: Accepted — Option C" together with the
-  ADR-0001 amendment, CLAUDE.md amendment, SKILL.md amendment,
-  `modal-boundary-gate.sh` update, ADR-0006, and policy file listed
-  under Option C — all merged together, not piecemeal.
-
-Until one of those is true, the proposal is **not** in effect and the
-existing ADR-0001, codex-commander SKILL.md, and CLAUDE.md prohibitions
-remain authoritative.
+ADR-0001, codex-commander SKILL.md, and CLAUDE.md prohibitions remain
+authoritative under this decision.
 
 ## References
 
