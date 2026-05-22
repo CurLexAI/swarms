@@ -224,7 +224,7 @@ function normalizeError(err) {
             ...(stackAllowed && err.stack ? { stack: String(sanitizeForAudit(err.stack)) } : {})
         };
     }
-    return { message: "Unknown error" };
+    return { message: String(sanitizeForAudit(String(err))) };
 }
 export class NodeExecutionDispatchError extends Error {
     code;
@@ -522,14 +522,16 @@ export class UnifiedAgentAdapter {
             return { taskId, status: "success", data: verifiedResult };
         }
         catch (error) {
+            const safeErrorMessage = error instanceof Error ? error.message : String(error);
+            const originalStack = error instanceof Error && error.stack ? error.stack : undefined;
             const blocker = classifyBlocker(error);
             const normalizedError = normalizeError(error);
             const structuredFailure = error instanceof PythonEngineRuntimeError
                 ? { failure_class: error.code, upstream_status: error.upstreamStatus, retryable: error.retryable }
                 : { failure_class: blocker, upstream_status: null };
-            logger.error({ err: error, agentId, structuredFailure, normalizedError }, `💥 Intelligence Failure at Agent ${agentId}`);
+            logger.error({ err: error, agentId, structuredFailure, normalizedError, ...(originalStack ? { originalStack } : {}) }, `💥 Intelligence Failure at Agent ${agentId}`);
             await AuditService.updateTaskStatus(taskId, "FAILED", {
-                error: normalizedError.message,
+                error: String(sanitizeForAudit(safeErrorMessage)),
                 ...(normalizedError.code ? { code: normalizedError.code } : {}),
                 ...(normalizedError.stack ? { stack: normalizedError.stack } : {}),
                 blocker,
