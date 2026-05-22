@@ -7,6 +7,21 @@ import { pathToFileURL } from "node:url";
 
 const SOURCE_PATH = path.resolve("src/services/unifiedAgentAdapter.ts");
 
+function configureAllowedPythonBackend(t, backendUrl = "https://python-backend.invalid") {
+  const originalBackendUrl = process.env.PYTHON_BACKEND_URL;
+  const originalAllowedHosts = process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+
+  process.env.PYTHON_BACKEND_URL = backendUrl;
+  process.env.PYTHON_BACKEND_ALLOWED_HOSTS = new URL(backendUrl).hostname;
+
+  t.after(() => {
+    if (originalBackendUrl === undefined) delete process.env.PYTHON_BACKEND_URL;
+    else process.env.PYTHON_BACKEND_URL = originalBackendUrl;
+    if (originalAllowedHosts === undefined) delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+    else process.env.PYTHON_BACKEND_ALLOWED_HOSTS = originalAllowedHosts;
+  });
+}
+
 async function loadAuditServiceOrSkip(t) {
   try {
     const mod = await import("../src/services/AuditService.js");
@@ -113,7 +128,7 @@ db_password=hunter2 token=abc123 INTERNAL ERROR: stack frame exploded`;
     ]
   ]);
 
-  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  configureAllowedPythonBackend(t);
 
   await assert.rejects(
     async () =>
@@ -192,7 +207,7 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
     ]
   ]);
 
-  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  configureAllowedPythonBackend(t);
 
   await assert.rejects(
     async () =>
@@ -277,7 +292,7 @@ test("UnifiedAgentAdapter.executeAgent rejects successful non-JSON python respon
     ]
   ]);
 
-  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  configureAllowedPythonBackend(t);
 
   await assert.rejects(
     async () =>
@@ -344,7 +359,7 @@ test("UnifiedAgentAdapter.executeAgent retries retryable 503 responses up to PYT
 
   const adapter = new UnifiedAgentAdapter();
   adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
-  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  configureAllowedPythonBackend(t);
   process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "3";
 
   await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"));
@@ -386,7 +401,7 @@ test("UnifiedAgentAdapter.executeAgent performs a single outbound attempt for re
 
   const adapter = new UnifiedAgentAdapter();
   adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
-  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  configureAllowedPythonBackend(t);
   process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "1";
 
   await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"));
@@ -509,6 +524,7 @@ test("UnifiedAgentAdapter.executeAgent maps AbortError timeout to PYTHON_ENGINE_
 
   const originalFetch = global.fetch;
   const originalBackendUrl = process.env.PYTHON_BACKEND_URL;
+  const originalAllowedHosts = process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
   const originalLogAction = AuditService.logAction;
   const originalUpdateTaskStatus = AuditService.updateTaskStatus;
   const originalLogSecurityViolation = AuditService.logSecurityViolation;
@@ -530,9 +546,12 @@ test("UnifiedAgentAdapter.executeAgent maps AbortError timeout to PYTHON_ENGINE_
     AuditService.createTask = originalCreateTask;
     if (originalBackendUrl === undefined) delete process.env.PYTHON_BACKEND_URL;
     else process.env.PYTHON_BACKEND_URL = originalBackendUrl;
+    if (originalAllowedHosts === undefined) delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+    else process.env.PYTHON_BACKEND_ALLOWED_HOSTS = originalAllowedHosts;
   });
 
   process.env.PYTHON_BACKEND_URL = "https://python-backend.example";
+  process.env.PYTHON_BACKEND_ALLOWED_HOSTS = "python-backend.example";
   const adapter = new UnifiedAgentAdapter();
   adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
 
