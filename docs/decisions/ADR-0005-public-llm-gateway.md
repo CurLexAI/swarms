@@ -1,6 +1,6 @@
 # ADR-0005 — Public OpenAI-Compatible LLM Gateway in Front of Modal (Mihwar / Bayyinah)
 
-- **Status:** Proposed (decision request only — implementation NOT authorized by this ADR)
+- **Status:** Decided — Option A. Revisit only when both conditions met: (a) ADR-0006 fully drafted and reviewed; (b) at least one operator user blocked by current platform
 - **Decision date:** 2026-05-22
 - **Decision owner:** Repository operator
 - **Supersedes:** none
@@ -79,9 +79,16 @@ The current gate searches `src` and `public` for any `*.modal.run`
 reference and fails on a hit. It does not yet model the "domain-fronted
 public LLM gateway" case at all, because no such gateway exists.
 
-## Decision (proposed)
+## Decision (decided)
 
-This ADR proposes one of three possible outcomes. The operator must pick.
+Operator decision on 2026-05-22: **Option A (Reject)** is retained.
+
+Decision rationale:
+- ADR-0006 is not fully drafted/reviewed (auth, rate-limit, billing, log retention remain incomplete).
+- No operator user has been demonstrated as blocked by the current platform posture.
+- Option C weakens Bayyinah's validator-of-Mihwar enforcement path.
+
+This ADR previously proposed one of three possible outcomes; these are kept below for traceability.
 The ADR records the request and the structural cost of each option so
 that the decision is not made by accident:
 
