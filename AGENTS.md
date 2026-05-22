@@ -53,6 +53,7 @@ Skills are operational playbooks. They describe *how* to perform task classes.
 | Factory Auditor | `.agents/skills/factory-auditor.md` | Use for layer readiness, launch readiness, and blocker audits. |
 | Agent Identity Map | `.agents/skills/agent-identity-map.md` | Use for agent/model/role changes. |
 | iPhone Command Center | `.agents/skills/iphone-command-center.md` | Use when operating this repository from iPhone through ChatGPT, SSH, GitHub, Codex, or remote runtimes. |
+| HF CLI | `.agents/skills/hf-cli/SKILL.md` | Use when downloading, uploading, or managing Hugging Face Hub repos, models, datasets, spaces, or jobs via the `hf` CLI. |
 
 If `00-task-scope-lock.md` is absent, apply the Scope Lock section in this file directly.
 
