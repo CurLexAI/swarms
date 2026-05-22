@@ -149,3 +149,50 @@ Default collaboration: Mihwar generates → Bayyinah reviews → up to 3 revisio
 - `docs/secrets-policy.md` — required/optional secrets and rotation posture.
 - `docs/launch-evidence/agent-launch.md` — launch readiness template (stays pending until evidence exists).
 - `docs/operations/codex-sdk-usage.md` — Codex SDK integration notes.
+
+
+## GitHub Models BYOK (Organization)
+
+Use this path when organization owners need custom model providers in GitHub Models:
+
+1. Organization **Settings** → **Models** → **Custom models**.
+2. Add API keys (currently OpenAI and AzureAI are supported in public preview).
+3. Organization **Settings** → **Models** → **Development**.
+4. Under model permissions choose:
+   - **All publishers** to allow all API-key-backed publishers, or
+   - **Only select models** to maintain an explicit allow/deny list.
+5. If **All publishers** is unavailable, enable model usage policy first in organization model governance settings.
+
+Operational safeguards:
+- Apply least privilege to API keys.
+- Keep billing/usage monitoring in provider dashboards.
+- Never store raw keys in repo files, issues, PR comments, or logs.
+
+## EXECUTION DISCIPLINE MAXIMUM (Claude workflow)
+
+When operating through Claude Code in this repository, enforce these status labels only:
+
+- `VERIFIED_FIXED`
+- `PARTIALLY_APPLIED`
+- `CHANGED_BUT_NOT_VERIFIED`
+- `BLOCKED`
+- `UNVERIFIED`
+- `NOT_STARTED`
+- `SUPERSEDED`
+- `CONFLICTED`
+
+Mandatory report format after each execution:
+
+```text
+Execution Verdict:
+- Status:
+- Scope:
+- Canonical Path:
+- Files Touched:
+- Blockers:
+- Hot Surface Risk:
+- What Was Actually Changed:
+- What Was Actually Verified:
+- What Remains Unverified:
+- Next Valid Action:
+```
