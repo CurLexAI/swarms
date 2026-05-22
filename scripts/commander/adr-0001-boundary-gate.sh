@@ -45,7 +45,14 @@ done
 if (( ${#EXISTING_SCAN_DIRS[@]} == 0 )); then
   warn "no boundary-relevant directories found to scan"
 else
-  if rg -n --hidden --glob '!.git/**' --glob '!node_modules/**' '\bautoStart\b' "${EXISTING_SCAN_DIRS[@]}" >/dev/null 2>&1; then
+  # Exclude markdown: real activation flags live in code/config
+  # (YAML/JSON/TS/JS/Python/shell). Docs/skills may name the
+  # forbidden flag — typically to forbid it — without that being drift.
+  if rg -n --hidden \
+        --glob '!.git/**' \
+        --glob '!node_modules/**' \
+        --glob '!**/*.md' \
+        '\bautoStart\b' "${EXISTING_SCAN_DIRS[@]}" >/dev/null 2>&1; then
     fail "BOUNDARY_DRIFT: autoStart activation flag detected"
   else
     ok "no autoStart activation flag detected"
