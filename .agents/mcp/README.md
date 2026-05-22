@@ -47,6 +47,30 @@ The `$VAR` references resolve from the repository's `copilot environment` secret
 
 ---
 
+## Render MCP Workspace Setup
+
+This repository also includes a VS Code workspace MCP configuration at `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "render": {
+      "type": "http",
+      "url": "https://mcp.render.com/mcp"
+    }
+  }
+}
+```
+
+Use this for Render infrastructure operations from MCP-compatible clients that support workspace MCP configuration. It is intentionally separate from `curlexai-agents` because Render is a remote HTTP MCP server, while `curlexai-agents` is a local stdio server.
+
+Security boundary:
+- Do not hard-code Render credentials in this repository.
+- Complete Render authorization in the MCP client/provider flow.
+- Keep the local CurLexAI agent server and the remote Render server as distinct MCP entries.
+
+---
+
 ## Claude Desktop / Cursor Setup
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or equivalent:
@@ -62,12 +86,16 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
         "BAYYINAH_ENDPOINT": "https://curlexai--bayyinah-review.modal.run",
         "AGENT_API_TOKEN": "your-token-here"
       }
+    },
+    "render": {
+      "type": "http",
+      "url": "https://mcp.render.com/mcp"
     }
   }
 }
 ```
 
-> Note: Claude Desktop / Cursor do **not** require the `"type"` field — only GitHub Copilot does.
+> Note: Claude Desktop / Cursor do **not** require the `"type"` field for local stdio servers — only GitHub Copilot does. Remote HTTP MCP servers may require a client-specific `type` field.
 
 ---
 
