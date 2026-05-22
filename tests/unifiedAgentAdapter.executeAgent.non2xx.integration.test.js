@@ -236,6 +236,113 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
   assert.doesNotMatch(updateTaskStatusCalls[0][2].error, /ECONNREFUSED|python-backend\.internal/i);
 });
 
+test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUND cause and keeps client errors sanitized", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+
+  const updateTaskStatusCalls = [];
+  let attempts = 0;
+
+  global.fetch = async () => {
+    attempts += 1;
+    const cause = Object.assign(new Error("getaddrinfo ENOTFOUND python-backend.internal"), { code: "ENOTFOUND" });
+    const err = new TypeError("fetch failed");
+    err.cause = cause;
+    throw err;
+  };
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => updateTaskStatusCalls.push(args);
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "2";
+
+  await assert.rejects(
+    () => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run" }, ["scope:execute"], "tenant-1"),
+    (error) => {
+      assert.match(error.message, /RUNTIME_FAILURE: python engine request transport failure/i);
+      assert.doesNotMatch(error.message, /ENOTFOUND|python-backend|http|token/i);
+      return true;
+    }
+  );
+
+  assert.equal(attempts, 2, "retryable ENOTFOUND cause should consume retry budget");
+  assert.equal(updateTaskStatusCalls.length, 1);
+});
+
+test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ECONNREFUSED cause and keeps client errors sanitized", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+
+  const updateTaskStatusCalls = [];
+  let attempts = 0;
+
+  global.fetch = async () => {
+    attempts += 1;
+    if (attempts === 1) {
+      const cause = Object.assign(new Error("connect ECONNREFUSED 10.1.2.3:8000"), { code: "ECONNREFUSED" });
+      const err = new TypeError("fetch failed");
+      err.cause = cause;
+      throw err;
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: (name) => (name.toLowerCase() === "content-type" ? "application/json" : null) },
+      json: async () => ({ output: "ok" })
+    };
+  };
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => updateTaskStatusCalls.push(args);
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "2";
+
+  const result = await adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run" }, ["scope:execute"], "tenant-1");
+  assert.equal(result.status, "success");
+  assert.equal(attempts, 2, "retryable ECONNREFUSED cause should retry once before success");
+  assert.equal(updateTaskStatusCalls[0][1], "COMPLETED");
+});
+
 test("UnifiedAgentAdapter.executeAgent rejects successful non-JSON python responses with sanitized runtime error", async (t) => {
   const loaded = await loadUnifiedAgentAdapterFromTs(t);
   if (!loaded) return;
