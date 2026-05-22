@@ -612,6 +612,35 @@ export class UnifiedAgentAdapter {
         }
         return result;
     }
+    async readErrorBodySafely(response) {
+        try {
+            const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+            if (contentType.includes("application/json")) {
+                const jsonPayload = await response.json();
+                return truncateForDiagnostics(JSON.stringify(jsonPayload));
+            }
+            return truncateForDiagnostics(await response.text());
+        }
+        catch {
+            return "<unavailable>";
+        }
+    }
+    validatePythonEngineResponseSchema(result) {
+        if (!result || typeof result !== "object" || Array.isArray(result)) {
+            throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: 502, retryable: false, message: "RUNTIME_FAILURE: python engine response must be a JSON object" });
+        }
+        const payload = result;
+        const valid = ["output", "message", "result", "data"].some((field) => {
+            const value = payload[field];
+            if (typeof value === "string") return value.trim().length > 0;
+            if (value && typeof value === "object") return true;
+            return false;
+        });
+        if (!valid) {
+            throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: 502, retryable: false, message: "RUNTIME_FAILURE: python engine response schema validation failed" });
+        }
+        return payload;
+    }
     async forwardToPythonEngine(agent, payload, userId, taskId) {
         const validation = this.validateAndSanitizePayload(payload);
         if (!validation.isValid || !validation.safePayload) {
@@ -642,7 +671,7 @@ export class UnifiedAgentAdapter {
             try {
                 const response = await fetch(`${normalizedBackendUrl}/api/v1/workflow/query`, { method: "POST", headers: { "Content-Type": "application/json", "x-request-id": requestId, "x-task-id": taskId }, body: JSON.stringify(safeBody), signal: abortController.signal });
                 if (!response.ok) {
-                    const rawError = truncateForDiagnostics(await response.text());
+                    const rawError = await this.readErrorBodySafely(response);
                     const retryable = RETRYABLE_HTTP_STATUSES.has(response.status);
                     const mappedCode = response.status === 401 ? "AUTH_INVALID" : response.status === 403 ? "AUTH_EXPIRED" : "RUNTIME_FAILURE";
                     if (retryable && attempt < maxAttempts) {
@@ -661,7 +690,8 @@ export class UnifiedAgentAdapter {
                     throw createPythonRuntimeError({ code: "UNVERIFIED_RUNTIME", status: response.status, retryable: false, correlationId });
                 }
                 try {
-                    return await response.json();
+                    const parsed = await response.json();
+                    return this.validatePythonEngineResponseSchema(parsed);
                 }
                 catch (parseError) {
                     const correlationId = randomUUID().slice(0, 8);
