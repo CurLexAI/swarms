@@ -28,6 +28,10 @@ interface AgentDefinition {
   capabilities?: string[];  // P0: declared agent capabilities
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 interface NormalizedAgentDefinition extends AgentDefinition {
   runtime: "python" | "node" | "hybrid";
   allowedScopes: string[];
@@ -457,7 +461,7 @@ export class UnifiedAgentAdapter {
       }
       let loadedAgents = 0;
       let reasoningEnabledAgents = 0;
-      if (!data || typeof data !== "object" || Array.isArray(data)) {
+      if (!isRecord(data)) {
         throw new RegistryStartupError(
           "REGISTRY_LOAD_FAILURE",
           selectedRegistryPath,
@@ -473,27 +477,46 @@ export class UnifiedAgentAdapter {
         );
       }
 
-      const rawAgents = (data as { agents: unknown }).agents;
+      const rawAgents = data.agents;
       let agentsList: AgentDefinition[];
       if (Array.isArray(rawAgents)) {
         agentsList = [];
         for (let idx = 0; idx < rawAgents.length; idx++) {
           const entry = rawAgents[idx];
-          if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-            logger.warn(
-              { index: idx, entryType: Array.isArray(entry) ? "array" : typeof entry },
-              "Skipping non-object agent entry in registry"
+          if (!isRecord(entry)) {
+            throw new RegistryStartupError(
+              "REGISTRY_LOAD_FAILURE",
+              selectedRegistryPath,
+              `REGISTRY_LOAD_FAILURE: Invalid agent entry at index ${idx} (expected object)`
             );
-            continue;
           }
-          const e = entry as Record<string, unknown>;
-          const candidateId = typeof e.id === "string" && e.id.trim().length > 0 ? e.id.trim() : null;
-          if (!candidateId) {
-            logger.warn(
-              { index: idx, hasIdField: Object.prototype.hasOwnProperty.call(e, "id") },
-              "Skipping agent entry with missing or empty id"
+          if (typeof entry.id !== "string" || entry.id.trim().length === 0) {
+            throw new RegistryStartupError(
+              "REGISTRY_LOAD_FAILURE",
+              selectedRegistryPath,
+              `REGISTRY_LOAD_FAILURE: Invalid agent entry at index ${idx} (id must be non-empty string)`
             );
-            continue;
+          }
+          if (typeof entry.name !== "string" || entry.name.trim().length === 0) {
+            throw new RegistryStartupError(
+              "REGISTRY_LOAD_FAILURE",
+              selectedRegistryPath,
+              `REGISTRY_LOAD_FAILURE: Invalid agent ${entry.id} (name must be non-empty string)`
+            );
+          }
+          if (entry.type !== "python" && entry.type !== "node" && entry.type !== "hybrid") {
+            throw new RegistryStartupError(
+              "REGISTRY_LOAD_FAILURE",
+              selectedRegistryPath,
+              `REGISTRY_LOAD_FAILURE: Invalid agent ${entry.id} (type must be one of python|node|hybrid)`
+            );
+          }
+          if (typeof entry.required_scope !== "string" || entry.required_scope.trim().length === 0) {
+            throw new RegistryStartupError(
+              "REGISTRY_LOAD_FAILURE",
+              selectedRegistryPath,
+              `REGISTRY_LOAD_FAILURE: Invalid agent ${entry.id} (required_scope must be non-empty string)`
+            );
           }
           agentsList.push(entry as AgentDefinition);
         }
@@ -561,7 +584,6 @@ export class UnifiedAgentAdapter {
         "✅ LexPrim Intelligence Matrix loaded"
       );
     } catch (e) {
-      logger.error({ err: e }, "❌ Registry Integrity Breach");
       const startupError = e instanceof RegistryStartupError
         ? e
         : new RegistryStartupError(
@@ -570,6 +592,11 @@ export class UnifiedAgentAdapter {
           `REGISTRY_LOAD_FAILURE: Failed to load registry from ${selectedRegistryPath}`,
           e
         );
+      const failurePhase = startupError.code === "SYNTAX_FAILURE" ? "parse" : "schema_or_io";
+      logger.error(
+        { err: startupError, registryPath: selectedRegistryPath, failurePhase, failureCode: startupError.code },
+        "❌ Registry Integrity Breach"
+      );
       this.registryStartupError = startupError;
       throw startupError;
     }
