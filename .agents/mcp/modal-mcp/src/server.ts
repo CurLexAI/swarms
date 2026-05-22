@@ -96,7 +96,9 @@ const readOnlyTools = [
   'modal_get_deployment_status',
   'modal_list_model_endpoints',
   'modal_get_recent_logs',
-  'modal_run_safe_inference'
+  'modal_run_safe_inference',
+  'mihwar_generate',
+  'bayyinah_review'
 ] as const;
 
 const mutatingToolsList = [
@@ -216,6 +218,23 @@ const server = createServer(async (req, res) => {
 
       const prompt = String(args?.prompt ?? '');
       return json(res, 200, await modal.runSafeInference(id.value, prompt));
+    }
+
+    case 'mihwar_generate': {
+      const task = String(args?.task ?? '');
+      if (!task) return json(res, 400, { error: 'task is required' });
+
+      const code = args?.code ? String(args.code) : undefined;
+      const context = args?.context ? String(args.context) : undefined;
+      return json(res, 200, await modal.mihwarGenerate(task, code, context));
+    }
+
+    case 'bayyinah_review': {
+      const code = String(args?.code ?? '');
+      if (!code) return json(res, 400, { error: 'code is required' });
+
+      const context = args?.context ? String(args.context) : undefined;
+      return json(res, 200, await modal.bayyinahReview(code, context));
     }
 
     default:

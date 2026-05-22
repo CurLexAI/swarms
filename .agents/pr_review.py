@@ -70,10 +70,9 @@ def _run_bayyinah(diff: str, args: argparse.Namespace) -> None:
     endpoint = _require_env("BAYYINAH_ENDPOINT")
     token = _require_env("AGENT_API_TOKEN")
 
-    print(f"Calling Bayyinah at {endpoint}...")
+    print(f"Calling Bayyinah at endpoint...")
 
     payload = {
-        "token": token,
         "code": diff[:MAX_DIFF_CHARS],
         "context": (
             f"PR #{args.pr} in {args.repo} — reviewing git diff against main branch.\n"
@@ -81,7 +80,7 @@ def _run_bayyinah(diff: str, args: argparse.Namespace) -> None:
         ),
     }
 
-    result = _call_endpoint(endpoint, payload)
+    result = _call_endpoint(endpoint, payload, token)
 
     if "error" in result:
         _post_comment(
@@ -113,7 +112,7 @@ def _run_mihwar(diff: str, args: argparse.Namespace) -> None:
     token = _require_env("AGENT_API_TOKEN")
     bayyinah_report = args.bayyinah_report or os.environ.get("BAYYINAH_REPORT", "")
 
-    print(f"Calling Mihwar at {endpoint}...")
+    print(f"Calling Mihwar at endpoint...")
 
     task = (
         f"PR #{args.pr} in {args.repo} has the following diff:\n\n"
@@ -128,12 +127,11 @@ def _run_mihwar(diff: str, args: argparse.Namespace) -> None:
     )
 
     payload = {
-        "token": token,
         "task": task,
         "context_files": {},
     }
 
-    result = _call_endpoint(endpoint, payload)
+    result = _call_endpoint(endpoint, payload, token)
 
     if "error" in result:
         _post_comment(args, _error_comment(result["error"]))
@@ -252,13 +250,16 @@ def _post_comment(args: argparse.Namespace, body: str) -> None:
 
 # ── Modal endpoint call ────────────────────────────────────────────────────
 
-def _call_endpoint(url: str, payload: dict) -> dict:
+def _call_endpoint(url: str, payload: dict, token: str = "") -> dict:
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     try:
         resp = requests.post(
             url,
             json=payload,
             timeout=300,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
         )
         resp.raise_for_status()
         return resp.json()

@@ -25,7 +25,7 @@ import hmac
 import json
 import os
 import uuid
-from typing import Optional, Dict
+from typing import Optional
 
 import modal
 from fastapi import Header, HTTPException
@@ -35,11 +35,17 @@ from fastapi import Header, HTTPException
 vllm_image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
-        "vllm==0.5.5",
+        "vllm>=0.6.0,<1.0.0",
         "transformers>=4.44.0",
         "accelerate>=0.33.0",
         "huggingface_hub>=0.24.0",
+        "scipy>=1.11.0",
     )
+)
+
+# Lightweight image for web endpoint routing (no GPU/vLLM needed)
+gateway_image = modal.Image.debian_slim(python_version="3.11").pip_install(
+    "fastapi>=0.110.0",
 )
 
 hf_secret = modal.Secret.from_name("huggingface-secret")
@@ -298,16 +304,16 @@ api_secret = modal.Secret.from_name("agent-api-secret")
 
 
 @app.function(
-    image=vllm_image,
+    image=gateway_image,
     secrets=[hf_secret, api_secret],
     timeout=180,
     min_containers=0,
 )
-@modal.fastapi_endpoint(method="POST", label="bayyinah-review")
+@modal.web_endpoint(method="POST", label="bayyinah-review")
 def bayyinah_review_web(
     payload: dict,
-    authorization: str | None = Header(default=None),
-    x_request_id: str | None = Header(default=None),
+    authorization: Optional[str] = Header(default=None),
+    x_request_id: Optional[str] = Header(default=None),
 ) -> dict:
     """
     HTTP POST endpoint for Bayyinah.
@@ -317,8 +323,7 @@ def bayyinah_review_web(
     _verify_bearer_token(authorization)
     _limit_payload_bytes(payload, MAX_REVIEW_PAYLOAD_BYTES)
 
-    agent = BayyinahAgent()
-    result = agent.review.remote(
+    result = BayyinahAgent().review.remote(
         _trimmed_text(payload.get("code"), MAX_REVIEW_PAYLOAD_BYTES),
         _trimmed_text(payload.get("context"), MAX_CONTEXT_BYTES),
     )
@@ -327,16 +332,16 @@ def bayyinah_review_web(
 
 
 @app.function(
-    image=vllm_image,
+    image=gateway_image,
     secrets=[hf_secret, api_secret],
     timeout=360,
     min_containers=0,
 )
-@modal.fastapi_endpoint(method="POST", label="mihwar-generate")
+@modal.web_endpoint(method="POST", label="mihwar-generate")
 def mihwar_generate_web(
     payload: dict,
-    authorization: str | None = Header(default=None),
-    x_request_id: str | None = Header(default=None),
+    authorization: Optional[str] = Header(default=None),
+    x_request_id: Optional[str] = Header(default=None),
 ) -> dict:
     """
     HTTP POST endpoint for Mihwar.
@@ -355,8 +360,7 @@ def mihwar_generate_web(
         for path, content in context_files.items()
     }
 
-    agent = MihwarAgent()
-    result = agent.review_and_generate.remote(
+    result = MihwarAgent().review_and_generate.remote(
         _trimmed_text(payload.get("task"), MAX_GENERATE_PAYLOAD_BYTES),
         sanitized_context_files,
     )

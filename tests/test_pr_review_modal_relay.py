@@ -112,7 +112,10 @@ class BayyinahRelayContractTests(unittest.TestCase):
         endpoint_call = mock_post.call_args_list[0]
         self.assertEqual(endpoint_call.args[0], "https://bayyinah.modal.example/api")
         sent_payload = endpoint_call.kwargs["json"]
-        self.assertEqual(sent_payload["token"], "secret-token-xyz")
+        # Token must be in Authorization header, NOT in the JSON body
+        self.assertNotIn("token", sent_payload)
+        sent_headers = endpoint_call.kwargs["headers"]
+        self.assertEqual(sent_headers.get("Authorization"), "Bearer secret-token-xyz")
         self.assertIn("code", sent_payload)
         self.assertIn("PR #42 in CurLexAI/swarms", sent_payload["context"])
 
