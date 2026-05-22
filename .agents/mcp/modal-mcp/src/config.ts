@@ -8,6 +8,9 @@ export interface Config {
   enableMutatingTools: boolean;
   deploymentAllowlist: string[];
   maxLogLines: number;
+  mihwarEndpoint: string | undefined;
+  bayyinahEndpoint: string | undefined;
+  agentApiToken: string | undefined;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): Result<Config, string> {
@@ -35,7 +38,10 @@ export function loadConfig(env: NodeJS.ProcessEnv): Result<Config, string> {
         .split(',')
         .map((v) => v.trim())
         .filter((v) => v.length > 0),
-      maxLogLines: max
+      maxLogLines: max,
+      mihwarEndpoint: env.MIHWAR_ENDPOINT,
+      bayyinahEndpoint: env.BAYYINAH_ENDPOINT,
+      agentApiToken: env.AGENT_API_TOKEN
     }
   };
 }
