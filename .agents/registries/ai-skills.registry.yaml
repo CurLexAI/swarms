@@ -58,3 +58,10 @@ skills:
     role: "Mihwar, Bayyinah, Qarar runtime, model routing and endpoint verification"
     risk: "critical"
     runtime_activation: false
+
+  - id: hf-cli
+    path: ".agents/skills/hf-cli"
+    clients: ["gemini", "claude-code", "codex", "chatgpt"]
+    role: "Hugging Face Hub CLI for downloading, uploading, and managing repos, models, datasets, and spaces"
+    risk: "medium"
+    runtime_activation: false
