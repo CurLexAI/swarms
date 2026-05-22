@@ -251,7 +251,16 @@ function sleep(ms: number) {
 function isRetryableNetworkError(error: unknown) {
   if (!(error instanceof Error) || error.name === "AbortError") return false;
   const code = (error as NodeJS.ErrnoException).code;
-  return code === "ECONNRESET" || code === "ETIMEDOUT" || code === "EAI_AGAIN" || code === "UND_ERR_CONNECT_TIMEOUT";
+  return (
+    code === "ECONNRESET" ||
+    code === "ETIMEDOUT" ||
+    code === "EAI_AGAIN" ||
+    code === "UND_ERR_CONNECT_TIMEOUT" ||
+    code === "ENOTFOUND" ||
+    code === "ECONNREFUSED" ||
+    code === "EHOSTUNREACH" ||
+    code === "ENETUNREACH"
+  );
 }
 
 type RuntimeFailureClass = "RUNTIME_FAILURE" | "UNVERIFIED_RUNTIME" | "PYTHON_ENGINE_TIMEOUT" | "AUTH_INVALID" | "AUTH_EXPIRED";
@@ -903,7 +912,7 @@ export class UnifiedAgentAdapter {
         if (error instanceof PythonEngineRuntimeError) throw error;
         if (isRetryableNetworkError(error) && attempt < maxAttempts) { await sleep(DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1)); continue; }
         const correlationId = randomUUID().slice(0, 8);
-        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId });
+        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId, error_code: (error as NodeJS.ErrnoException).code ?? "UNKNOWN", error_name: error instanceof Error ? error.name : "UNKNOWN" });
         throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: 502, retryable: false, correlationId, message: "RUNTIME_FAILURE: python engine request transport failure", cause: error });
       } finally { clearTimeout(timeoutHandle); }
     }
