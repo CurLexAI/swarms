@@ -212,13 +212,14 @@ npm run test:cdn-sri
 
 ## 8) عدد الوكلاء وأسماؤهم وأقسامهم
 
-### الوكلاء الأساسيون الثلاثة في `.agents/config/agents.yaml`
+### الوكيلان الأساسيان في `.agents/config/agents.yaml`
 
 | # | المعرّف | الاسم العربي | الدور | Tier |
 |---|---|---|---|---|
 | 1 | `mihwar` | المحور | Senior Architect / Code Generator | 1 |
 | 2 | `bayyinah` | البيّنة | Code Reviewer / Validator | 2 |
-| 3 | `copilot_swe` | مهندس البرمجيات | Scaffold-only Executor (GitHub Copilot) | 3 |
+
+> **ملاحظة:** `copilot_swe` و `.github/agents/*.agent.md` (وكلاء GitHub Copilot Custom) أُزيلوا. الاستدعاء يتم الآن عبر CLI / MCP / Sovereign Gateway فقط.
 
 ### سجل الوكلاء الموسّع في `agents/registry.yaml` (legacy fallback — 7 وكلاء + 1)
 

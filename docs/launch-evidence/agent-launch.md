@@ -26,7 +26,7 @@ Each row must reference an actual command run and its exit code.
 
 | Gate                                                  | Result  | Evidence (path or run URL) |
 |-------------------------------------------------------|---------|----------------------------|
-| `scripts/commander/agent-presence-gate.sh`            | PASS    | exit 0; configured_agent_count=3 (mihwar, bayyinah, copilot_swe) |
+| `scripts/commander/agent-presence-gate.sh`            | PASS    | exit 0; configured_agent_count=2 (mihwar, bayyinah) — Copilot custom agents removed |
 | `scripts/commander/p0-security-test-gate.sh`          | PASS    | exit 0; "Ran 52 tests in 0.027s — OK" |
 | `scripts/commander/modal-boundary-gate.sh`            | PASS    | exit 0; no *.modal.run in src,public; no Modal SDK in client; SECRET_MISSING warnings expected outside CI |
 | `.agents/skills/codex-commander/scripts/codex_commander_gate.sh` | PASS | exit 0; AGENTS.md present; agents.yaml present; no direct Modal URL |
