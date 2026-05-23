@@ -43,13 +43,23 @@ Each row must reference an actual command run and its exit code.
 ## 4. Secrets Readiness
 
 Presence only — values MUST NOT be recorded here. See
-`docs/secrets-policy.md`.
+`docs/secrets-policy.md §1` for canonical scope and `§3` for the
+operator runbook. Canonical scope is **Organization (LexPrime) →
+Selected repositories: `CurLexAI/swarms`, `LexPrim/Qarar`**.
 
-| Secret              | Set in repo? | Set in env (CI run)? | Last rotated |
-|---------------------|--------------|----------------------|--------------|
-| `BAYYINAH_ENDPOINT` | UNSET        | UNVERIFIED           | UNVERIFIED   |
-| `MIHWAR_ENDPOINT`   | UNSET        | UNVERIFIED           | UNVERIFIED   |
-| `AGENT_API_TOKEN`   | UNSET        | UNVERIFIED           | UNVERIFIED   |
+| Secret              | Set at canonical scope? | Visible to swarms runner? | Last rotated |
+|---------------------|-------------------------|---------------------------|--------------|
+| `BAYYINAH_ENDPOINT` | UNVERIFIED              | UNVERIFIED                | UNVERIFIED   |
+| `MIHWAR_ENDPOINT`   | UNVERIFIED              | UNVERIFIED                | UNVERIFIED   |
+| `AGENT_API_TOKEN`   | UNVERIFIED              | UNVERIFIED                | UNVERIFIED   |
+
+Diagnostic shortcut: an `agent-review.yml` `bayyinah-review` job that
+completes in < 30 s with conclusion `success` proves the secret is
+**not visible to the runner** (workflow guard at lines 76–85 took the
+`SKIPPED_UNVERIFIED` path). Either the secret is unset at canonical
+scope, or `CurLexAI/swarms` was removed from the Selected repositories
+allow-list. See `docs/secrets-policy.md §3.1` for the silent-degrade
+warning.
 
 ## 5. Runtime Smoke Tests
 
@@ -57,10 +67,17 @@ A smoke test counts only when invoked against the deployed Modal endpoint
 from a CI run with the production secrets bound. Local invocations and
 mocked relays do NOT satisfy this row.
 
+Canonical smoke procedure: dispatch `Modal Smoke Probe`
+(`.github/workflows/smoke-modal.yml`) manually. A successful run shows
+each probe job at ≥ 60 s duration (vLLM cold start) with conclusion
+`success`, no `*.modal.run` string in any log line, and a stable JSON
+response body. Record the run URL + UTC timestamp in the Evidence
+column and flip the verdict to `VERIFIED`.
+
 | Agent      | Endpoint reachable | Verdict roundtrip | Evidence |
 |------------|--------------------|-------------------|----------|
-| Bayyinah   | SKIPPED_UNVERIFIED | SKIPPED_UNVERIFIED | Secrets not available in this environment |
-| Mihwar     | SKIPPED_UNVERIFIED | SKIPPED_UNVERIFIED | Secrets not available in this environment |
+| Bayyinah   | SKIPPED_UNVERIFIED | SKIPPED_UNVERIFIED | PR #221 (merged 2026-05-23) auto-triggered agent-review.yml; bayyinah-review job completed in 10 s with conclusion `success` — diagnostic signature of absent secret per `secrets-policy.md §3.1`, not a live response |
+| Mihwar     | SKIPPED_UNVERIFIED | SKIPPED_UNVERIFIED | PR #221 mihwar-fix job conclusion `skipped` (Bayyinah verdict ≠ REQUEST_CHANGES); no direct probe attempted |
 
 ## 6. Edge / Deploy Readiness
 
