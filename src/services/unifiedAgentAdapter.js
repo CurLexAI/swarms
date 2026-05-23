@@ -178,6 +178,17 @@ function getTransportErrorCodes(error) {
 function isRetryableNetworkError(error) {
     if (!(error instanceof Error) || error.name === "AbortError")
         return false;
+    const code = error.code;
+    return (
+        code === "ECONNRESET" ||
+        code === "ETIMEDOUT" ||
+        code === "EAI_AGAIN" ||
+        code === "UND_ERR_CONNECT_TIMEOUT" ||
+        code === "ENOTFOUND" ||
+        code === "ECONNREFUSED" ||
+        code === "EHOSTUNREACH" ||
+        code === "ENETUNREACH"
+    );
     const { errorCode, causeCode } = getTransportErrorCodes(error);
     if (errorCode && RETRYABLE_TRANSPORT_CODES.has(errorCode))
         return true;
@@ -798,7 +809,7 @@ export class UnifiedAgentAdapter {
                     continue;
                 }
                 const correlationId = randomUUID().slice(0, 8);
-                await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId });
+                await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId, error_code: error?.code ?? "UNKNOWN", error_name: error instanceof Error ? error.name : "UNKNOWN" });
                 throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: 502, retryable: false, correlationId, message: "RUNTIME_FAILURE: python engine request transport failure", cause: error });
             }
             finally {
