@@ -1,0 +1,120 @@
+name: Modal Runtime Activation
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_modal:
+        description: "Deploy .agents/modal_app.py to Modal"
+        required: false
+        type: boolean
+        default: false
+      run_smoke:
+        description: "Run Modal smoke entrypoints"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  activation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Mask secrets
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
+          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          for v in MODAL_TOKEN_ID MODAL_TOKEN_SECRET BAYYINAH_ENDPOINT MIHWAR_ENDPOINT AGENT_API_TOKEN; do
+            if [[ -n "${!v:-}" ]]; then
+              echo "::add-mask::${!v}"
+            fi
+          done
+
+      - name: Install Modal CLI
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install modal
+
+      - name: Validation gates
+        run: |
+          set -euo pipefail
+          python .agents/invoke.py info
+          python .agents/validate.py
+          python -m py_compile .agents/*.py
+          bash scripts/commander/p0-security-test-gate.sh
+          bash scripts/commander/modal-boundary-gate.sh
+          bash scripts/commander/agent-presence-gate.sh
+          modal --version
+
+      - name: Configure Modal token
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${MODAL_TOKEN_ID:-}" || -z "${MODAL_TOKEN_SECRET:-}" ]]; then
+            echo "FINAL_STATUS=UNVERIFIED_SECRET_MISSING" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          modal token set --token-id "$MODAL_TOKEN_ID" --token-secret "$MODAL_TOKEN_SECRET"
+
+      - name: Deploy Modal app (optional)
+        if: ${{ env.FINAL_STATUS != 'UNVERIFIED_SECRET_MISSING' && inputs.deploy_modal }}
+        run: |
+          set -euo pipefail
+          modal deploy .agents/modal_app.py
+          echo "FINAL_STATUS=VERIFIED_MODAL_DEPLOYED" >> "$GITHUB_ENV"
+
+      - name: Run Modal smoke entrypoints (optional)
+        if: ${{ env.FINAL_STATUS != 'UNVERIFIED_SECRET_MISSING' && inputs.run_smoke }}
+        run: |
+          set -euo pipefail
+          modal run .agents/modal_app.py
+          modal run .agents/modal_app.py::test_bayyinah
+          echo "FINAL_STATUS=VERIFIED_MODAL_CLI_ONLY" >> "$GITHUB_ENV"
+
+      - name: Endpoint smoke (optional)
+        if: ${{ env.FINAL_STATUS != 'UNVERIFIED_SECRET_MISSING' && inputs.run_smoke }}
+        env:
+          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
+          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${BAYYINAH_ENDPOINT:-}" || -z "${MIHWAR_ENDPOINT:-}" || -z "${AGENT_API_TOKEN:-}" ]]; then
+            echo "FINAL_STATUS=UNVERIFIED_SECRET_MISSING" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          bayyinah_status="$(curl -sS --max-time 240 -o /tmp/bayyinah.json -w '%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer ${AGENT_API_TOKEN}" -X POST -d '{"code":"def add(a,b):return a+b","context":"smoke"}' "$BAYYINAH_ENDPOINT" || echo 000)"
+          mihwar_status="$(curl -sS --max-time 420 -o /tmp/mihwar.json -w '%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer ${AGENT_API_TOKEN}" -X POST -d '{"task":"return integer 1","context_files":{}}' "$MIHWAR_ENDPOINT" || echo 000)"
+          rm -f /tmp/bayyinah.json /tmp/mihwar.json
+          if [[ "$bayyinah_status" == "200" && "$mihwar_status" == "200" ]]; then
+            echo "FINAL_STATUS=VERIFIED_ENDPOINT_SMOKE" >> "$GITHUB_ENV"
+          else
+            echo "FINAL_STATUS=BLOCKED_MODAL_FAILURE" >> "$GITHUB_ENV"
+            exit 1
+          fi
+
+      - name: Final status summary
+        if: always()
+        run: |
+          set -euo pipefail
+          status="${FINAL_STATUS:-BLOCKED_MODAL_FAILURE}"
+          echo "## Modal runtime activation verdict" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "$status" >> "$GITHUB_STEP_SUMMARY"

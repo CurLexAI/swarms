@@ -1,0 +1,42 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "curlexai-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-03-10",
+  "compatibility_flags": ["nodejs_compat"],
+  /**
+   * Secrets (set via `npx wrangler secret put <KEY>`):
+   *   GITHUB_CLIENT_ID        — GitHub OAuth App client ID
+   *   GITHUB_CLIENT_SECRET    — GitHub OAuth App client secret
+   *   COOKIE_ENCRYPTION_KEY   — random hex string (openssl rand -hex 32)
+   *   AGENT_API_TOKEN         — bearer token for Modal agent endpoints
+   *   MIHWAR_ENDPOINT         — Modal Mihwar agent URL (backend-only)
+   *   BAYYINAH_ENDPOINT       — Modal Bayyinah agent URL (backend-only)
+   */
+  "migrations": [
+    {
+      "new_sqlite_classes": ["AgentMCP"],
+      "tag": "v1"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "AgentMCP",
+        "name": "MCP_OBJECT"
+      }
+    ]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "OAUTH_KV",
+      "id": "<REPLACE_WITH_KV_NAMESPACE_ID>"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "dev": {
+    "port": 8788
+  }
+}

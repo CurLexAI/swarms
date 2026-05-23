@@ -53,6 +53,7 @@ Skills are operational playbooks. They describe *how* to perform task classes.
 | Factory Auditor | `.agents/skills/factory-auditor.md` | Use for layer readiness, launch readiness, and blocker audits. |
 | Agent Identity Map | `.agents/skills/agent-identity-map.md` | Use for agent/model/role changes. |
 | iPhone Command Center | `.agents/skills/iphone-command-center.md` | Use when operating this repository from iPhone through ChatGPT, SSH, GitHub, Codex, or remote runtimes. |
+| HF CLI | `.agents/skills/hf-cli/SKILL.md` | Use when downloading, uploading, or managing Hugging Face Hub repos, models, datasets, spaces, or jobs via the `hf` CLI. |
 
 If `00-task-scope-lock.md` is absent, apply the Scope Lock section in this file directly.
 
@@ -200,3 +201,38 @@ A repository activation is complete only when all applicable checks are `VERIFIE
 - Missing external secrets are documented instead of guessed.
 - Archive recovery status reflects the actual Git state.
 - iPhone command-center workflows operate only against the canonical repository and remote runtime.
+
+---
+
+## Cursor Cloud specific instructions
+
+### Environment notes
+
+- `NODE_ENV=production` is set in the Cloud VM. Use `npm ci --include=dev` (not bare `npm ci`) to ensure devDependencies (`typescript`, `tsx`, `@types/*`) are installed. Without them, `npm run check` fails at the service-divergence step and `npm test` skips the TypeScript-backed integration tests.
+- The VM does not ship `python` — only `python3`. Several shell gates (e.g. `p0-security-test-gate.sh`) call `python`. The update script creates a `/usr/bin/python` → `python3` symlink; if you see `python: command not found`, run `sudo ln -sf /usr/bin/python3 /usr/bin/python`.
+- `ruby` is required by `scripts/commander/agent-presence-gate.sh` for YAML parsing. It is installed in the base VM image; if missing, `sudo apt-get install -y ruby`.
+
+### Canonical validation commands
+
+See `CLAUDE.md` and `README.md` for the full list. The key ones:
+
+| Check | Command | Notes |
+|---|---|---|
+| Aggregate gate | `npm run check` | service-divergence + unit tests + boundary + CDN SRI |
+| Python tests | `python3 -m pytest -q tests/` | 171 tests; 2 skipped (missing secrets) |
+| Node unit tests | `npm run test:unit` | 7 tests on `unifiedAgentAdapter` |
+| Node full tests | `npm test` | Includes integration tests that need `PYTHON_BACKEND_URL` and `PYTHON_BACKEND_ALLOWED_HOSTS`; 6 integration tests will fail without those env vars — this is expected |
+| Security tests | `npm run test:security` | sovereignCyberRadar (8 tests) |
+| TypeScript check | `npx tsc --noEmit` | Should pass cleanly (known TS2307 blocker was resolved) |
+| TypeScript build | `npm run build` | Emits `.js` next to `.ts` |
+| Python validate | `python3 .agents/validate.py` | Agent asset validation |
+| Agent info | `python3 .agents/invoke.py info` | Lists configured agents (no secrets needed) |
+| Policy gates | `bash scripts/commander/*.sh .` | 5 shell gates; all pass with WARN for missing runtime secrets |
+
+### Integration tests vs unit tests
+
+`npm test` runs both unit and integration tests. The integration tests (`executeAgent.non2xx`, `nodeDispatch`) require `PYTHON_BACKEND_URL` and `PYTHON_BACKEND_ALLOWED_HOSTS` env vars. Without these, they fail with `CONFIG_NOT_FOUND`. Use `npm run test:unit` for the tests that pass without any external configuration.
+
+### Workspace layout
+
+Both `/agent/repos/FRONT` and `/agent/repos/swarms` contain the same codebase (different GitHub repos: `CurLexAI/FRONT` and `CurLexAI/swarms`). The canonical repo is `swarms`.
