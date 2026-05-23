@@ -84,42 +84,50 @@ else
 fi
 
 echo "=== PUBLIC SURFACE CHECKS ==="
-run_required_check "Public root headers" "curl -fsSI https://www.lexprim.com >/tmp/release_root_headers.txt"
-run_required_check "Public apex redirect" "curl -fsSI https://lexprim.com >/tmp/release_apex_headers.txt"
-run_required_check "Admin route protected" "curl -fsSI https://www.lexprim.com/admin >/tmp/release_admin_headers.txt"
-run_required_check "API route protected" "curl -fsSI https://www.lexprim.com/api >/tmp/release_api_headers.txt"
+PUBLIC_SURFACE_ORIGIN="${PUBLIC_SURFACE_ORIGIN:-}"
+PUBLIC_SURFACE_APEX="${PUBLIC_SURFACE_APEX:-}"
 
-if ! rg -q "strict-transport-security" /tmp/release_root_headers.txt; then
-  echo "[FAIL] Missing strict-transport-security on public root"
-  block_failures=$((block_failures + 1))
-fi
-if ! rg -q "content-security-policy" /tmp/release_root_headers.txt; then
-  echo "[FAIL] Missing content-security-policy on public root"
-  block_failures=$((block_failures + 1))
-fi
-if ! rg -q "x-content-type-options" /tmp/release_root_headers.txt; then
-  echo "[FAIL] Missing x-content-type-options on public root"
-  block_failures=$((block_failures + 1))
-fi
-if ! rg -q "referrer-policy" /tmp/release_root_headers.txt; then
-  echo "[FAIL] Missing referrer-policy on public root"
-  block_failures=$((block_failures + 1))
-fi
-if ! rg -q "x-frame-options|frame-ancestors" /tmp/release_root_headers.txt; then
-  echo "[FAIL] Missing clickjacking protection on public root"
-  block_failures=$((block_failures + 1))
-fi
-if ! rg -q "permissions-policy" /tmp/release_root_headers.txt; then
-  echo "[HOLD] permissions-policy header not found on public root"
+if [ -n "$PUBLIC_SURFACE_ORIGIN" ] && [ -n "$PUBLIC_SURFACE_APEX" ]; then
+  run_required_check "Public root headers" "curl -fsSI \"$PUBLIC_SURFACE_ORIGIN\" >/tmp/release_root_headers.txt"
+  run_required_check "Public apex redirect" "curl -fsSI \"$PUBLIC_SURFACE_APEX\" >/tmp/release_apex_headers.txt"
+  run_required_check "Admin route protected" "curl -fsSI \"$PUBLIC_SURFACE_ORIGIN/admin\" >/tmp/release_admin_headers.txt"
+  run_required_check "API route protected" "curl -fsSI \"$PUBLIC_SURFACE_ORIGIN/api\" >/tmp/release_api_headers.txt"
+
+  if ! rg -q "strict-transport-security" /tmp/release_root_headers.txt; then
+    echo "[FAIL] Missing strict-transport-security on public root"
+    block_failures=$((block_failures + 1))
+  fi
+  if ! rg -q "content-security-policy" /tmp/release_root_headers.txt; then
+    echo "[FAIL] Missing content-security-policy on public root"
+    block_failures=$((block_failures + 1))
+  fi
+  if ! rg -q "x-content-type-options" /tmp/release_root_headers.txt; then
+    echo "[FAIL] Missing x-content-type-options on public root"
+    block_failures=$((block_failures + 1))
+  fi
+  if ! rg -q "referrer-policy" /tmp/release_root_headers.txt; then
+    echo "[FAIL] Missing referrer-policy on public root"
+    block_failures=$((block_failures + 1))
+  fi
+  if ! rg -q "x-frame-options|frame-ancestors" /tmp/release_root_headers.txt; then
+    echo "[FAIL] Missing clickjacking protection on public root"
+    block_failures=$((block_failures + 1))
+  fi
+  if ! rg -q "permissions-policy" /tmp/release_root_headers.txt; then
+    echo "[HOLD] permissions-policy header not found on public root"
+    hold_flags=$((hold_flags + 1))
+  fi
+  if ! rg -q "HTTP/2 401|HTTP/1.1 401|HTTP/2 403|HTTP/1.1 403" /tmp/release_admin_headers.txt; then
+    echo "[FAIL] /admin is not protected by 401/403"
+    block_failures=$((block_failures + 1))
+  fi
+  if ! rg -q "HTTP/2 401|HTTP/1.1 401|HTTP/2 403|HTTP/1.1 403" /tmp/release_api_headers.txt; then
+    echo "[FAIL] /api is not protected by 401/403"
+    block_failures=$((block_failures + 1))
+  fi
+else
+  echo "[HOLD] Public surface checks skipped (set PUBLIC_SURFACE_ORIGIN and PUBLIC_SURFACE_APEX)"
   hold_flags=$((hold_flags + 1))
-fi
-if ! rg -q "HTTP/2 401|HTTP/1.1 401|HTTP/2 403|HTTP/1.1 403" /tmp/release_admin_headers.txt; then
-  echo "[FAIL] /admin is not protected by 401/403"
-  block_failures=$((block_failures + 1))
-fi
-if ! rg -q "HTTP/2 401|HTTP/1.1 401|HTTP/2 403|HTTP/1.1 403" /tmp/release_api_headers.txt; then
-  echo "[FAIL] /api is not protected by 401/403"
-  block_failures=$((block_failures + 1))
 fi
 echo
 

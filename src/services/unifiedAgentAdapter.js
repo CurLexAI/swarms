@@ -6,6 +6,9 @@ import { randomUUID } from "crypto";
 import logger from "../utils/logger.js";
 import { AuditService } from "./AuditService.js";
 import { buildClientSafePythonEngineError, sanitizeBackendErrorForAudit } from "./unifiedAgentAdapterErrorUtils.js";
+function isRecord(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 export class RegistryStartupError extends Error {
     code;
     registryPath;
@@ -38,9 +41,6 @@ const RUNTIME_CAPABILITY_MAP = {
     hybrid: "node_execution",
 };
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
-function isRecord(value) {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 // ── P0: Backend URL allowlist ──────────────────────────────────────────────
 function getAllowedBackendHosts() {
     return (process.env.PYTHON_BACKEND_ALLOWED_HOSTS ?? "")
@@ -178,23 +178,15 @@ function getTransportErrorCodes(error) {
 function isRetryableNetworkError(error) {
     if (!(error instanceof Error) || error.name === "AbortError")
         return false;
-    const code = error.code;
-    return (
-        code === "ECONNRESET" ||
-        code === "ETIMEDOUT" ||
-        code === "EAI_AGAIN" ||
-        code === "UND_ERR_CONNECT_TIMEOUT" ||
-        code === "ENOTFOUND" ||
-        code === "ECONNREFUSED" ||
-        code === "EHOSTUNREACH" ||
-        code === "ENETUNREACH"
-    );
     const { errorCode, causeCode } = getTransportErrorCodes(error);
     if (errorCode && RETRYABLE_TRANSPORT_CODES.has(errorCode))
         return true;
     if (causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode))
         return true;
-    return error.name === "TypeError" && error.message === "fetch failed" && Boolean(causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode));
+    const directCode = error.code;
+    if (typeof directCode === "string" && RETRYABLE_TRANSPORT_CODES.has(directCode))
+        return true;
+    return error.name === "TypeError" && error.message === "fetch failed" && Boolean(causeCode);
 }
 class PythonEngineRuntimeError extends Error {
     code;
@@ -557,7 +549,6 @@ export class UnifiedAgentAdapter {
             throw new Error(`RUNTIME_FAILURE: audit initialization failed for task ${taskId}`);
         }
         try {
-            await AuditService.updateTaskStatus(taskId, "RUNNING", traceMetadata);
             if (agent.enable_reasoning) {
                 logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
                 const plan = await this.prepareReasoningPlan(agent, executionPayload);
@@ -696,10 +687,39 @@ export class UnifiedAgentAdapter {
         }
         return result;
     }
+    validatePythonEngineResponseSchema(result) {
+        if (!result || typeof result !== "object" || Array.isArray(result)) {
+            throw createPythonRuntimeError({
+                code: "RUNTIME_FAILURE",
+                status: 502,
+                retryable: false,
+                message: "RUNTIME_FAILURE: python engine response must be a JSON object"
+            });
+        }
+        const payload = result;
+        const valid = ["output", "message", "result", "data"].some((field) => {
+            const value = payload[field];
+            if (typeof value === "string")
+                return value.trim().length > 0;
+            if (value && typeof value === "object")
+                return true;
+            return false;
+        });
+        if (!valid) {
+            throw createPythonRuntimeError({
+                code: "RUNTIME_FAILURE",
+                status: 502,
+                retryable: false,
+                message: "RUNTIME_FAILURE: python engine response schema validation failed"
+            });
+        }
+        return payload;
+    }
     async readErrorBodySafely(response) {
         try {
             const rawText = await response.text();
-            if (!rawText.trim()) return "<empty>";
+            if (!rawText.trim())
+                return "<empty>";
             try {
                 return truncateForDiagnostics(JSON.stringify(JSON.parse(rawText)));
             }
@@ -710,22 +730,6 @@ export class UnifiedAgentAdapter {
         catch {
             return "<unavailable>";
         }
-    }
-    validatePythonEngineResponseSchema(result) {
-        if (!result || typeof result !== "object" || Array.isArray(result)) {
-            throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: 502, retryable: false, message: "RUNTIME_FAILURE: python engine response must be a JSON object" });
-        }
-        const payload = result;
-        const valid = ["output", "message", "result", "data"].some((field) => {
-            const value = payload[field];
-            if (typeof value === "string") return value.trim().length > 0;
-            if (value && typeof value === "object") return true;
-            return false;
-        });
-        if (!valid) {
-            throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: 502, retryable: false, message: "RUNTIME_FAILURE: python engine response schema validation failed" });
-        }
-        return payload;
     }
     async forwardToPythonEngine(agent, payload, userId, taskId) {
         const validation = this.validateAndSanitizePayload(payload);
@@ -765,7 +769,15 @@ export class UnifiedAgentAdapter {
                         continue;
                     }
                     const correlationId = randomUUID().slice(0, 8);
-                    await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", { status_code: response.status, status_text: response.statusText || "missing", correlation_id: correlationId, request_id: requestId, task_id: taskId, endpoint, backend_error_fingerprint: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)).length });
+                    await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", {
+                        status_code: response.status,
+                        status_text: response.statusText || "missing",
+                        correlation_id: correlationId,
+                        request_id: requestId,
+                        task_id: taskId,
+                        endpoint,
+                        backend_error_fingerprint: String(sanitizeForAudit(sanitizeBackendErrorForAudit(rawError))).length
+                    });
                     throw createPythonRuntimeError({ code: mappedCode, status: response.status, retryable, correlationId, message: `${mappedCode}: Python engine returned HTTP ${response.status} ${response.statusText || "unknown"}` });
                 }
                 const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
@@ -811,7 +823,7 @@ export class UnifiedAgentAdapter {
                     continue;
                 }
                 const correlationId = randomUUID().slice(0, 8);
-                await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId, error_code: error?.code ?? "UNKNOWN", error_name: error instanceof Error ? error.name : "UNKNOWN" });
+                await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId, error_code: error.code ?? "UNKNOWN", error_name: error instanceof Error ? error.name : "UNKNOWN" });
                 throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: 502, retryable: false, correlationId, message: "RUNTIME_FAILURE: python engine request transport failure", cause: error });
             }
             finally {
