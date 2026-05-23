@@ -1,7 +1,7 @@
 {
   "name": "curlexai-swarms",
   "version": "1.0.0",
-  "description": "CurLexAI agent operations layer \u2014 swarm tooling, review automation, and agent orchestration",
+  "description": "CurLexAI agent operations layer — swarm tooling, review automation, and agent orchestration",
   "type": "module",
   "scripts": {
     "test": "node --test tests/unifiedAgentAdapter.test.js tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js tests/unifiedAgentAdapter.nodeDispatch.integration.test.js",
@@ -17,7 +17,8 @@
     "security:radar:simulate": "tsx src/security/sovereignCyberRadar.ts simulate",
     "integrity:frontend": "node scripts/generate-frontend-integrity.mjs",
     "check:cdn-sri": "node scripts/check-cdn-sri.mjs",
-    "test:cdn-sri": "node --test tests/cdn-sri-validation.test.js"
+    "test:cdn-sri": "node --test tests/cdn-sri-validation.test.js",
+    "doctor:cli": "node scripts/dev-cli-doctor.mjs"
   },
   "dependencies": {
     "js-yaml": "^4.1.0",
