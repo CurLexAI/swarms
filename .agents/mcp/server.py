@@ -80,15 +80,131 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["code"],
         },
     },
+    {
+        "name": "free_birds_review",
+        "description": (
+            "Free Birds swarm review pass — 8 aliased birds on Qwen2.5-Coder-32B "
+            "(BAYYINAH_ENDPOINT). Each bird inspects a different angle: falcon "
+            "(security/tenant), hawk (type/contract), shaheen (prompt-injection/secrets), "
+            "kestrel (regression/coverage), osprey (dependency/supply-chain), harrier "
+            "(modal/public-surface boundary), merlin (merge/conflict), saker "
+            "(citations/legal). Returns an aggregated VERDICT plus per-bird findings."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "Code, diff, or PR body to review.",
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Free-form context (intent, related files, prior findings).",
+                    "default": "",
+                },
+                "focus": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of bird ids to limit the pass (default: all 8).",
+                    "default": [],
+                },
+            },
+            "required": ["code"],
+        },
+    },
+    {
+        "name": "free_birds_design",
+        "description": (
+            "Free Birds swarm design pass — 4 aliased birds on DeepSeek-Coder-V2-Instruct "
+            "(MIHWAR_ENDPOINT). owl (architecture/multi-file plan), raven (task "
+            "decomposition/API contract), eagle (refactor/perf), phoenix (system design). "
+            "Returns a plan, file list, and implementation outline."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task": {
+                    "type": "string",
+                    "description": "Task or feature description.",
+                },
+                "code": {
+                    "type": "string",
+                    "description": "Optional existing code to extend or refactor.",
+                    "default": "",
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Free-form context (constraints, related modules).",
+                    "default": "",
+                },
+                "focus": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of bird ids to limit the pass (default: all 4).",
+                    "default": [],
+                },
+            },
+            "required": ["task"],
+        },
+    },
 ]
 
 
+FREE_BIRDS_REVIEW = [
+    {"id": "falcon",  "checks": ["security_review", "tenant_validation"]},
+    {"id": "hawk",    "checks": ["type_safety", "contract_validation"]},
+    {"id": "shaheen", "checks": ["prompt_injection_surface", "secrets_leakage_scan"]},
+    {"id": "kestrel", "checks": ["regression_check", "test_coverage_gap_detection"]},
+    {"id": "osprey",  "checks": ["dependency_risk_assessment", "supply_chain_check"]},
+    {"id": "harrier", "checks": ["modal_boundary_check", "public_surface_audit"]},
+    {"id": "merlin",  "checks": ["merge_safety", "conflict_analysis"]},
+    {"id": "saker",   "checks": ["citation_validation", "legal_risk_review"]},
+]
+
+FREE_BIRDS_DESIGN = [
+    {"id": "owl",     "checks": ["architecture", "multi_file_planning"]},
+    {"id": "raven",   "checks": ["task_decomposition", "api_contract_design"]},
+    {"id": "eagle",   "checks": ["refactoring_with_behavioral_preservation", "performance_critical_implementation"]},
+    {"id": "phoenix", "checks": ["complex_multi_file_feature_development", "system_design"]},
+]
+
+
+def _filter_birds(pool: list[dict[str, Any]], focus: list[str]) -> list[dict[str, Any]]:
+    if not focus:
+        return pool
+    allowed = {f.lower() for f in focus if isinstance(f, str)}
+    selected = [b for b in pool if b["id"] in allowed]
+    return selected or pool
+
+
 def _endpoint_for(tool_name: str) -> tuple[str, str]:
-    if tool_name == "mihwar_generate":
+    if tool_name in ("mihwar_generate", "free_birds_design"):
         return os.environ.get("MIHWAR_ENDPOINT", ""), "MIHWAR_ENDPOINT"
-    if tool_name == "bayyinah_review":
+    if tool_name in ("bayyinah_review", "free_birds_review"):
         return os.environ.get("BAYYINAH_ENDPOINT", ""), "BAYYINAH_ENDPOINT"
     return "", ""
+
+
+def _enrich_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    if tool_name == "free_birds_review":
+        focus = arguments.pop("focus", []) or []
+        birds = _filter_birds(FREE_BIRDS_REVIEW, focus)
+        return {
+            **arguments,
+            "role": "swarm_review",
+            "swarm": "free-birds",
+            "birds": birds,
+        }
+    if tool_name == "free_birds_design":
+        focus = arguments.pop("focus", []) or []
+        birds = _filter_birds(FREE_BIRDS_DESIGN, focus)
+        return {
+            **arguments,
+            "role": "swarm_design",
+            "swarm": "free-birds",
+            "birds": birds,
+        }
+    return arguments
 
 
 def _call_modal(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -99,7 +215,8 @@ def _call_modal(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if not token:
         raise RuntimeError("AGENT_API_TOKEN is not configured.")
 
-    payload = {"token": token, **arguments}
+    enriched = _enrich_arguments(tool_name, dict(arguments))
+    payload = {"token": token, **enriched}
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         endpoint,

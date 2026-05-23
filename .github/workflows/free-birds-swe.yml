@@ -1,0 +1,309 @@
+# free-birds-swe.yml — SWE-mode swarm review for Free Birds (الطيور الحرة)
+# Trigger:  PR comment starting with /free-birds (optional subcommand: review|design)
+# Default:  review pass (8 review birds via BAYYINAH_ENDPOINT)
+# Pool:     12 aliased birds defined in agents/registry.yaml (free-birds swarm)
+# Boundary: review-only by default — no commits, no patches, no merge.
+# Note:     Automatic PR review (Bayyinah) still runs from agent-review.yml.
+#           This workflow is for on-demand multi-angle swarm passes.
+
+name: Free Birds SWE Mode
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  free-birds-swe:
+    name: Free Birds — Swarm Pass
+    runs-on: ubuntu-latest
+
+    # Only fire on /free-birds trigger from OWNER or MEMBER.
+    if: |
+      (
+        github.event_name == 'issue_comment' ||
+        github.event_name == 'pull_request_review_comment'
+      ) &&
+      startsWith(github.event.comment.body, '/free-birds') &&
+      (
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER'
+      )
+
+    steps:
+      - name: Extract PR context and subcommand
+        id: pr-context
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+          event_name = os.environ["EVENT_NAME"]
+          comment = event.get("comment") or {}
+          body = str(comment.get("body") or "").strip()
+
+          first_line = body.splitlines()[0] if body else ""
+          tokens = first_line.split()
+          subcommand = "review"
+          if len(tokens) >= 2 and tokens[1] in {"review", "design", "full"}:
+              subcommand = tokens[1]
+
+          focus = "\n".join(body.splitlines()[1:]).strip()
+
+          if event_name == "issue_comment":
+              issue = event.get("issue") or {}
+              if not issue.get("pull_request"):
+                  print("is_pr=false")
+                  print("pr_number=")
+              else:
+                  print("is_pr=true")
+                  print(f"pr_number={int(issue['number'])}")
+          else:
+              pr = event.get("pull_request") or {}
+              print("is_pr=true")
+              print(f"pr_number={int(pr['number'])}")
+
+          print(f"subcommand={subcommand}")
+          print("focus<<FREE_BIRDS_FOCUS_EOF")
+          print(focus)
+          print("FREE_BIRDS_FOCUS_EOF")
+          PY
+
+      - name: Stop when comment is not on a PR
+        if: steps.pr-context.outputs.is_pr != 'true'
+        run: |
+          echo "::notice::/free-birds was not posted on a pull request. Nothing to do."
+
+      - name: Validate required secrets
+        id: secrets-check
+        if: steps.pr-context.outputs.is_pr == 'true'
+        env:
+          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
+          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          SUBCOMMAND: ${{ steps.pr-context.outputs.subcommand }}
+        run: |
+          set -euo pipefail
+          REVIEW_OK=1
+          DESIGN_OK=1
+          if [[ -z "${BAYYINAH_ENDPOINT}" || -z "${AGENT_API_TOKEN}" ]]; then REVIEW_OK=0; fi
+          if [[ -z "${MIHWAR_ENDPOINT}"   || -z "${AGENT_API_TOKEN}" ]]; then DESIGN_OK=0; fi
+
+          case "${SUBCOMMAND}" in
+            review) NEED=$REVIEW_OK ;;
+            design) NEED=$DESIGN_OK ;;
+            full)   NEED=$(( REVIEW_OK && DESIGN_OK )) ;;
+          esac
+
+          if [[ "${NEED}" -eq 0 ]]; then
+            echo "status=SKIPPED_UNVERIFIED" >> "$GITHUB_OUTPUT"
+            echo "::warning::Free Birds Swarm UNVERIFIED — required endpoints/token missing for subcommand=${SUBCOMMAND}. Exiting 0."
+          else
+            echo "status=READY" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch PR diff
+        id: fetch-diff
+        if: steps.secrets-check.outputs.status == 'READY'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh pr diff "${PR_NUMBER}" --repo "${REPOSITORY}" > /tmp/pr.diff 2>/dev/null || : > /tmp/pr.diff
+
+      - name: Fetch PR metadata
+        id: fetch-meta
+        if: steps.secrets-check.outputs.status == 'READY'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh pr view "${PR_NUMBER}" \
+            --repo "${REPOSITORY}" \
+            --json title,body,headRefName,baseRefName,files \
+            > /tmp/pr-meta.json 2>/dev/null || echo '{}' > /tmp/pr-meta.json
+
+      - name: Invoke review birds (Qwen2.5-Coder-32B via BAYYINAH_ENDPOINT)
+        id: review-pass
+        if: |
+          steps.secrets-check.outputs.status == 'READY' &&
+          (steps.pr-context.outputs.subcommand == 'review' ||
+           steps.pr-context.outputs.subcommand == 'full')
+        env:
+          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          FOCUS: ${{ steps.pr-context.outputs.focus }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          diff = Path("/tmp/pr.diff").read_text(encoding="utf-8", errors="replace")[:32000]
+          meta = Path("/tmp/pr-meta.json").read_text(encoding="utf-8", errors="replace")[:8000]
+          payload = {
+              "role": "swarm_review",
+              "swarm": "free-birds",
+              "birds": [
+                  {"id": "falcon",  "checks": ["security_review", "tenant_validation"]},
+                  {"id": "hawk",    "checks": ["type_safety", "contract_validation"]},
+                  {"id": "shaheen", "checks": ["prompt_injection_surface", "secrets_leakage_scan"]},
+                  {"id": "kestrel", "checks": ["regression_check", "test_coverage_gap_detection"]},
+                  {"id": "osprey",  "checks": ["dependency_risk_assessment", "supply_chain_check"]},
+                  {"id": "harrier", "checks": ["modal_boundary_check", "public_surface_audit"]},
+                  {"id": "merlin",  "checks": ["merge_safety", "conflict_analysis"]},
+                  {"id": "saker",   "checks": ["citation_validation", "legal_risk_review"]},
+              ],
+              "repo": os.environ["REPOSITORY"],
+              "pr_number": os.environ["PR_NUMBER"],
+              "diff": diff,
+              "pr_metadata": meta,
+              "focus": os.environ.get("FOCUS", ""),
+          }
+          Path("/tmp/fb-review-payload.json").write_text(json.dumps(payload), encoding="utf-8")
+          PY
+
+          RESPONSE=$(curl -sS --fail-with-body --max-time 180 \
+            -X POST "${BAYYINAH_ENDPOINT}" \
+            -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/fb-review-payload.json)
+
+          printf '%s' "${RESPONSE}" > /tmp/fb-review-response.json
+          jq -r '.review // .output // .result // "No review returned."' /tmp/fb-review-response.json > /tmp/fb-review.txt
+          VERDICT=$(jq -r '.verdict // "UNVERIFIED"' /tmp/fb-review-response.json)
+          echo "verdict=${VERDICT}" >> "$GITHUB_OUTPUT"
+
+      - name: Invoke design birds (DeepSeek-Coder-V2 via MIHWAR_ENDPOINT)
+        id: design-pass
+        if: |
+          steps.secrets-check.outputs.status == 'READY' &&
+          (steps.pr-context.outputs.subcommand == 'design' ||
+           steps.pr-context.outputs.subcommand == 'full')
+        env:
+          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
+          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          FOCUS: ${{ steps.pr-context.outputs.focus }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          diff = Path("/tmp/pr.diff").read_text(encoding="utf-8", errors="replace")[:32000]
+          meta = Path("/tmp/pr-meta.json").read_text(encoding="utf-8", errors="replace")[:8000]
+          payload = {
+              "role": "swarm_design",
+              "swarm": "free-birds",
+              "birds": [
+                  {"id": "owl",     "checks": ["architecture", "multi_file_planning"]},
+                  {"id": "raven",   "checks": ["task_decomposition", "api_contract_design"]},
+                  {"id": "eagle",   "checks": ["refactoring_with_behavioral_preservation", "performance_critical_implementation"]},
+                  {"id": "phoenix", "checks": ["complex_multi_file_feature_development", "system_design"]},
+              ],
+              "repo": os.environ["REPOSITORY"],
+              "pr_number": os.environ["PR_NUMBER"],
+              "diff": diff,
+              "pr_metadata": meta,
+              "focus": os.environ.get("FOCUS", ""),
+          }
+          Path("/tmp/fb-design-payload.json").write_text(json.dumps(payload), encoding="utf-8")
+          PY
+
+          RESPONSE=$(curl -sS --fail-with-body --max-time 180 \
+            -X POST "${MIHWAR_ENDPOINT}" \
+            -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/fb-design-payload.json)
+
+          printf '%s' "${RESPONSE}" > /tmp/fb-design-response.json
+          jq -r '.plan // .output // .result // "No plan returned."' /tmp/fb-design-response.json > /tmp/fb-design.txt
+
+      - name: Post swarm comment to PR
+        if: steps.secrets-check.outputs.status == 'READY'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.event.comment.user.login }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+          SUBCOMMAND: ${{ steps.pr-context.outputs.subcommand }}
+          VERDICT: ${{ steps.review-pass.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          case "${VERDICT}" in
+            APPROVE)          BADGE="✅ APPROVE" ;;
+            REQUEST_CHANGES)  BADGE="🟡 REQUEST_CHANGES" ;;
+            BLOCK)            BADGE="🔴 BLOCK" ;;
+            "")               BADGE="ℹ️ DESIGN" ;;
+            *)                BADGE="⚪ UNVERIFIED" ;;
+          esac
+
+          {
+            echo "### [free-birds][${SUBCOMMAND}] — ${BADGE}"
+            echo
+            echo "> Swarm pass triggered by @${ACTOR} via \`/free-birds ${SUBCOMMAND}\`"
+            echo "> Pool: 12 aliased birds (8 review on Qwen2.5-Coder-32B, 4 design on DeepSeek-Coder-V2)"
+            echo
+            if [[ -f /tmp/fb-design.txt ]]; then
+              echo "#### Design pass (owl · raven · eagle · phoenix)"
+              echo
+              cat /tmp/fb-design.txt
+              echo
+            fi
+            if [[ -f /tmp/fb-review.txt ]]; then
+              echo "#### Review pass (falcon · hawk · shaheen · kestrel · osprey · harrier · merlin · saker)"
+              echo
+              cat /tmp/fb-review.txt
+              echo
+            fi
+            echo "---"
+            echo "*Free Birds is a sovereign swarm. Unresolved CRITICAL or HIGH findings block merge.*"
+          } > /tmp/fb-comment.md
+
+          gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/fb-comment.md
+
+      - name: Fail job if review verdict is BLOCK
+        if: |
+          steps.secrets-check.outputs.status == 'READY' &&
+          steps.review-pass.outputs.verdict == 'BLOCK'
+        run: |
+          echo "::error::Free Birds review pass returned BLOCK. Resolve all CRITICAL and HIGH findings before merge."
+          exit 1
+
+      - name: Post SKIPPED_UNVERIFIED notice
+        if: steps.secrets-check.outputs.status == 'SKIPPED_UNVERIFIED'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+          SUBCOMMAND: ${{ steps.pr-context.outputs.subcommand }}
+        run: |
+          set -euo pipefail
+          cat > /tmp/fb-skipped.md <<EOF
+          ### [free-birds][skipped]
+
+          Required endpoints/token missing for subcommand=\`${SUBCOMMAND}\`.
+          Free Birds Swarm **SKIPPED_UNVERIFIED** — configure \`BAYYINAH_ENDPOINT\` (review) and/or \`MIHWAR_ENDPOINT\` (design) plus \`AGENT_API_TOKEN\`.
+          EOF
+          gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/fb-skipped.md 2>/dev/null || true
