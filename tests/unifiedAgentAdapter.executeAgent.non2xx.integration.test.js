@@ -236,7 +236,6 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
   assert.doesNotMatch(updateTaskStatusCalls[0][2].error, /ECONNREFUSED|python-backend\.internal/i);
 });
 
-test("UnifiedAgentAdapter.executeAgent retries on ENOTFOUND and other newly-retryable errno codes", async (t) => {
 test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUND cause and keeps client errors sanitized", async (t) => {
   const loaded = await loadUnifiedAgentAdapterFromTs(t);
   if (!loaded) return;
@@ -325,7 +324,6 @@ test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUN
       assert.doesNotMatch(error.message, /python-backend\.invalid/i);
   });
 
-  const adapter = new UnifiedAgentAdapter();
   adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
 
   process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
