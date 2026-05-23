@@ -236,7 +236,6 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
   assert.doesNotMatch(updateTaskStatusCalls[0][2].error, /ECONNREFUSED|python-backend\.internal/i);
 });
 
-test("UnifiedAgentAdapter.executeAgent retries on ENOTFOUND and other newly-retryable errno codes", async (t) => {
 test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUND cause and keeps client errors sanitized", async (t) => {
   const loaded = await loadUnifiedAgentAdapterFromTs(t);
   if (!loaded) return;
@@ -250,23 +249,12 @@ test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUN
   const originalLogSecurityViolation = AuditService.logSecurityViolation;
   const originalMaxAttempts = process.env.PYTHON_BACKEND_MAX_ATTEMPTS;
 
-  const fetchCalls = [];
   const auditCalls = [];
 
-  const makeErrnoError = (code) => {
-    const err = new Error(`getaddrinfo ${code} python-backend.invalid`);
-    err.code = code;
-    return err;
-  };
-
-  global.fetch = async () => {
-    fetchCalls.push(1);
-    throw makeErrnoError("ENOTFOUND");
-  };
-
   AuditService.logAction = async () => {};
-  AuditService.logSecurityViolation = async (...args) => { auditCalls.push(args); };
-  AuditService.updateTaskStatus = async () => {};
+  AuditService.logSecurityViolation = async (...args) => {
+    auditCalls.push(args);
+  };
 
   process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
   process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "2";
@@ -283,7 +271,9 @@ test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUN
   };
 
   AuditService.logAction = async () => {};
-  AuditService.logSecurityViolation = async () => {};
+  AuditService.logSecurityViolation = async (...args) => {
+    auditCalls.push(args);
+  };
   AuditService.updateTaskStatus = async (...args) => updateTaskStatusCalls.push(args);
 
   t.after(() => {
@@ -323,29 +313,15 @@ test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUN
       assert.match(error.message, /RUNTIME_FAILURE: python engine (request transport failure|exhausted retry budget)/i);
       assert.doesNotMatch(error.message, /ENOTFOUND/i);
       assert.doesNotMatch(error.message, /python-backend\.invalid/i);
-  });
-
-  const adapter = new UnifiedAgentAdapter();
-  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
-
-  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
-  process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "2";
-
-  await assert.rejects(
-    () => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run" }, ["scope:execute"], "tenant-1"),
-    (error) => {
-      assert.match(error.message, /RUNTIME_FAILURE: python engine request transport failure/i);
-      assert.doesNotMatch(error.message, /ENOTFOUND|python-backend|http|token/i);
       return true;
     }
   );
 
-  assert.equal(fetchCalls.length, 2, "should have retried once (2 total attempts) for ENOTFOUND");
+  assert.equal(attempts, 2, "retryable ENOTFOUND cause should consume retry budget");
   const requestFailureAudit = auditCalls.find((a) => a[2] === "PYTHON_ENGINE_REQUEST_FAILURE");
   assert.ok(requestFailureAudit, "PYTHON_ENGINE_REQUEST_FAILURE audit event should have been logged");
   assert.equal(requestFailureAudit[3].error_code, "ENOTFOUND", "audit event should capture error_code");
-  assert.equal(requestFailureAudit[3].error_name, "Error", "audit event should capture error_name");
-  assert.equal(attempts, 2, "retryable ENOTFOUND cause should consume retry budget");
+  assert.equal(requestFailureAudit[3].error_name, "TypeError", "audit event should capture error_name");
   assert.equal(updateTaskStatusCalls.length, 1);
 });
 
