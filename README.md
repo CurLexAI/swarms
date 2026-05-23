@@ -70,7 +70,7 @@ Every instruction file should begin with:
 
 ## Required secrets for live runtime checks
 
-Do not commit values. Configure them only in GitHub Actions, Render, or the appropriate secret manager.
+Do not commit values. Configure these as **Organization secrets at the LexPrime enterprise org** with both `CurLexAI/swarms` and `LexPrim/Qarar` in the Selected repositories allow-list. Repository-scoped duplicates are deprecated — see `docs/secrets-policy.md §3` for the operator runbook and `§3.1` for the silent-degrade warning.
 
 ```text
 BAYYINAH_ENDPOINT
