@@ -60,7 +60,7 @@ test("node dispatcher CONFIG_NOT_FOUND is limited to the canonical agentRunner m
   assert.match(source, /CONFIG_NOT_FOUND: Node runtime configuration missing for agent/);
 });
 
-test("loadRegistry runtime: mixed-shape array entries are filtered; only valid agent is registered", async (t) => {
+test("loadRegistry runtime: invalid array entries trigger startup failure and unhealthy service", async (t) => {
   let UnifiedAgentAdapter;
   try {
     const mod = await import("../src/services/unifiedAgentAdapter.js");
@@ -102,31 +102,28 @@ test("loadRegistry runtime: mixed-shape array entries are filtered; only valid a
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  const adapter = new UnifiedAgentAdapter();
-
-  assert.equal(adapter.agents.size, 1, "exactly one agent should be loaded");
-  assert.equal(adapter.agents.has("valid-agent"), true, "valid-agent must be registered");
-  assert.equal(adapter.agents.has("bad_string"), false, "string entry must be rejected");
-  assert.equal(adapter.agents.has(""), false, "empty-id entry must be rejected");
+  assert.throws(
+    () => new UnifiedAgentAdapter(),
+    /REGISTRY_LOAD_FAILURE: Invalid agent entry at index 0 \(expected object\)/
+  );
 });
 
-test("loadRegistry array path skips non-object and missing-id entries without logging raw objects", () => {
+test("loadRegistry array path validates schema and fails fast instead of skipping entries", () => {
   const source = fs.readFileSync(adapterPath, "utf8");
 
-  // Validates loop structure is present instead of blind cast
+  // Validates loop structure is present instead of blind cast.
   assert.match(source, /for \(let idx = 0; idx < rawAgents\.length; idx\+\+\) \{/);
   assert.doesNotMatch(source, /agentsList = rawAgents as AgentDefinition\[\];/,
     "blind cast must be removed");
 
-  // Validates safe logging — no raw entry object in warn calls
-  assert.doesNotMatch(source, /logger\.warn\(\s*\{ entry\b/,
-    "raw entry must not be logged — security boundary");
-  assert.match(source, /entryType: Array\.isArray\(entry\) \? "array" : typeof entry/);
-  assert.match(source, /hasIdField: Object\.prototype\.hasOwnProperty\.call\(e, "id"\)/);
-
-  // Validates id check
-  assert.match(source, /candidateId = typeof e\.id === "string" && e\.id\.trim\(\)\.length > 0 \? e\.id\.trim\(\) : null/);
-  assert.match(source, /if \(!candidateId\) \{/);
+  // Validates strict shape checks on mandatory fields.
+  assert.match(source, /if \(!isRecord\(entry\)\) \{/);
+  assert.match(source, /id must be non-empty string/);
+  assert.match(source, /name must be non-empty string/);
+  assert.match(source, /type must be one of python\|node\|hybrid/);
+  assert.match(source, /required_scope must be non-empty string/);
+  assert.match(source, /failurePhase = startupError\.code === "SYNTAX_FAILURE" \? "parse" : "schema_or_io"/);
+  assert.match(source, /failureCode: startupError\.code/);
 });
 
 

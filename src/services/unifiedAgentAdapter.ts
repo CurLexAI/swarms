@@ -28,6 +28,10 @@ interface AgentDefinition {
   capabilities?: string[];  // P0: declared agent capabilities
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 interface NormalizedAgentDefinition extends AgentDefinition {
   runtime: "python" | "node" | "hybrid";
   allowedScopes: string[];
@@ -248,10 +252,55 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const RETRYABLE_TRANSPORT_CODES = new Set([
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "EAI_AGAIN",
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_SOCKET",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_REQUEST_ABORTED"
+]);
+
+function getTransportErrorCodes(error: unknown): { errorCode?: string; causeCode?: string } {
+  if (!(error instanceof Error)) return {};
+  const errorCode =
+    "code" in error && typeof (error as NodeJS.ErrnoException).code === "string"
+      ? (error as NodeJS.ErrnoException).code
+      : undefined;
+  const cause = "cause" in error ? (error as Error & { cause?: unknown }).cause : undefined;
+  const causeCode =
+    cause &&
+    typeof cause === "object" &&
+    "code" in cause &&
+    typeof (cause as NodeJS.ErrnoException).code === "string"
+      ? (cause as NodeJS.ErrnoException).code
+      : undefined;
+  return { errorCode, causeCode };
+}
+
 function isRetryableNetworkError(error: unknown) {
   if (!(error instanceof Error) || error.name === "AbortError") return false;
   const code = (error as NodeJS.ErrnoException).code;
-  return code === "ECONNRESET" || code === "ETIMEDOUT" || code === "EAI_AGAIN" || code === "UND_ERR_CONNECT_TIMEOUT";
+  return (
+    code === "ECONNRESET" ||
+    code === "ETIMEDOUT" ||
+    code === "EAI_AGAIN" ||
+    code === "UND_ERR_CONNECT_TIMEOUT" ||
+    code === "ENOTFOUND" ||
+    code === "ECONNREFUSED" ||
+    code === "EHOSTUNREACH" ||
+    code === "ENETUNREACH"
+  );
+  const { errorCode, causeCode } = getTransportErrorCodes(error);
+  if (errorCode && RETRYABLE_TRANSPORT_CODES.has(errorCode)) return true;
+  if (causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode)) return true;
+  return error.name === "TypeError" && error.message === "fetch failed" && Boolean(causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode));
 }
 
 type RuntimeFailureClass = "RUNTIME_FAILURE" | "UNVERIFIED_RUNTIME" | "PYTHON_ENGINE_TIMEOUT" | "AUTH_INVALID" | "AUTH_EXPIRED";
@@ -343,7 +392,7 @@ function normalizeError(err: unknown): NormalizedError {
     };
   }
 
-  return { message: "Unknown error" };
+  return { message: String(sanitizeForAudit(String(err))) };
 }
 
 export class NodeExecutionDispatchError extends Error {
@@ -423,7 +472,7 @@ export class UnifiedAgentAdapter {
       }
       let loadedAgents = 0;
       let reasoningEnabledAgents = 0;
-      if (!data || typeof data !== "object" || Array.isArray(data)) {
+      if (!isRecord(data)) {
         throw new RegistryStartupError(
           "REGISTRY_LOAD_FAILURE",
           selectedRegistryPath,
@@ -439,27 +488,46 @@ export class UnifiedAgentAdapter {
         );
       }
 
-      const rawAgents = (data as { agents: unknown }).agents;
+      const rawAgents = data.agents;
       let agentsList: AgentDefinition[];
       if (Array.isArray(rawAgents)) {
         agentsList = [];
         for (let idx = 0; idx < rawAgents.length; idx++) {
           const entry = rawAgents[idx];
-          if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-            logger.warn(
-              { index: idx, entryType: Array.isArray(entry) ? "array" : typeof entry },
-              "Skipping non-object agent entry in registry"
+          if (!isRecord(entry)) {
+            throw new RegistryStartupError(
+              "REGISTRY_LOAD_FAILURE",
+              selectedRegistryPath,
+              `REGISTRY_LOAD_FAILURE: Invalid agent entry at index ${idx} (expected object)`
             );
-            continue;
           }
-          const e = entry as Record<string, unknown>;
-          const candidateId = typeof e.id === "string" && e.id.trim().length > 0 ? e.id.trim() : null;
-          if (!candidateId) {
-            logger.warn(
-              { index: idx, hasIdField: Object.prototype.hasOwnProperty.call(e, "id") },
-              "Skipping agent entry with missing or empty id"
+          if (typeof entry.id !== "string" || entry.id.trim().length === 0) {
+            throw new RegistryStartupError(
+              "REGISTRY_LOAD_FAILURE",
+              selectedRegistryPath,
+              `REGISTRY_LOAD_FAILURE: Invalid agent entry at index ${idx} (id must be non-empty string)`
             );
-            continue;
+          }
+          if (typeof entry.name !== "string" || entry.name.trim().length === 0) {
+            throw new RegistryStartupError(
+              "REGISTRY_LOAD_FAILURE",
+              selectedRegistryPath,
+              `REGISTRY_LOAD_FAILURE: Invalid agent ${entry.id} (name must be non-empty string)`
+            );
+          }
+          if (entry.type !== "python" && entry.type !== "node" && entry.type !== "hybrid") {
+            throw new RegistryStartupError(
+              "REGISTRY_LOAD_FAILURE",
+              selectedRegistryPath,
+              `REGISTRY_LOAD_FAILURE: Invalid agent ${entry.id} (type must be one of python|node|hybrid)`
+            );
+          }
+          if (typeof entry.required_scope !== "string" || entry.required_scope.trim().length === 0) {
+            throw new RegistryStartupError(
+              "REGISTRY_LOAD_FAILURE",
+              selectedRegistryPath,
+              `REGISTRY_LOAD_FAILURE: Invalid agent ${entry.id} (required_scope must be non-empty string)`
+            );
           }
           agentsList.push(entry as AgentDefinition);
         }
@@ -527,7 +595,6 @@ export class UnifiedAgentAdapter {
         "✅ LexPrim Intelligence Matrix loaded"
       );
     } catch (e) {
-      logger.error({ err: e }, "❌ Registry Integrity Breach");
       const startupError = e instanceof RegistryStartupError
         ? e
         : new RegistryStartupError(
@@ -536,6 +603,11 @@ export class UnifiedAgentAdapter {
           `REGISTRY_LOAD_FAILURE: Failed to load registry from ${selectedRegistryPath}`,
           e
         );
+      const failurePhase = startupError.code === "SYNTAX_FAILURE" ? "parse" : "schema_or_io";
+      logger.error(
+        { err: startupError, registryPath: selectedRegistryPath, failurePhase, failureCode: startupError.code },
+        "❌ Registry Integrity Breach"
+      );
       this.registryStartupError = startupError;
       throw startupError;
     }
@@ -599,7 +671,8 @@ export class UnifiedAgentAdapter {
     const agent = this.agents.get(agentId);
     if (!agent) throw new Error("Agent not found");
 
-    const validation = this.validateAndSanitizePayload(payload);
+    const normalizedInboundPayload = this.normalizeInboundPayload(payload);
+    const validation = this.validateAndSanitizePayload(normalizedInboundPayload);
     if (!validation.isValid || !validation.safePayload) {
       await AuditService.logSecurityViolation(userId, agentId, "INVALID_EXECUTE_AGENT_PAYLOAD", {
         reason: validation.reason,
@@ -653,6 +726,7 @@ export class UnifiedAgentAdapter {
     }
 
     const taskId = randomUUID();
+    const correlationId = randomUUID();
     const safePayload = validation.safePayload;
     // Defensive copy — executionPayload is independent of the caller's payload.
     const currentContext =
@@ -671,6 +745,17 @@ export class UnifiedAgentAdapter {
           }
         : {})
     };
+    const traceMetadata = {
+      correlation_id: correlationId,
+      task_id: taskId,
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        runtime: agent.runtime,
+        capabilities: agent.capabilities,
+        reasoning_enabled: !!agent.enable_reasoning
+      }
+    };
     try {
       await AuditService.createTask({
         taskId,
@@ -678,8 +763,7 @@ export class UnifiedAgentAdapter {
         actor_id: userId,
         agent_id: agentId,
         metadata: {
-          runtime: agent.runtime,
-          reasoning_enabled: !!agent.enable_reasoning,
+          ...traceMetadata,
           request_metadata: sanitizeForAudit(executionPayload.metadata ?? {})
         }
       });
@@ -688,33 +772,36 @@ export class UnifiedAgentAdapter {
       throw new Error(`RUNTIME_FAILURE: audit initialization failed for task ${taskId}`);
     }
 
-    if (agent.enable_reasoning) {
-      logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
-      const plan = await this.prepareReasoningPlan(agent, executionPayload);
-      const currentContext =
-        executionPayload.context && typeof executionPayload.context === "object" && !Array.isArray(executionPayload.context)
-          ? executionPayload.context
-          : {};
-
-      executionPayload.context = {
-        ...currentContext,
-        execution_plan: plan
-      };
-    }
-
-    // P0: Audit entries sanitized before write; input body never logged.
-    const action = `EXECUTE_${agent.runtime.toUpperCase()}_${agent.enable_reasoning ? "WITH" : "WITHOUT"}_REASONING`;
-
-    await AuditService.logAction({
-      tenant_id: executionPayload.tenant_id,
-      actor_id: userId,
-      agent_id: agentId,
-      action,
-      payload: { taskId, reasoning_enabled: !!agent.enable_reasoning },
-      redaction_version: AUDIT_REDACTION_VERSION,
-    });
-
     try {
+      await AuditService.updateTaskStatus(taskId, "RUNNING", traceMetadata);
+
+      if (agent.enable_reasoning) {
+        logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
+        const plan = await this.prepareReasoningPlan(agent, executionPayload);
+        const currentContext =
+          executionPayload.context && typeof executionPayload.context === "object" && !Array.isArray(executionPayload.context)
+            ? executionPayload.context
+            : {};
+
+        executionPayload.context = {
+          ...currentContext,
+          execution_plan: plan
+        };
+      }
+
+      // P0: Audit entries sanitized before write; input body never logged.
+      const action = `EXECUTE_${agent.runtime.toUpperCase()}_${agent.enable_reasoning ? "WITH" : "WITHOUT"}_REASONING`;
+
+      await AuditService.logAction({
+        tenant_id: executionPayload.tenant_id,
+        actor_id: userId,
+        agent_id: agentId,
+        action,
+        payload: { taskId, correlation_id: correlationId, reasoning_enabled: !!agent.enable_reasoning },
+        metadata: traceMetadata,
+        redaction_version: AUDIT_REDACTION_VERSION,
+      });
+
       const result =
         agent.runtime === "python"
           ? await this.forwardToPythonEngine(agent, executionPayload, userId, taskId)
@@ -723,10 +810,15 @@ export class UnifiedAgentAdapter {
       const verifiedResult = await this.verifyOutputQuality(result);
 
       // P0: Sanitize result before audit write — never log raw LLM output or legal text.
-      await AuditService.updateTaskStatus(taskId, "COMPLETED", sanitizeForAudit(verifiedResult));
+      await AuditService.updateTaskStatus(taskId, "COMPLETED", {
+        ...traceMetadata,
+        result: sanitizeForAudit(verifiedResult)
+      });
 
       return { taskId, status: "success", data: verifiedResult };
     } catch (error: unknown) {
+      const safeErrorMessage = error instanceof Error ? error.message : String(error);
+      const originalStack = error instanceof Error && error.stack ? error.stack : undefined;
       const blocker = classifyBlocker(error);
       const normalizedError = normalizeError(error);
       const structuredFailure = error instanceof PythonEngineRuntimeError
@@ -734,11 +826,11 @@ export class UnifiedAgentAdapter {
         : { failure_class: blocker, upstream_status: null };
 
       logger.error(
-        { err: error, agentId, structuredFailure, normalizedError },
+        { err: error, agentId, structuredFailure, normalizedError, ...(originalStack ? { originalStack } : {}) },
         `💥 Intelligence Failure at Agent ${agentId}`
       );
       await AuditService.updateTaskStatus(taskId, "FAILED", {
-        error: normalizedError.message,
+        error: String(sanitizeForAudit(safeErrorMessage)),
         ...(normalizedError.code ? { code: normalizedError.code } : {}),
         ...(normalizedError.stack ? { stack: normalizedError.stack } : {}),
         blocker,
@@ -748,9 +840,25 @@ export class UnifiedAgentAdapter {
     }
   }
 
+  private normalizeInboundPayload(payload: unknown): Record<string, unknown> {
+    const rawPayload = payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : {};
+
+    const normalizedContext =
+      rawPayload.context && typeof rawPayload.context === "object" && !Array.isArray(rawPayload.context)
+        ? (rawPayload.context as Record<string, unknown>)
+        : {};
+
+    return {
+      ...rawPayload,
+      context: normalizedContext
+    };
+  }
+
   private validateAndSanitizePayload(payload: unknown): ValidationResult {
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      return { isValid: false, reason: "Payload must be an object" };
+      return { isValid: false, reason: "tenant_id is required and must be a non-empty string" };
     }
 
     const rawPayload = payload as Record<string, unknown>;
@@ -839,6 +947,51 @@ export class UnifiedAgentAdapter {
     return result;
   }
 
+
+
+  private validatePythonEngineResponseSchema(result: unknown) {
+    if (!result || typeof result !== "object" || Array.isArray(result)) {
+      throw createPythonRuntimeError({
+        code: "RUNTIME_FAILURE",
+        status: 502,
+        retryable: false,
+        message: "RUNTIME_FAILURE: python engine response must be a JSON object"
+      });
+    }
+
+    const payload = result as Record<string, unknown>;
+    const valid = ["output", "message", "result", "data"].some((field) => {
+      const value = payload[field];
+      if (typeof value === "string") return value.trim().length > 0;
+      if (value && typeof value === "object") return true;
+      return false;
+    });
+
+    if (!valid) {
+      throw createPythonRuntimeError({
+        code: "RUNTIME_FAILURE",
+        status: 502,
+        retryable: false,
+        message: "RUNTIME_FAILURE: python engine response schema validation failed"
+      });
+    }
+
+    return payload;
+  }
+
+
+  private async readErrorBodySafely(response: Response) {
+    try {
+      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+      if (contentType.includes("application/json")) {
+        const jsonPayload = await response.json();
+        return truncateForDiagnostics(JSON.stringify(jsonPayload));
+      }
+      return truncateForDiagnostics(await response.text());
+    } catch {
+      return "<unavailable>";
+    }
+  }
   private async forwardToPythonEngine(
     agent: NormalizedAgentDefinition,
     payload: ExecuteAgentPayload,
@@ -875,7 +1028,7 @@ export class UnifiedAgentAdapter {
       try {
         const response = await fetch(`${normalizedBackendUrl}/api/v1/workflow/query`, { method: "POST", headers: { "Content-Type": "application/json", "x-request-id": requestId, "x-task-id": taskId }, body: JSON.stringify(safeBody), signal: abortController.signal });
         if (!response.ok) {
-          const rawError = truncateForDiagnostics(await response.text());
+          const rawError = await this.readErrorBodySafely(response);
           const retryable = RETRYABLE_HTTP_STATUSES.has(response.status);
           const mappedCode: RuntimeFailureClass = response.status === 401 ? "AUTH_INVALID" : response.status === 403 ? "AUTH_EXPIRED" : "RUNTIME_FAILURE";
           if (retryable && attempt < maxAttempts) { await sleep(DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1)); continue; }
@@ -892,7 +1045,10 @@ export class UnifiedAgentAdapter {
           throw createPythonRuntimeError({ code: "UNVERIFIED_RUNTIME", status: response.status, retryable: false, correlationId });
         }
 
-        try { return await response.json(); }
+        try {
+          const parsed = await response.json();
+          return this.validatePythonEngineResponseSchema(parsed);
+        }
         catch (parseError) {
           const correlationId = randomUUID().slice(0, 8);
           await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_JSON_PARSE_FAILURE", { status_code: response.status, correlation_id: correlationId, request_id: requestId, task_id: taskId, endpoint });
@@ -901,9 +1057,25 @@ export class UnifiedAgentAdapter {
       } catch (error) {
         if ((error instanceof Error && error.name === "AbortError") || abortController.signal.aborted) throw createPythonRuntimeError({ code: "PYTHON_ENGINE_TIMEOUT", status: null, retryable: false, message: `Python engine timed out after ${timeoutMs}ms for agent ${agent.id}`, cause: error });
         if (error instanceof PythonEngineRuntimeError) throw error;
-        if (isRetryableNetworkError(error) && attempt < maxAttempts) { await sleep(DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1)); continue; }
+        const { errorCode, causeCode } = getTransportErrorCodes(error);
+        const retryable = isRetryableNetworkError(error);
+        logger.error({
+          classification: "RUNTIME_FAILURE",
+          stage: "python_engine_fetch",
+          attempt,
+          maxAttempts,
+          timeoutMs,
+          retryable,
+          errorName: error instanceof Error ? error.name : "UnknownError",
+          errorCode: errorCode ?? null,
+          causeName: error instanceof Error && "cause" in error && (error as Error & { cause?: unknown }).cause instanceof Error
+            ? ((error as Error & { cause?: Error }).cause?.name ?? null)
+            : null,
+          causeCode: causeCode ?? null
+        }, "Python engine fetch failed");
+        if (retryable && attempt < maxAttempts) { await sleep(DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1)); continue; }
         const correlationId = randomUUID().slice(0, 8);
-        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId });
+        await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_REQUEST_FAILURE", { correlation_id: correlationId, request_id: requestId, endpoint, task_id: taskId, error_code: (error as NodeJS.ErrnoException).code ?? "UNKNOWN", error_name: error instanceof Error ? error.name : "UNKNOWN" });
         throw createPythonRuntimeError({ code: "RUNTIME_FAILURE", status: 502, retryable: false, correlationId, message: "RUNTIME_FAILURE: python engine request transport failure", cause: error });
       } finally { clearTimeout(timeoutHandle); }
     }

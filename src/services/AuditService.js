@@ -1,7 +1,8 @@
 import { auditLogger } from "../utils/auditLogger.js";
 export class AuditService {
     static TASK_STATUS_TRANSITIONS = {
-        STARTED: new Set(["COMPLETED", "FAILED"]),
+        PENDING: new Set(["RUNNING", "FAILED"]),
+        RUNNING: new Set(["COMPLETED", "FAILED"]),
     };
     static taskStatusStore = new Map();
     static async logSecurityViolation(userId, agentId, reason, details = {}) {
@@ -41,10 +42,10 @@ export class AuditService {
         });
     }
     static async createTask(entry) {
-        AuditService.taskStatusStore.set(entry.taskId, "STARTED");
+        AuditService.taskStatusStore.set(entry.taskId, "PENDING");
         auditLogger.writeDeferred({
             event: "agent_task_init",
-            status: "STARTED",
+            status: "PENDING",
             timestamp: new Date().toISOString(),
             ...entry,
         });
