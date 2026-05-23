@@ -2,6 +2,10 @@
 
 CurLexAI `swarms` is the private operator repository for Qarar/Bayyinah/Mihwar agent operations. It keeps agent profiles, skill plans, validation gates, launch-evidence templates, and operations notes for the repository control plane.
 
+## الدستور
+
+يخضع هذا المشروع لدستور [`CONSTITUTION.md`](CONSTITUTION.md) الذي يحدد حقوق وواجبات المؤسس والعملاء.
+
 ## Enterprise affiliation
 
 This repository operates under the **LexPrime** GitHub Enterprise — https://github.com/enterprises/lexprime. Enterprise-level policies (SSO, audit log, IP allowlists, secret scanning, advanced security) are managed at the LexPrime org level and inherited here. Repository-level governance (ADR-0001 boundary, Codex Commander discipline, Bayyinah validation) layers on top of those enterprise controls.
