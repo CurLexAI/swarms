@@ -19,7 +19,8 @@ skill. See `docs/decisions/ADR-0003-qala-security-architecture.md`
 | Host pattern | Purpose | Surface authorized to call |
 |---|---|---|
 | `*.modal.run` | Sovereign coding agents (Mihwar / Bayyinah) | `.agents/modal_app.py`, `.agents/pr_review.py`, `.agents/providers/modal_provider.py` |
-| `api.github.com` | PR review comments | `.agents/pr_review.py` |
+| `api.github.com` | PR review comments, user info | `.agents/pr_review.py`, `.agents/mcp/cloudflare-mcp/src/github-handler.ts` |
+| `github.com` | GitHub OAuth authorization and token exchange | `.agents/mcp/cloudflare-mcp/src/github-handler.ts` |
 | `huggingface.co` | Model weight pull (Modal runtime only — never client) | `.agents/modal_app.py` |
 
 Any other host appearing in scanned source files requires either:

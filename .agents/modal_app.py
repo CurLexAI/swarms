@@ -405,3 +405,12 @@ def is_valid_arabic_name(name: str) -> bool:
     print(f"Agent:   {review['agent']}")
     print(f"Verdict: {review['verdict']}")
     print(f"Report:\n{review['report'][:500]}")
+
+
+@app.local_entrypoint()
+def test_mihwar():
+    """
+    Alias smoke test for Mihwar.
+    Usage: modal run .agents/modal_app.py::test_mihwar
+    """
+    test()

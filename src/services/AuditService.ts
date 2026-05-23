@@ -2,7 +2,8 @@ import { auditLogger } from "../utils/auditLogger.js";
 
 export class AuditService {
   private static readonly TASK_STATUS_TRANSITIONS: Record<string, ReadonlySet<string>> = {
-    STARTED: new Set(["COMPLETED", "FAILED"]),
+    PENDING: new Set(["RUNNING", "FAILED"]),
+    RUNNING: new Set(["COMPLETED", "FAILED"]),
   };
 
   private static readonly taskStatusStore = new Map<string, string>();
@@ -56,10 +57,10 @@ export class AuditService {
     agent_id: string;
     metadata?: Record<string, unknown>;
   }) {
-    AuditService.taskStatusStore.set(entry.taskId, "STARTED");
+    AuditService.taskStatusStore.set(entry.taskId, "PENDING");
     auditLogger.writeDeferred({
       event: "agent_task_init",
-      status: "STARTED",
+      status: "PENDING",
       timestamp: new Date().toISOString(),
       ...entry,
     });
