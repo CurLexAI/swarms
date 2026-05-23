@@ -982,12 +982,13 @@ export class UnifiedAgentAdapter {
 
   private async readErrorBodySafely(response: Response) {
     try {
-      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-      if (contentType.includes("application/json")) {
-        const jsonPayload = await response.json();
-        return truncateForDiagnostics(JSON.stringify(jsonPayload));
+      const rawText = await response.text();
+      if (!rawText.trim()) return "<empty>";
+      try {
+        return truncateForDiagnostics(JSON.stringify(JSON.parse(rawText)));
+      } catch {
+        return truncateForDiagnostics(rawText);
       }
-      return truncateForDiagnostics(await response.text());
     } catch {
       return "<unavailable>";
     }
@@ -1033,7 +1034,15 @@ export class UnifiedAgentAdapter {
           const mappedCode: RuntimeFailureClass = response.status === 401 ? "AUTH_INVALID" : response.status === 403 ? "AUTH_EXPIRED" : "RUNTIME_FAILURE";
           if (retryable && attempt < maxAttempts) { await sleep(DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1)); continue; }
           const correlationId = randomUUID().slice(0, 8);
-          await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", { status_code: response.status, status_text: response.statusText || "missing", correlation_id: correlationId, request_id: requestId, endpoint, backend_error_excerpt: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)) });
+          await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", {
+            status_code: response.status,
+            status_text: response.statusText || "missing",
+            correlation_id: correlationId,
+            request_id: requestId,
+            task_id: taskId,
+            endpoint,
+            backend_error_fingerprint: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)).length
+          });
           throw createPythonRuntimeError({ code: mappedCode, status: response.status, retryable, correlationId, message: `${mappedCode}: Python engine returned HTTP ${response.status} ${response.statusText || "unknown"}` });
         }
 
