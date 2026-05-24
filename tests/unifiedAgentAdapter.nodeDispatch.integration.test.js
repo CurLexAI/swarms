@@ -213,11 +213,13 @@ test("UnifiedAgentAdapter rejects malformed downstream object that passes JSON p
     }
   );
 
-  assert.equal(taskUpdates.length, 1);
-  assert.equal(taskUpdates[0][1], "FAILED");
-  assert.match(taskUpdates[0][2].blocker, /UNVERIFIED_RUNTIME/);
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.match(taskUpdates[1][2].blocker, /UNVERIFIED_RUNTIME/);
   assert.equal(taskCreates.length, 1);
   assert.equal(taskCreates[0][0].taskId, taskUpdates[0][0]);
+  assert.equal(taskCreates[0][0].taskId, taskUpdates[1][0]);
 });
 
 test("UnifiedAgentAdapter returns real node execution output for hybrid agents (intentional split)", async (t) => {
@@ -324,8 +326,9 @@ test("UnifiedAgentAdapter accepts valid downstream payload when quality verifica
 
   assert.equal(response.status, "success");
   assert.deepEqual(response.data, { message: "ok", details: { source: "test" } });
-  assert.equal(taskUpdates.length, 1);
-  assert.equal(taskUpdates[0][1], "COMPLETED");
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "COMPLETED");
 });
 
 
@@ -534,9 +537,10 @@ test("UnifiedAgentAdapter marks task FAILED when node dispatch throws runtime fa
     }
   );
 
-  assert.equal(taskUpdates.length, 1);
-  assert.equal(taskUpdates[0][1], "FAILED");
-  assert.match(taskUpdates[0][2].error, /^RUNTIME_FAILURE: Node runtime execution failed for agent node-agent:/);
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.match(taskUpdates[1][2].error, /^RUNTIME_FAILURE: Node runtime execution failed for agent node-agent:/);
 });
 
 test("UnifiedAgentAdapter reports CONFIG_NOT_FOUND when node dispatcher module is unavailable", async (t) => {
@@ -612,14 +616,16 @@ test("UnifiedAgentAdapter reports CONFIG_NOT_FOUND when node dispatcher module i
     );
   }
 
-  assert.equal(taskUpdates.length, 2);
-  for (const update of taskUpdates) {
-    assert.equal(update[1], "FAILED");
-    assert.match(update[2].error, /^CONFIG_NOT_FOUND:/);
-  }
+  assert.equal(taskUpdates.length, 4);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.match(taskUpdates[1][2].error, /^CONFIG_NOT_FOUND:/);
+  assert.equal(taskUpdates[2][1], "RUNNING");
+  assert.equal(taskUpdates[3][1], "FAILED");
+  assert.match(taskUpdates[3][2].error, /^CONFIG_NOT_FOUND:/);
 });
 
-test("UnifiedAgentAdapter normalizes non-Error throw to 'Unknown error' in audit on node dispatch", async (t) => {
+test("UnifiedAgentAdapter preserves thrown string message in audit on node dispatch", async (t) => {
   const loaded = await loadUnifiedAgentAdapterFromTs(t);
   if (!loaded) return;
   const AuditService = await loadAuditServiceOrSkip(t);
@@ -657,9 +663,10 @@ test("UnifiedAgentAdapter normalizes non-Error throw to 'Unknown error' in audit
     () => adapter.executeAgent("node-agent", "user-1", { tenant_id: "tenant-1", input: "trigger non-Error throw", metadata: {} }, ["scope:execute"], "tenant-1")
   );
 
-  assert.equal(taskUpdates.length, 1);
-  assert.equal(taskUpdates[0][1], "FAILED");
-  assert.equal(taskUpdates[0][2].error, "Unknown error");
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.equal(taskUpdates[1][2].error, "unexpected string thrown from dispatcher");
 });
 
 test("UnifiedAgentAdapter keeps transitive ERR_MODULE_NOT_FOUND as runtime failure", async (t) => {
@@ -728,10 +735,11 @@ test("UnifiedAgentAdapter keeps transitive ERR_MODULE_NOT_FOUND as runtime failu
     }
   );
 
-  assert.equal(taskUpdates.length, 1);
-  assert.equal(taskUpdates[0][1], "FAILED");
-  assert.match(taskUpdates[0][2].error, /^RUNTIME_FAILURE:/);
-  assert.equal(taskUpdates[0][2].blocker, "RUNTIME_FAILURE");
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.match(taskUpdates[1][2].error, /^RUNTIME_FAILURE:/);
+  assert.equal(taskUpdates[1][2].blocker, "RUNTIME_FAILURE");
 });
 
 
