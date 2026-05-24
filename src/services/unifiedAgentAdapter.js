@@ -192,7 +192,10 @@ function isRetryableNetworkError(error) {
         return true;
     if (causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode))
         return true;
-    return error.name === "TypeError" && error.message === "fetch failed" && Boolean(causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode));
+    const directCode = error.code;
+    if (typeof directCode === "string" && RETRYABLE_TRANSPORT_CODES.has(directCode))
+        return true;
+    return error.name === "TypeError" && error.message === "fetch failed" && Boolean(causeCode);
 }
 class PythonEngineRuntimeError extends Error {
     code;
@@ -555,7 +558,6 @@ export class UnifiedAgentAdapter {
             throw new Error(`RUNTIME_FAILURE: audit initialization failed for task ${taskId}`);
         }
         try {
-            await AuditService.updateTaskStatus(taskId, "RUNNING", traceMetadata);
             if (agent.enable_reasoning) {
                 logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
                 const plan = await this.prepareReasoningPlan(agent, executionPayload);
@@ -783,6 +785,7 @@ export class UnifiedAgentAdapter {
                         request_id: requestId,
                         task_id: taskId,
                         endpoint,
+                        backend_error_fingerprint: String(sanitizeForAudit(sanitizeBackendErrorForAudit(rawError))).length
                         backend_error_fingerprint: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)).length
                     });
                     throw createPythonRuntimeError({ code: mappedCode, status: response.status, retryable, correlationId, message: `${mappedCode}: Python engine returned HTTP ${response.status} ${response.statusText || "unknown"}` });

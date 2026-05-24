@@ -286,21 +286,12 @@ function getTransportErrorCodes(error: unknown): { errorCode?: string; causeCode
 
 function isRetryableNetworkError(error: unknown) {
   if (!(error instanceof Error) || error.name === "AbortError") return false;
-  const code = (error as NodeJS.ErrnoException).code;
-  return (
-    code === "ECONNRESET" ||
-    code === "ETIMEDOUT" ||
-    code === "EAI_AGAIN" ||
-    code === "UND_ERR_CONNECT_TIMEOUT" ||
-    code === "ENOTFOUND" ||
-    code === "ECONNREFUSED" ||
-    code === "EHOSTUNREACH" ||
-    code === "ENETUNREACH"
-  );
   const { errorCode, causeCode } = getTransportErrorCodes(error);
   if (errorCode && RETRYABLE_TRANSPORT_CODES.has(errorCode)) return true;
   if (causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode)) return true;
-  return error.name === "TypeError" && error.message === "fetch failed" && Boolean(causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode));
+  const directCode = (error as NodeJS.ErrnoException).code;
+  if (typeof directCode === "string" && RETRYABLE_TRANSPORT_CODES.has(directCode)) return true;
+  return error.name === "TypeError" && error.message === "fetch failed" && Boolean(causeCode);
 }
 
 type RuntimeFailureClass = "RUNTIME_FAILURE" | "UNVERIFIED_RUNTIME" | "PYTHON_ENGINE_TIMEOUT" | "AUTH_INVALID" | "AUTH_EXPIRED";
@@ -529,7 +520,7 @@ export class UnifiedAgentAdapter {
               `REGISTRY_LOAD_FAILURE: Invalid agent ${entry.id} (required_scope must be non-empty string)`
             );
           }
-          agentsList.push(entry as AgentDefinition);
+          agentsList.push(entry as unknown as AgentDefinition);
         }
       } else if (rawAgents && typeof rawAgents === "object") {
         agentsList = Object.entries(rawAgents as Record<string, Record<string, unknown>>).map(
@@ -773,8 +764,6 @@ export class UnifiedAgentAdapter {
     }
 
     try {
-      await AuditService.updateTaskStatus(taskId, "RUNNING", traceMetadata);
-
       if (agent.enable_reasoning) {
         logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
         const plan = await this.prepareReasoningPlan(agent, executionPayload);
@@ -1041,7 +1030,9 @@ export class UnifiedAgentAdapter {
             request_id: requestId,
             task_id: taskId,
             endpoint,
-            backend_error_fingerprint: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)).length
+            backend_error_fingerprint: String(
+              sanitizeForAudit(sanitizeBackendErrorForAudit(rawError))
+            ).length
           });
           throw createPythonRuntimeError({ code: mappedCode, status: response.status, retryable, correlationId, message: `${mappedCode}: Python engine returned HTTP ${response.status} ${response.statusText || "unknown"}` });
         }
