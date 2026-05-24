@@ -147,6 +147,17 @@ bash .agents/skills/codex-commander/scripts/codex_commander_gate.sh .
 
 `npm run check` also executes the service-divergence unit checks and the ADR-0001 boundary regression gate.
 
+### One-command automated release gate
+
+```bash
+bash scripts/commander/release-readiness-gate.sh .
+```
+
+Exit codes:
+- `0` → `READY`
+- `1` → `BLOCK`
+- `2` → `HOLD` (typically missing runtime secrets or non-blocking hardening gaps)
+
 ### Repository boundary
 
 The repository scope and forbidden additions are codified in

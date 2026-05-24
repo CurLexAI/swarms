@@ -309,7 +309,7 @@ api_secret = modal.Secret.from_name("agent-api-secret")
     timeout=180,
     min_containers=0,
 )
-@modal.web_endpoint(method="POST", label="bayyinah-review")
+@modal.fastapi_endpoint(method="POST", label="bayyinah-review")
 def bayyinah_review_web(
     payload: dict,
     authorization: Optional[str] = Header(default=None),
@@ -337,7 +337,7 @@ def bayyinah_review_web(
     timeout=360,
     min_containers=0,
 )
-@modal.web_endpoint(method="POST", label="mihwar-generate")
+@modal.fastapi_endpoint(method="POST", label="mihwar-generate")
 def mihwar_generate_web(
     payload: dict,
     authorization: Optional[str] = Header(default=None),

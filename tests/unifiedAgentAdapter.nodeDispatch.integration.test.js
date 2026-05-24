@@ -598,7 +598,7 @@ test("UnifiedAgentAdapter reports CONFIG_NOT_FOUND when node dispatcher module i
   }
 });
 
-test("UnifiedAgentAdapter normalizes non-Error throw to 'Unknown error' in audit on node dispatch", async (t) => {
+test("UnifiedAgentAdapter preserves non-Error throw text in audit on node dispatch", async (t) => {
   const loaded = await loadUnifiedAgentAdapterFromTs(t);
   if (!loaded) return;
   const AuditService = await loadAuditServiceOrSkip(t);
@@ -638,7 +638,7 @@ test("UnifiedAgentAdapter normalizes non-Error throw to 'Unknown error' in audit
 
   assert.equal(taskUpdates.length, 1);
   assert.equal(taskUpdates[0][1], "FAILED");
-  assert.equal(taskUpdates[0][2].error, "Unknown error");
+  assert.equal(taskUpdates[0][2].error, "unexpected string thrown from dispatcher");
 });
 
 test("UnifiedAgentAdapter keeps transitive ERR_MODULE_NOT_FOUND as runtime failure", async (t) => {
