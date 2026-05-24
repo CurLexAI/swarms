@@ -77,10 +77,15 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
   const originalLogAction = AuditService.logAction;
   const originalUpdateTaskStatus = AuditService.updateTaskStatus;
   const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalCreateTask = AuditService.createTask;
+  const taskCreates = [];
   const taskUpdates = [];
 
   AuditService.logAction = async () => {};
   AuditService.logSecurityViolation = async () => {};
+  AuditService.createTask = async (...args) => {
+    taskCreates.push(args);
+  };
   AuditService.updateTaskStatus = async (...args) => {
     taskUpdates.push(args);
   };
@@ -89,6 +94,7 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
     AuditService.logAction = originalLogAction;
     AuditService.updateTaskStatus = originalUpdateTaskStatus;
     AuditService.logSecurityViolation = originalLogSecurityViolation;
+    AuditService.createTask = originalCreateTask;
   });
 
   const adapter = new UnifiedAgentAdapter();
@@ -135,8 +141,15 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
 
   assert.equal(result.status, "success");
   assert.deepEqual(result.data, { output: "node-result", provider: "stub" });
-  assert.equal(taskUpdates.length, 1);
-  assert.equal(taskUpdates[0][1], "COMPLETED");
+  assert.equal(taskCreates.length, 1);
+  assert.equal(taskCreates[0][0].tenant_id, "tenant-1");
+  assert.equal(taskCreates[0][0].actor_id, "user-1");
+  assert.equal(taskCreates[0][0].agent_id, "node-agent");
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "COMPLETED");
+  assert.equal(taskCreates[0][0].taskId, taskUpdates[0][0]);
+  assert.equal(taskCreates[0][0].taskId, taskUpdates[1][0]);
 });
 
 test("UnifiedAgentAdapter rejects malformed downstream object that passes JSON parsing but fails quality verification", async (t) => {
@@ -149,10 +162,15 @@ test("UnifiedAgentAdapter rejects malformed downstream object that passes JSON p
   const originalLogAction = AuditService.logAction;
   const originalUpdateTaskStatus = AuditService.updateTaskStatus;
   const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalCreateTask = AuditService.createTask;
+  const taskCreates = [];
   const taskUpdates = [];
 
   AuditService.logAction = async () => {};
   AuditService.logSecurityViolation = async () => {};
+  AuditService.createTask = async (...args) => {
+    taskCreates.push(args);
+  };
   AuditService.updateTaskStatus = async (...args) => {
     taskUpdates.push(args);
   };
@@ -161,6 +179,7 @@ test("UnifiedAgentAdapter rejects malformed downstream object that passes JSON p
     AuditService.logAction = originalLogAction;
     AuditService.updateTaskStatus = originalUpdateTaskStatus;
     AuditService.logSecurityViolation = originalLogSecurityViolation;
+    AuditService.createTask = originalCreateTask;
   });
 
   const adapter = new UnifiedAgentAdapter();
@@ -197,6 +216,8 @@ test("UnifiedAgentAdapter rejects malformed downstream object that passes JSON p
   assert.equal(taskUpdates.length, 1);
   assert.equal(taskUpdates[0][1], "FAILED");
   assert.match(taskUpdates[0][2].blocker, /UNVERIFIED_RUNTIME/);
+  assert.equal(taskCreates.length, 1);
+  assert.equal(taskCreates[0][0].taskId, taskUpdates[0][0]);
 });
 
 test("UnifiedAgentAdapter returns real node execution output for hybrid agents (intentional split)", async (t) => {
