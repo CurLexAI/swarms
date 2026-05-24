@@ -178,6 +178,15 @@ function getTransportErrorCodes(error) {
 function isRetryableNetworkError(error) {
     if (!(error instanceof Error) || error.name === "AbortError")
         return false;
+    const code = error.code;
+    return (code === "ECONNRESET" ||
+        code === "ETIMEDOUT" ||
+        code === "EAI_AGAIN" ||
+        code === "UND_ERR_CONNECT_TIMEOUT" ||
+        code === "ENOTFOUND" ||
+        code === "ECONNREFUSED" ||
+        code === "EHOSTUNREACH" ||
+        code === "ENETUNREACH");
     const { errorCode, causeCode } = getTransportErrorCodes(error);
     if (errorCode && RETRYABLE_TRANSPORT_CODES.has(errorCode))
         return true;
@@ -777,6 +786,7 @@ export class UnifiedAgentAdapter {
                         task_id: taskId,
                         endpoint,
                         backend_error_fingerprint: String(sanitizeForAudit(sanitizeBackendErrorForAudit(rawError))).length
+                        backend_error_fingerprint: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)).length
                     });
                     throw createPythonRuntimeError({ code: mappedCode, status: response.status, retryable, correlationId, message: `${mappedCode}: Python engine returned HTTP ${response.status} ${response.statusText || "unknown"}` });
                 }

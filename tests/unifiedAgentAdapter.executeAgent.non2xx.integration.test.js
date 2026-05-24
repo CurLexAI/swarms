@@ -321,6 +321,18 @@ test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUN
       assert.match(error.message, /RUNTIME_FAILURE: python engine (request transport failure|exhausted retry budget)/i);
       assert.doesNotMatch(error.message, /ENOTFOUND/i);
       assert.doesNotMatch(error.message, /python-backend\.invalid/i);
+  });
+
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "2";
+
+  await assert.rejects(
+    () => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run" }, ["scope:execute"], "tenant-1"),
+    (error) => {
+      assert.match(error.message, /RUNTIME_FAILURE: python engine request transport failure/i);
+      assert.doesNotMatch(error.message, /ENOTFOUND|python-backend|http|token/i);
       return true;
     }
   );
