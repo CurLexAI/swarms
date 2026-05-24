@@ -1,0 +1,181 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "codex-backend-enterprise-analytics",
+        "description": "codex-backend-enterprise-analytics",
+        "version": "0.0.1"
+    },
+    "servers": [
+        {
+            "url": "https://api.chatgpt.com/"
+        }
+    ],
+    "paths": {
+        "/v1/analytics/codex/workspaces/{workspace_id}/usage": {
+            "get": {
+                "tags": [
+                    "Codex Enterprise Analytics"
+                ],
+                "summary": "Get daily Codex usage",
+                "description": "Returns per-day Codex usage metrics for a workspace, either per user or aggregated at the workspace level.",
+                "operationId": "codex_enterprise_usage_v1_analytics_codex_workspaces__workspace_id__usage_get",
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Workspace Id"
+                        }
+                    },
+                    {
+                        "name": "start_time",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "integer"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Unix seconds (inclusive) at the start of the reporting window (UTC). When both start_time and end_time are omitted, the window defaults to the last 30 calendar days ending today (UTC).",
+                            "examples": [
+                                1730419200
+                            ],
+                            "title": "Start Time"
+                        },
+                        "description": "Unix seconds (inclusive) at the start of the reporting window (UTC). When both start_time and end_time are omitted, the window defaults to the last 30 calendar days ending today (UTC)."
+                    },
+                    {
+                        "name": "end_time",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "integer"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Unix seconds (exclusive) at the end of the reporting window (UTC). When omitted, the reporting window ends at today (UTC).",
+                            "examples": [
+                                1733011200
+                            ],
+                            "title": "End Time"
+                        },
+                        "description": "Unix seconds (exclusive) at the end of the reporting window (UTC). When omitted, the reporting window ends at today (UTC)."
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 30000,
+                            "minimum": 1,
+                            "description": "Maximum number of rows to return in this page.",
+                            "examples": [
+                                1000
+                            ],
+                            "default": 1000,
+                            "title": "Limit"
+                        },
+                        "description": "Maximum number of rows to return in this page."
+                    },
+                    {
+                        "name": "group",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Optional grouping mode. Use 'workspace' for workspace-wide aggregates; omit for per-user rows.",
+                            "examples": [
+                                "workspace"
+                            ],
+                            "title": "Group"
+                        },
+                        "description": "Optional grouping mode. Use 'workspace' for workspace-wide aggregates; omit for per-user rows."
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Cursor token from a previous response's next_page field.",
+                            "examples": [
+                                "cursor-token"
+                            ],
+                            "title": "Page"
+                        },
+                        "description": "Cursor token from a previous response's next_page field."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UsagePage"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-openai-endpoint-handler": "codex_backend.routers.enterprise_analytics:codex_enterprise_usage",
+                "x-openai-operation-name": "codex_enterprise_usage"
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "HTTPBearer": {
+                "type": "http",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Codex Enterprise Analytics",
+            "description": "This API allows ChatGPT Enterprise and Codex administrators to pull daily Codex adoption and code review metrics for a workspace."
+        }
+    ]
+}
