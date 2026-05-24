@@ -1,9 +1,15 @@
-"""MCP server exposing Mihwar and Bayyinah Modal endpoints as Copilot tools.
+"""MCP server exposing Mihwar and Bayyinah Modal endpoints as MCP tools.
 
-This server speaks the Model Context Protocol over stdio and forwards tool
-calls to the Modal-hosted private agents. It reads endpoints and tokens from
-environment variables that are provided by the Copilot environment / GitHub
-Actions / local secrets.
+This server speaks the Model Context Protocol over stdio and forwards
+tool calls to the Modal-hosted private agents. The tools are MCP-exposed
+surfaces, consumable by any MCP-compatible client — GitHub Copilot,
+Claude Desktop, Cursor, Continue, or a direct stdio peer. "Copilot" is a
+UI label for one such client and is not a distinct runtime: every client
+hits the same JSON-RPC surface defined below.
+
+It reads endpoints and tokens from environment variables sourced from
+the invoking client's environment (Copilot environment secrets, GitHub
+Actions secrets, or a local `.env` injected via the MCP host).
 
 Usage (stdio):
     python -m agents.mcp.server

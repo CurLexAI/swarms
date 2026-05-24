@@ -23,6 +23,8 @@ The server speaks JSON-RPC over stdio and forwards tool calls to the Modal endpo
 
 No external dependencies required — uses only Python stdlib.
 
+> **Identity note.** The tools above are MCP-exposed surfaces, consumable by any MCP client (GitHub Copilot, Claude Desktop, Cursor, Continue, direct stdio peers). "Copilot" is the UI label of one such client, not a distinct runtime — every client hits the same JSON-RPC server and reaches the same Modal endpoints. The per-client setup sections below differ only in how each host spawns the stdio process and reads env vars.
+
 ---
 
 ## GitHub Copilot Setup
