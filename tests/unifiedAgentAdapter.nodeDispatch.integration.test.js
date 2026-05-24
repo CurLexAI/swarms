@@ -17,6 +17,29 @@ async function loadAuditServiceOrSkip(t) {
   }
 }
 
+// Shared monotonic counter so taskCreates / taskUpdates entries carry a
+// `seq` property reflecting the order in which the adapter invoked the
+// audit calls. Tests use this to assert createTask runs before RUNNING /
+// FAILED transitions — protects the PENDING -> RUNNING -> COMPLETED/FAILED
+// invariant enforced by AuditService.TASK_STATUS_TRANSITIONS.
+function makeOrderedAuditRecorder() {
+  let counter = 0;
+  const taskCreates = [];
+  const taskUpdates = [];
+  return {
+    taskCreates,
+    taskUpdates,
+    createTask: async (...args) => {
+      args._seq = counter++;
+      taskCreates.push(args);
+    },
+    updateTaskStatus: async (...args) => {
+      args._seq = counter++;
+      taskUpdates.push(args);
+    },
+  };
+}
+
 async function loadTypeScriptOrSkip(t) {
   try {
     const tsModule = await import("typescript");
@@ -78,17 +101,13 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
   const originalUpdateTaskStatus = AuditService.updateTaskStatus;
   const originalLogSecurityViolation = AuditService.logSecurityViolation;
   const originalCreateTask = AuditService.createTask;
-  const taskCreates = [];
-  const taskUpdates = [];
+  const recorder = makeOrderedAuditRecorder();
+  const { taskCreates, taskUpdates } = recorder;
 
   AuditService.logAction = async () => {};
   AuditService.logSecurityViolation = async () => {};
-  AuditService.createTask = async (...args) => {
-    taskCreates.push(args);
-  };
-  AuditService.updateTaskStatus = async (...args) => {
-    taskUpdates.push(args);
-  };
+  AuditService.createTask = recorder.createTask;
+  AuditService.updateTaskStatus = recorder.updateTaskStatus;
 
   t.after(() => {
     AuditService.logAction = originalLogAction;
@@ -150,6 +169,16 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
   assert.equal(taskUpdates[1][1], "COMPLETED");
   assert.equal(taskCreates[0][0].taskId, taskUpdates[0][0]);
   assert.equal(taskCreates[0][0].taskId, taskUpdates[1][0]);
+  // createTask MUST precede the RUNNING transition — AuditService refuses
+  // any updateTaskStatus call before the task is initialized to PENDING.
+  assert.ok(
+    taskCreates[0]._seq < taskUpdates[0]._seq,
+    `createTask (seq=${taskCreates[0]._seq}) must precede RUNNING (seq=${taskUpdates[0]._seq})`
+  );
+  assert.ok(
+    taskUpdates[0]._seq < taskUpdates[1]._seq,
+    "RUNNING must precede COMPLETED"
+  );
 });
 
 test("UnifiedAgentAdapter rejects malformed downstream object that passes JSON parsing but fails quality verification", async (t) => {
@@ -163,17 +192,13 @@ test("UnifiedAgentAdapter rejects malformed downstream object that passes JSON p
   const originalUpdateTaskStatus = AuditService.updateTaskStatus;
   const originalLogSecurityViolation = AuditService.logSecurityViolation;
   const originalCreateTask = AuditService.createTask;
-  const taskCreates = [];
-  const taskUpdates = [];
+  const recorder = makeOrderedAuditRecorder();
+  const { taskCreates, taskUpdates } = recorder;
 
   AuditService.logAction = async () => {};
   AuditService.logSecurityViolation = async () => {};
-  AuditService.createTask = async (...args) => {
-    taskCreates.push(args);
-  };
-  AuditService.updateTaskStatus = async (...args) => {
-    taskUpdates.push(args);
-  };
+  AuditService.createTask = recorder.createTask;
+  AuditService.updateTaskStatus = recorder.updateTaskStatus;
 
   t.after(() => {
     AuditService.logAction = originalLogAction;
@@ -220,6 +245,16 @@ test("UnifiedAgentAdapter rejects malformed downstream object that passes JSON p
   assert.equal(taskCreates.length, 1);
   assert.equal(taskCreates[0][0].taskId, taskUpdates[0][0]);
   assert.equal(taskCreates[0][0].taskId, taskUpdates[1][0]);
+  // createTask MUST precede every status transition, including FAILED —
+  // otherwise AuditService raises "task has not been initialized".
+  assert.ok(
+    taskCreates[0]._seq < taskUpdates[0]._seq,
+    `createTask (seq=${taskCreates[0]._seq}) must precede RUNNING (seq=${taskUpdates[0]._seq})`
+  );
+  assert.ok(
+    taskCreates[0]._seq < taskUpdates[1]._seq,
+    `createTask (seq=${taskCreates[0]._seq}) must precede FAILED (seq=${taskUpdates[1]._seq})`
+  );
 });
 
 test("UnifiedAgentAdapter returns real node execution output for hybrid agents (intentional split)", async (t) => {
