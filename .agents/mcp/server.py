@@ -216,12 +216,19 @@ def _call_modal(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError("AGENT_API_TOKEN is not configured.")
 
     enriched = _enrich_arguments(tool_name, dict(arguments))
-    payload = {"token": token, **enriched}
-    data = json.dumps(payload).encode("utf-8")
+    # Modal endpoints in .agents/modal_app.py authenticate via Authorization:
+    # Bearer header (`_verify_bearer_token`); body `token` field is ignored
+    # and an unauthenticated request returns 401 missing_authorization.
+    # Keep this aligned with .agents/pr_review.py and .agents/providers/
+    # modal_provider.py — header is the single transport across the repo.
+    data = json.dumps(enriched).encode("utf-8")
     req = urllib.request.Request(
         endpoint,
         data=data,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        },
         method="POST",
     )
     try:
