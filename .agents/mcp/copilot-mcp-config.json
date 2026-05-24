@@ -4,7 +4,7 @@
       "type": "local",
       "command": "python",
       "args": ["-u", ".agents/mcp/server.py"],
-      "tools": ["mihwar_generate", "bayyinah_review"],
+      "tools": ["mihwar_generate", "bayyinah_review", "free_birds_review", "free_birds_design"],
       "env": {
         "MIHWAR_ENDPOINT": "$MIHWAR_ENDPOINT",
         "BAYYINAH_ENDPOINT": "$BAYYINAH_ENDPOINT",

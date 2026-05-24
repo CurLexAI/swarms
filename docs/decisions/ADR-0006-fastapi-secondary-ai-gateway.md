@@ -239,3 +239,107 @@ Evidence labels for the context section:
   ADR-0005.
 - `CLAUDE.md` — absolute prohibitions #2 (Modal not public) and #8
   (no production deploy without approval).
+
+## Addendum — 2026-05-23 (patent-portfolio anchoring)
+
+A second operator verdict on the same proposal was delivered in Arabic
+on 2026-05-23 (branch `claude/lexprim-fastapi-gateway-review-sHx1o`).
+That verdict adds no new risks beyond the twelve mandatory constraints
+above, but it anchors them to specific patent-portfolio items recorded
+in `docs/audits/full-audit-2026-04-19.md` SECTION 2 and flags three
+constraints that were implicit in the original ADR and are now made
+explicit. This addendum does **not** supersede or relax any prior
+constraint; it tightens the contract.
+
+### Patent-portfolio anchoring (informational)
+
+The twelve mandatory constraints map to these patent-portfolio items.
+Implementation of each patent is recorded as `MISSING` in the cited
+audit, so the anchoring is a **forward requirement**, not a claim of
+current capability:
+
+| Constraint | Patent anchor (per `docs/audits/full-audit-2026-04-19.md`) |
+|---|---|
+| #3 Ingress / #4 Auth | #10 SPIFFE zero trust (agent identity boundary) |
+| #5 Data-classification gate | QAR-PAT-003 Sovereign Routing |
+| #6 Registry adherence | #9 واجهة الوكلاء القانونية (registry-driven legal agents API) |
+| #9 No file-path inputs | QAR-PAT-004 Pre-execution Security Gate |
+
+Evidence label: `INFERRED` — anchoring is by operator verdict
+(2026-05-23), not by code in this repository. The patents themselves
+are catalogued as `MISSING` in the audit row, so this addendum cannot
+claim the constraints are *implemented* — only that they are *required*
+of any future FastAPI adapter.
+
+### Constraint 13 — Pre-execution security gate (QAR-PAT-004)
+
+Every adapter endpoint that accepts free-text prompts or file payloads
+runs a pre-execution security gate **before** dispatch to any
+provider. The gate enforces:
+
+- **For uploads:** magic-byte plus MIME validation (already required by
+  constraint #9). The allowed set is declared explicitly per endpoint;
+  default-deny.
+- **For prompts:** detection of prompt-injection patterns, jailbreak
+  templates, and exfiltration directives. The mechanism is recorded
+  in the adapter's `pre_execution_gate` module and is testable in
+  isolation. A future implementation may use a CodeBERT-class
+  classifier; the choice of model is not mandated by this ADR, only the
+  existence of the gate and its unit-test coverage.
+
+The gate **rejects** the request; it does not silently rewrite the
+prompt. Rejections emit an audit event compatible with constraint #7.
+
+### Constraint 14 — Agent-to-agent zero trust (patent #10)
+
+When the adapter dispatches a request that produces a call to another
+internal agent (Mihwar → Bayyinah, Bayyinah → validator, etc.), the
+inner call carries:
+
+- a caller-agent identity token (not the human caller's token alone),
+- the original `data_classification`, unchanged,
+- the original request ID,
+- an audit trail entry recording the hop.
+
+Inner agents authorize on the caller-agent identity. A call missing the
+caller identity is refused, not defaulted to "trusted internal".
+
+### Constraint 15 — Deterministic legal agents API (patent #9)
+
+Adapter endpoints that return legal, regulatory, or
+citation-bearing content must return, alongside the model output:
+
+- the `source` (statute, ruling, document id),
+- the `citation` text or paragraph reference,
+- a `confidence` value the model would itself emit (no fabricated
+  default of `1.0`).
+
+Endpoints that cannot supply all three fields for a given response are
+forbidden from labelling the response as legal/regulatory; the field
+set becomes part of the endpoint's response contract, not a comment in
+documentation. Until patent #9's runtime is in tree (currently
+`MISSING`), legal-domain endpoints are **not** authorized on the
+adapter at all.
+
+### Bayyinah integration order (informational)
+
+Per the operator verdict, when the adapter calls a Bayyinah workflow
+that touches external systems, the integration order is: GitHub
+first, then (per task type) Notion / Drive / Gmail / Figma /
+Hugging Face / Cloudflare / GCP / Sentry. This is recorded for
+reference; the adapter itself does not implement these integrations,
+and naming endpoints after them without an implementation remains
+forbidden by constraint #11.
+
+## Execution Verdict (Addendum)
+
+- **Status:** `CHANGED_BUT_NOT_VERIFIED`
+- **Scope:** ADR-0006 only — three new constraints (#13, #14, #15) added; no code changed.
+- **Canonical Path:** `docs/decisions/ADR-0006-fastapi-secondary-ai-gateway.md`
+- **Files Touched:** `docs/decisions/ADR-0006-fastapi-secondary-ai-gateway.md`
+- **Blockers:** none for the ADR itself; constraints #13–#15 cannot be tested until a FastAPI adapter is proposed.
+- **Hot Surface Risk:** YES — tightening of the model-execution-path contract.
+- **What Was Actually Changed:** Addendum dated 2026-05-23 added at end of ADR-0006: patent-portfolio anchoring table, constraints #13 (pre-execution security gate), #14 (agent-to-agent zero trust), #15 (deterministic legal agents API), Bayyinah integration order note.
+- **What Was Actually Verified:** Patent items #9, #10, QAR-PAT-003, QAR-PAT-004 are catalogued as `MISSING` per `docs/audits/full-audit-2026-04-19.md` (VERIFIED 2026-05-23 by reading that file).
+- **What Remains Unverified:** Every constraint in this ADR; no FastAPI adapter exists in tree to test against.
+- **Next Valid Action:** Commit on `claude/lexprim-fastapi-gateway-review-sHx1o`, push, open draft PR referencing this addendum; do not propose adapter code until #13–#15 have test scaffolding.

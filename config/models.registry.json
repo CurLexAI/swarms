@@ -1,0 +1,37 @@
+{
+  "models": [
+    {
+      "id": "qwen-coder-local",
+      "provider": "ollama",
+      "model": "qwen2.5-coder:32b",
+      "profile": "code_local",
+      "use": ["code", "typescript", "local"],
+      "endpoint": "http://127.0.0.1:11434"
+    },
+    {
+      "id": "bayyinah-legal-local",
+      "provider": "ollama",
+      "model": "qwen2.5:14b-instruct",
+      "profile": "local_only",
+      "use": ["legal", "arabic", "redaction"],
+      "endpoint": "http://127.0.0.1:11434"
+    },
+    {
+      "id": "mihwar-legal-modal",
+      "provider": "modal",
+      "model": "qwen-legal-finetune",
+      "profile": "sanitized_cloud",
+      "use": ["legal", "reasoning"],
+      "app": "curlexai-agents"
+    },
+    {
+      "id": "gpt-review-gateway",
+      "provider": "openai-compatible",
+      "model": "gpt-4.1",
+      "profile": "sanitized_cloud",
+      "use": ["review", "quality"],
+      "baseUrlEnv": "OPENAI_BASE_URL",
+      "apiKeyEnv": "OPENAI_API_KEY"
+    }
+  ]
+}

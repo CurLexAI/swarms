@@ -117,46 +117,6 @@ agents:
       - "Dependency risk assessment"
       - "Validating Mihwar's generated code"
 
-  # ── Agent 3: COPILOT_SWE ───────────────────────────────────────────────────
-  # Role: Software-engineering executor invoked through GitHub Copilot.
-  # Scaffold-only: opens draft PRs for narrow refactors / fixes.
-  # No deploy authority, no secret access, no runner provisioning.
-  # Paired-review with Bayyinah is required before "ready for review".
-
-  copilot_swe:
-    display_name: "Copilot SWE — مهندس البرمجيات"
-    tier: 3
-    capability: "executor"
-
-    target: "github-copilot"
-    profile: ".github/agents/copilot-swe.agent.md"
-
-    boundary:
-      scaffold_only: true
-      deploy_authority: false
-      reads_secrets: false
-      may_modify_workflows: false
-      may_modify_codeowners: false
-      may_merge: false
-
-    paired_review:
-      required: true
-      reviewer: "bayyinah"
-      blocks_on: "REQUEST_CHANGES"
-
-    gates_required_before_ready:
-      - "scripts/commander/agent-presence-gate.sh"
-      - "scripts/commander/p0-security-test-gate.sh"
-      - "scripts/commander/modal-boundary-gate.sh"
-      - ".agents/skills/codex-commander/scripts/codex_commander_gate.sh"
-
-    tasks:
-      - "Narrow refactors with behavior preservation"
-      - "Bug fixes with accompanying regression tests"
-      - "Documentation and comment cleanup"
-      - "Test coverage additions"
-      - "Code-style and lint conformance"
-
 # ── Collaboration Protocol ─────────────────────────────────────────────────
 # Default workflow for new coding tasks:
 #

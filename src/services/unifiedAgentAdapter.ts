@@ -286,21 +286,12 @@ function getTransportErrorCodes(error: unknown): { errorCode?: string; causeCode
 
 function isRetryableNetworkError(error: unknown) {
   if (!(error instanceof Error) || error.name === "AbortError") return false;
-  const code = (error as NodeJS.ErrnoException).code;
-  return (
-    code === "ECONNRESET" ||
-    code === "ETIMEDOUT" ||
-    code === "EAI_AGAIN" ||
-    code === "UND_ERR_CONNECT_TIMEOUT" ||
-    code === "ENOTFOUND" ||
-    code === "ECONNREFUSED" ||
-    code === "EHOSTUNREACH" ||
-    code === "ENETUNREACH"
-  );
   const { errorCode, causeCode } = getTransportErrorCodes(error);
   if (errorCode && RETRYABLE_TRANSPORT_CODES.has(errorCode)) return true;
   if (causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode)) return true;
-  return error.name === "TypeError" && error.message === "fetch failed" && Boolean(causeCode && RETRYABLE_TRANSPORT_CODES.has(causeCode));
+  const directCode = (error as NodeJS.ErrnoException).code;
+  if (typeof directCode === "string" && RETRYABLE_TRANSPORT_CODES.has(directCode)) return true;
+  return error.name === "TypeError" && error.message === "fetch failed" && Boolean(causeCode);
 }
 
 type RuntimeFailureClass = "RUNTIME_FAILURE" | "UNVERIFIED_RUNTIME" | "PYTHON_ENGINE_TIMEOUT" | "AUTH_INVALID" | "AUTH_EXPIRED";
@@ -529,7 +520,7 @@ export class UnifiedAgentAdapter {
               `REGISTRY_LOAD_FAILURE: Invalid agent ${entry.id} (required_scope must be non-empty string)`
             );
           }
-          agentsList.push(entry as AgentDefinition);
+          agentsList.push(entry as unknown as AgentDefinition);
         }
       } else if (rawAgents && typeof rawAgents === "object") {
         agentsList = Object.entries(rawAgents as Record<string, Record<string, unknown>>).map(
@@ -773,8 +764,6 @@ export class UnifiedAgentAdapter {
     }
 
     try {
-      await AuditService.updateTaskStatus(taskId, "RUNNING", traceMetadata);
-
       if (agent.enable_reasoning) {
         logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
         const plan = await this.prepareReasoningPlan(agent, executionPayload);
@@ -982,12 +971,13 @@ export class UnifiedAgentAdapter {
 
   private async readErrorBodySafely(response: Response) {
     try {
-      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-      if (contentType.includes("application/json")) {
-        const jsonPayload = await response.json();
-        return truncateForDiagnostics(JSON.stringify(jsonPayload));
+      const rawText = await response.text();
+      if (!rawText.trim()) return "<empty>";
+      try {
+        return truncateForDiagnostics(JSON.stringify(JSON.parse(rawText)));
+      } catch {
+        return truncateForDiagnostics(rawText);
       }
-      return truncateForDiagnostics(await response.text());
     } catch {
       return "<unavailable>";
     }
@@ -1033,7 +1023,17 @@ export class UnifiedAgentAdapter {
           const mappedCode: RuntimeFailureClass = response.status === 401 ? "AUTH_INVALID" : response.status === 403 ? "AUTH_EXPIRED" : "RUNTIME_FAILURE";
           if (retryable && attempt < maxAttempts) { await sleep(DEFAULT_PYTHON_ENGINE_BACKOFF_BASE_MS * 2 ** (attempt - 1)); continue; }
           const correlationId = randomUUID().slice(0, 8);
-          await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", { status_code: response.status, status_text: response.statusText || "missing", correlation_id: correlationId, request_id: requestId, endpoint, backend_error_excerpt: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)) });
+          await AuditService.logSecurityViolation(userId, agent.id, "PYTHON_ENGINE_DOWNSTREAM_FAILURE", {
+            status_code: response.status,
+            status_text: response.statusText || "missing",
+            correlation_id: correlationId,
+            request_id: requestId,
+            task_id: taskId,
+            endpoint,
+            backend_error_fingerprint: String(
+              sanitizeForAudit(sanitizeBackendErrorForAudit(rawError))
+            ).length
+          });
           throw createPythonRuntimeError({ code: mappedCode, status: response.status, retryable, correlationId, message: `${mappedCode}: Python engine returned HTTP ${response.status} ${response.statusText || "unknown"}` });
         }
 

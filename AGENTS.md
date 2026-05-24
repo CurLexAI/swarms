@@ -223,7 +223,7 @@ See `CLAUDE.md` and `README.md` for the full list. The key ones:
 | Node unit tests | `npm run test:unit` | 7 tests on `unifiedAgentAdapter` |
 | Node full tests | `npm test` | Includes integration tests that need `PYTHON_BACKEND_URL` and `PYTHON_BACKEND_ALLOWED_HOSTS`; 6 integration tests will fail without those env vars — this is expected |
 | Security tests | `npm run test:security` | sovereignCyberRadar (8 tests) |
-| TypeScript check | `npx tsc --noEmit` | Should pass cleanly (known TS2307 blocker was resolved) |
+| TypeScript check | `npx tsc --noEmit` | Currently fails with TS2345/TS18046/TS2352 in `unifiedAgentAdapter.ts`; tracked separately — `.js` companions are hand-maintained |
 | TypeScript build | `npm run build` | Emits `.js` next to `.ts` |
 | Python validate | `python3 .agents/validate.py` | Agent asset validation |
 | Agent info | `python3 .agents/invoke.py info` | Lists configured agents (no secrets needed) |
