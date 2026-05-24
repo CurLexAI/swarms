@@ -2,6 +2,10 @@
 
 CurLexAI `swarms` is the private operator repository for Qarar/Bayyinah/Mihwar agent operations. It keeps agent profiles, skill plans, validation gates, launch-evidence templates, and operations notes for the repository control plane.
 
+## الدستور
+
+يخضع هذا المشروع لدستور [`CONSTITUTION.md`](CONSTITUTION.md) الذي يحدد حقوق وواجبات المؤسس والعملاء.
+
 ## Enterprise affiliation
 
 This repository operates under the **LexPrime** GitHub Enterprise — https://github.com/enterprises/lexprime. Enterprise-level policies (SSO, audit log, IP allowlists, secret scanning, advanced security) are managed at the LexPrime org level and inherited here. Repository-level governance (ADR-0001 boundary, Codex Commander discipline, Bayyinah validation) layers on top of those enterprise controls.
@@ -66,7 +70,7 @@ Every instruction file should begin with:
 
 ## Required secrets for live runtime checks
 
-Do not commit values. Configure them only in GitHub Actions, Render, or the appropriate secret manager.
+Do not commit values. Configure these as **Organization secrets at the LexPrime enterprise org** with both `CurLexAI/swarms` and `LexPrim/Qarar` in the Selected repositories allow-list. Repository-scoped duplicates are deprecated — see `docs/secrets-policy.md §3` for the operator runbook and `§3.1` for the silent-degrade warning.
 
 ```text
 BAYYINAH_ENDPOINT
