@@ -63,9 +63,19 @@ sudo ufw enable
 sudo ufw status verbose
 ```
 
-## 4) iPhone Terminal Host Entry (Termius-style)
+## 4) iPhone Terminal Host Entry (Quick Fill)
 
-Use these fields:
+Use this exact mapping in the iPhone form:
+
+- Display Name (اسم العرض): `swarms` or `Mihwer Codex`
+- Host (المضيف): server address only, e.g. `123.45.67.89` or `your-server.com`
+- Port (المنفذ): `22`
+- Username (اسم المستخدم): server account, e.g. `ubuntu`, `root`, or `git`
+- Password (كلمة المرور): server password, or leave blank when using SSH key authentication
+
+## 5) iPhone Terminal Host Entry (Termius-style, hardened)
+
+Use these hardened fields when key-based auth is enabled:
 
 - Label: `codex-prod`
 - Hostname: `<server_ip_or_dns>`
@@ -76,7 +86,7 @@ Use these fields:
 
 Do **not** store privileged passwords in the app.
 
-## 5) Optional Local SSH Config (Mac/Workstation)
+## 6) Optional Local SSH Config (Mac/Workstation)
 
 `~/.ssh/config`
 
@@ -95,7 +105,7 @@ Host codex-prod
   UserKnownHostsFile ~/.ssh/known_hosts
 ```
 
-## 6) Quick Verification Runbook
+## 7) Quick Verification Runbook
 
 ```bash
 # from trusted client
@@ -105,7 +115,7 @@ ssh -i ~/.ssh/id_ed25519_codex codexops@<server_ip_or_dns> "hostname && whoami"
 sudo journalctl -u ssh --since "-30m" --no-pager
 ```
 
-## 7) Sovereign Guardrails
+## 8) Sovereign Guardrails
 
 - Keep sensitive workloads on private network/VPN only.
 - Restrict Codex runtime account to least privilege.
