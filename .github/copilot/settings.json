@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "curlexai-swarms": {
+      "source": {
+        "source": "github",
+        "repo": "CurLexAI/swarms"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "unified-agent-adapter@curlexai-swarms": true
+  }
+}
