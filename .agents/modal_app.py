@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """
 CurLexAI Coding Agents — Modal Deployment
 ==========================================
@@ -202,8 +204,8 @@ class BayyinahAgent:
         )
 
         review_prompt = (
-            f"Review the following code for bugs, security issues, "
-            f"and correctness.\n\n"
+            "Review the following code for bugs, security issues, "
+            "and correctness.\n\n"
         )
         if context:
             review_prompt += f"CONTEXT:\n{context}\n\n"

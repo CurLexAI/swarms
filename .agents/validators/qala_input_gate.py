@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Qal'a (قلعة) — Q3 Input-side validation gate.
 
 Mirror of ``bayyinah_validation_gate.validate_output`` but applied to

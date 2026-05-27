@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Unit tests for `.agents/validators/qala_input_gate.py`.
 
 Contracts under test (per ADR-0003 §Q3):

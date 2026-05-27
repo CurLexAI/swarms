@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Qarar Sovereign Network Health Guard.
 
 Raspberry Pi first. Safe by default. Decision flow:
@@ -19,7 +21,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 ProbeStatus = Literal["pass", "fail"]
 DecisionAction = Literal["observe", "continue_monitoring", "request_human_review", "reboot_router"]

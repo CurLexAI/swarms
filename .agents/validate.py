@@ -1,6 +1,7 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 REQUIRED_FILES = [

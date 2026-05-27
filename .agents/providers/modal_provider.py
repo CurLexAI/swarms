@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Modal/vLLM provider adapter for Mihwar and Bayyinah endpoints."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Behavior tests for ``scripts/commander/qala-egress-residency-gate.sh``.
 
 Contracts under test (per ADR-0003 §Q8 and the gate's policy doc):

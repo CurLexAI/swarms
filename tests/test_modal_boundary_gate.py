@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Regression tests for scripts/commander/modal-boundary-gate.sh.
 
 These tests build an isolated temp-repo fixture, copy the gate script

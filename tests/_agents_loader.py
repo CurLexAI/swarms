@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Helper: load `.agents` Python modules under a synthetic package for tests.
 
 The `.agents` directory uses a leading dot, which is not a valid Python
