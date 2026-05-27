@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """MCP server exposing Mihwar and Bayyinah Modal endpoints as MCP tools.
 
 This server speaks the Model Context Protocol over stdio and forwards

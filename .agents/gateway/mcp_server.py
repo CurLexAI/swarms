@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """ADR-0005-pending stub. See .agents/gateway/README.md.
 
 This module is a deliberately inert OpenAI-compatible shim. It exposes

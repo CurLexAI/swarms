@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Regression tests for scripts/commander/adr-0001-boundary-gate.sh."""
 
 from __future__ import annotations

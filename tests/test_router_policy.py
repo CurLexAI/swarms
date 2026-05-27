@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Unit tests for `.agents/router/*` deterministic routing policy.
 
 Covers:

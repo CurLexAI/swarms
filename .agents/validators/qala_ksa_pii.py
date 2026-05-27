@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Qal'a (قلعة) — Q5 Sovereign KSA-PII Detector (Python side).
 
 Detects Saudi-specific identifiers in text payloads. Distinct from

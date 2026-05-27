@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Unit tests for `.agents/validators/bayyinah_validation_gate.py`.
 
 This file deliberately exposes three classes of regressions:

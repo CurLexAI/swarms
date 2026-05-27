@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Qal'a (قلعة) — Q6 Trace & Correlation (Python side).
 
 Pure, dependency-free trace context for the Qal'a security layer.

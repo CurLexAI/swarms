@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Qarar model router entrypoint."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """
 Integration test: pr_review.py ↔ Modal endpoint HTTP relay.
 

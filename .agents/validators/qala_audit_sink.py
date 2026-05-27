@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Qal'a (قلعة) — Q7 Sealed Audit Sink (Python side).
 
 Append-only, tamper-evident JSONL log. Each record carries a chained

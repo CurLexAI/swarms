@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Qarar Sovereign Network Health Guard.
 
 Raspberry Pi first. Safe by default. Decision flow:

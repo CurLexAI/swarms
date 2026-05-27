@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Lock the gateway stub's no-proxy property.
 
 These tests are the contract for `.agents/gateway/mcp_server.py` while

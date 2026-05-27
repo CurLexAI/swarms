@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Provider contracts for Qarar routing."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Shared typed contracts for Qarar agent routing.
 
 The router is deterministic policy code. It is not a prompt and must not make

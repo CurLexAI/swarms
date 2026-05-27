@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """
 POC — ADR-0001 Sanctioned Exception
 ====================================

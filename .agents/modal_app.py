@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """
 CurLexAI Coding Agents — Modal Deployment
 ==========================================

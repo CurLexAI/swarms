@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 from .adapter import (
     DataContext,
     QararSovereignToolClient,
