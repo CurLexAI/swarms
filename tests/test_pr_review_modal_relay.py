@@ -23,9 +23,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
-import io
 import json
-import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock

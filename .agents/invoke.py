@@ -296,7 +296,7 @@ def run_pipeline(task: str) -> None:
             f"{bayyinah_result['report']}\n\n"
             f"Fix all CRITICAL and HIGH findings and regenerate the full implementation."
         )
-        print(f"\nRevising based on Bayyinah feedback...")
+        print("\nRevising based on Bayyinah feedback...")
 
 
 # ── Info command ───────────────────────────────────────────────────────────
@@ -315,7 +315,7 @@ def show_info() -> None:
         print(f"  Size:    {model.get('size', '?')}")
         print(f"  Context: {model.get('context_window', '?')} tokens")
         print(f"  GPU:     {modal_cfg.get('gpu', '?')} x{modal_cfg.get('gpu_count', 1)}")
-        print(f"  Tasks:")
+        print("  Tasks:")
         for t in agent.get("tasks", []):
             print(f"    - {t}")
     print()

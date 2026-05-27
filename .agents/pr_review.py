@@ -33,7 +33,6 @@ Required environment variables:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 import textwrap
@@ -72,7 +71,7 @@ def _run_bayyinah(diff: str, args: argparse.Namespace) -> None:
     endpoint = _require_env("BAYYINAH_ENDPOINT")
     token = _require_env("AGENT_API_TOKEN")
 
-    print(f"Calling Bayyinah at endpoint...")
+    print("Calling Bayyinah at endpoint...")
 
     payload = {
         "code": diff[:MAX_DIFF_CHARS],
@@ -114,7 +113,7 @@ def _run_mihwar(diff: str, args: argparse.Namespace) -> None:
     token = _require_env("AGENT_API_TOKEN")
     bayyinah_report = args.bayyinah_report or os.environ.get("BAYYINAH_REPORT", "")
 
-    print(f"Calling Mihwar at endpoint...")
+    print("Calling Mihwar at endpoint...")
 
     task = (
         f"PR #{args.pr} in {args.repo} has the following diff:\n\n"
