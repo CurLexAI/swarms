@@ -42,6 +42,10 @@ QalaAuditEvent = Literal[
     "egress_check_approved",
     "auth_check_blocked",
     "auth_check_approved",
+    # Qarar router decisions (audited via build_audited_execution_plan).
+    "classification_decision",
+    "route_decision",
+    "route_blocked",
 ]
 
 _QALA_AUDIT_EVENTS: Final[frozenset[str]] = frozenset(
@@ -58,6 +62,10 @@ _QALA_AUDIT_EVENTS: Final[frozenset[str]] = frozenset(
         "egress_check_approved",
         "auth_check_blocked",
         "auth_check_approved",
+        # Qarar router decisions (audited via build_audited_execution_plan).
+        "classification_decision",
+        "route_decision",
+        "route_blocked",
     }
 )
 

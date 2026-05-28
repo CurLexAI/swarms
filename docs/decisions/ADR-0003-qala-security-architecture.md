@@ -215,6 +215,17 @@ authority anchoring, blockchain anchoring, IPFS publication — all
 explicitly deferred. The chain proves *internal* tamper-evidence, not
 external attestation.
 
+**Router decision events.** The sink event set includes three Qarar
+routing events — `classification_decision`, `route_decision`, and
+`route_blocked`. They are emitted by `build_audited_execution_plan`
+(`.agents/router/audited_router.py`), a thin wrapper that calls the
+*pure* `build_execution_plan` and then records the decision into the
+sealed sink. The router stays deterministic and side-effect-free; the
+audit write lives only at the wrapper boundary. The raw task text is
+never written (only derived metadata: kind, risk, provider, model,
+reviewer). The wrapper is fail-closed: an audit append failure raises
+`AuditError` rather than returning an un-audited plan.
+
 **Integrity gate.** `scripts/commander/qala-audit-integrity-gate.sh`
 wraps `QalaAuditSink.verify_chain` (via the `verify` CLI on the same
 module — no re-implementation) so chain integrity is a runnable CI gate.
