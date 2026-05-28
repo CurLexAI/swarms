@@ -58,8 +58,8 @@ class _FakeResponse:
     def __enter__(self) -> "_FakeResponse":
         return self
 
-    def __exit__(self, *exc: object) -> bool:
-        return False
+    def __exit__(self, *exc: object) -> None:
+        return None
 
 
 def _request(model: str = "test-model", **metadata: object) -> object:
@@ -67,12 +67,12 @@ def _request(model: str = "test-model", **metadata: object) -> object:
 
 
 class LocalOllamaProviderTests(unittest.TestCase):
-    def test_conforms_to_provider_protocol(self):
+    def test_conforms_to_provider_protocol(self) -> None:
         provider = LocalOllamaProvider()
         self.assertEqual(provider.name, "local_ollama")
         self.assertTrue(callable(provider.execute))
 
-    def test_execute_unwraps_response_field(self):
+    def test_execute_unwraps_response_field(self) -> None:
         provider = LocalOllamaProvider()
         body = json.dumps({"response": "hello world", "done": True})
         with mock.patch.object(
@@ -85,7 +85,7 @@ class LocalOllamaProviderTests(unittest.TestCase):
         self.assertEqual(result.output, "hello world")
         self.assertEqual(result.metadata["base_url_env"], "OLLAMA_BASE_URL")
 
-    def test_execute_raises_clean_error_on_transport_failure(self):
+    def test_execute_raises_clean_error_on_transport_failure(self) -> None:
         provider = LocalOllamaProvider()
         with mock.patch.object(
             urllib.request, "urlopen", side_effect=urllib.error.URLError("boom")
@@ -93,21 +93,21 @@ class LocalOllamaProviderTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 provider.execute(_request())
 
-    def test_health_true_on_2xx(self):
+    def test_health_true_on_2xx(self) -> None:
         provider = LocalOllamaProvider()
         with mock.patch.object(
             urllib.request, "urlopen", return_value=_FakeResponse("{}", status=200)
         ):
             self.assertTrue(provider.health())
 
-    def test_health_false_when_unreachable(self):
+    def test_health_false_when_unreachable(self) -> None:
         provider = LocalOllamaProvider()
         with mock.patch.object(
             urllib.request, "urlopen", side_effect=urllib.error.URLError("down")
         ):
             self.assertFalse(provider.health())
 
-    def test_base_url_is_env_configurable(self):
+    def test_base_url_is_env_configurable(self) -> None:
         with mock.patch.dict(
             "os.environ", {"OLLAMA_BASE_URL": "http://localhost:9999/"}, clear=False
         ):
@@ -115,12 +115,12 @@ class LocalOllamaProviderTests(unittest.TestCase):
 
 
 class LocalLlamaCppProviderTests(unittest.TestCase):
-    def test_conforms_to_provider_protocol(self):
+    def test_conforms_to_provider_protocol(self) -> None:
         provider = LocalLlamaCppProvider()
         self.assertEqual(provider.name, "local_llama_cpp")
         self.assertTrue(callable(provider.execute))
 
-    def test_execute_unwraps_openai_chat_shape(self):
+    def test_execute_unwraps_openai_chat_shape(self) -> None:
         provider = LocalLlamaCppProvider()
         body = json.dumps(
             {"choices": [{"message": {"role": "assistant", "content": "done"}}]}
@@ -132,7 +132,7 @@ class LocalLlamaCppProviderTests(unittest.TestCase):
         self.assertEqual(result.provider, "local_llama_cpp")
         self.assertEqual(result.output, "done")
 
-    def test_execute_raises_on_empty_choices(self):
+    def test_execute_raises_on_empty_choices(self) -> None:
         provider = LocalLlamaCppProvider()
         body = json.dumps({"choices": []})
         with mock.patch.object(
@@ -141,14 +141,14 @@ class LocalLlamaCppProviderTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 provider.execute(_request())
 
-    def test_health_true_on_2xx(self):
+    def test_health_true_on_2xx(self) -> None:
         provider = LocalLlamaCppProvider()
         with mock.patch.object(
             urllib.request, "urlopen", return_value=_FakeResponse("{}", status=204)
         ):
             self.assertTrue(provider.health())
 
-    def test_health_false_when_unreachable(self):
+    def test_health_false_when_unreachable(self) -> None:
         provider = LocalLlamaCppProvider()
         with mock.patch.object(
             urllib.request, "urlopen", side_effect=OSError("refused")

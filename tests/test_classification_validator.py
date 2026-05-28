@@ -43,39 +43,39 @@ _PII_TEXT = "Customer national id 1234567890 on file."
 
 
 class ClassificationRulesTests(unittest.TestCase):
-    def test_sama_source_is_public(self):
+    def test_sama_source_is_public(self) -> None:
         result = classify_content("SAMA", "Public circular on open banking.")
         self.assertEqual(result.classification, DataClassification.PUBLIC)
         self.assertIn("allowlisted_public_source", result.reasons)
         self.assertEqual(result.pii_categories, ())
 
-    def test_public_source_token_match_is_case_insensitive(self):
+    def test_public_source_token_match_is_case_insensitive(self) -> None:
         result = classify_content("laws.boe.gov.sa", "Royal decree text.")
         self.assertEqual(result.classification, DataClassification.PUBLIC)
 
-    def test_unknown_source_defaults_internal(self):
+    def test_unknown_source_defaults_internal(self) -> None:
         result = classify_content("random-blog", "Some commentary.")
         self.assertEqual(result.classification, DataClassification.INTERNAL)
         self.assertIn("unrecognized_source_default_internal", result.reasons)
 
-    def test_pii_detected_escalates_to_internal(self):
+    def test_pii_detected_escalates_to_internal(self) -> None:
         result = classify_content("random-blog", _PII_TEXT)
         self.assertEqual(result.classification, DataClassification.INTERNAL)
         self.assertIn("ksa_pii_detected", result.reasons)
         self.assertIn("KSA_NATIONAL_ID", result.pii_categories)
 
-    def test_pii_in_public_source_escalates_above_public(self):
+    def test_pii_in_public_source_escalates_above_public(self) -> None:
         result = classify_content("SAMA", _PII_TEXT)
         self.assertEqual(result.classification, DataClassification.INTERNAL)
         self.assertIn("ksa_pii_detected", result.reasons)
 
-    def test_metadata_floor_escalates(self):
+    def test_metadata_floor_escalates(self) -> None:
         result = classify_content(
             "SAMA", "no pii here", {"classification_floor": "RESTRICTED"}
         )
         self.assertEqual(result.classification, DataClassification.RESTRICTED)
 
-    def test_invalid_metadata_floor_is_ignored(self):
+    def test_invalid_metadata_floor_is_ignored(self) -> None:
         result = classify_content(
             "SAMA", "no pii here", {"classification_floor": "BOGUS"}
         )
@@ -83,7 +83,7 @@ class ClassificationRulesTests(unittest.TestCase):
 
 
 class ClassificationAuditTests(unittest.TestCase):
-    def test_decision_is_sealed_and_chain_verifies(self):
+    def test_decision_is_sealed_and_chain_verifies(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             # The `classification_decision` event ships in PR #242, not yet
             # on `main`. Probe support so this assertion auto-activates the
@@ -121,7 +121,7 @@ class ClassificationAuditTests(unittest.TestCase):
             self.assertIn("KSA_NATIONAL_ID", content)
             self.assertNotIn("1234567890", content)
 
-    def test_no_audit_when_trace_missing(self):
+    def test_no_audit_when_trace_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
             classify_content("SAMA", "no pii", audit_sink=sink)
