@@ -40,7 +40,7 @@ UUID_V4_RE = re.compile(
 
 
 class NewTraceTests(unittest.TestCase):
-    def test_generates_uuid_v4_ids(self):
+    def test_generates_uuid_v4_ids(self) -> None:
         ctx = new_trace("tenant-A", "input_validation")
         self.assertRegex(ctx.trace_id, UUID_V4_RE)
         self.assertRegex(ctx.span_id, UUID_V4_RE)
@@ -49,35 +49,35 @@ class NewTraceTests(unittest.TestCase):
         self.assertEqual(ctx.tenant_id, "tenant-A")
         self.assertEqual(ctx.phase, "input_validation")
 
-    def test_distinct_traces_have_distinct_ids(self):
+    def test_distinct_traces_have_distinct_ids(self) -> None:
         a = new_trace("tenant-A", "input_validation")
         b = new_trace("tenant-A", "input_validation")
         self.assertNotEqual(a.trace_id, b.trace_id)
         self.assertNotEqual(a.span_id, b.span_id)
 
-    def test_rejects_unknown_phase(self):
+    def test_rejects_unknown_phase(self) -> None:
         with self.assertRaises(QalaTraceError) as cm:
             new_trace("tenant-A", "not_a_phase")
         self.assertEqual(cm.exception.code, "INVALID_PHASE")
 
-    def test_rejects_empty_tenant(self):
+    def test_rejects_empty_tenant(self) -> None:
         with self.assertRaises(QalaTraceError) as cm:
             new_trace("", "input_validation")
         self.assertEqual(cm.exception.code, "INVALID_TENANT_ID")
 
-    def test_rejects_oversize_tenant(self):
+    def test_rejects_oversize_tenant(self) -> None:
         with self.assertRaises(QalaTraceError) as cm:
             new_trace("t" * 200, "input_validation")
         self.assertEqual(cm.exception.code, "INVALID_TENANT_ID")
 
-    def test_rejects_tenant_with_disallowed_chars(self):
+    def test_rejects_tenant_with_disallowed_chars(self) -> None:
         with self.assertRaises(QalaTraceError) as cm:
             new_trace("tenant A", "input_validation")
         self.assertEqual(cm.exception.code, "INVALID_TENANT_ID")
 
 
 class ChildSpanTests(unittest.TestCase):
-    def test_inherits_trace_and_tenant(self):
+    def test_inherits_trace_and_tenant(self) -> None:
         parent = new_trace("tenant-A", "input_validation")
         child = child_span(parent, "model_call")
         self.assertEqual(child.trace_id, parent.trace_id)
@@ -86,7 +86,7 @@ class ChildSpanTests(unittest.TestCase):
         self.assertNotEqual(child.span_id, parent.span_id)
         self.assertEqual(child.phase, "model_call")
 
-    def test_rejects_unknown_phase_on_child(self):
+    def test_rejects_unknown_phase_on_child(self) -> None:
         parent = new_trace("tenant-A", "input_validation")
         with self.assertRaises(QalaTraceError) as cm:
             child_span(parent, "garbage")
@@ -94,7 +94,7 @@ class ChildSpanTests(unittest.TestCase):
 
 
 class HeaderRoundTripTests(unittest.TestCase):
-    def test_round_trip_root_span(self):
+    def test_round_trip_root_span(self) -> None:
         ctx = new_trace("tenant-A", "policy_check")
         headers = to_headers(ctx)
         restored = from_headers(headers)
@@ -107,7 +107,7 @@ class HeaderRoundTripTests(unittest.TestCase):
         self.assertEqual(restored.phase, ctx.phase)
         self.assertEqual(restored.started_at, ctx.started_at)
 
-    def test_round_trip_child_span(self):
+    def test_round_trip_child_span(self) -> None:
         parent = new_trace("tenant-A", "input_validation")
         child = child_span(parent, "audit_emit")
         restored = from_headers(to_headers(child))
@@ -116,7 +116,7 @@ class HeaderRoundTripTests(unittest.TestCase):
         self.assertEqual(restored.parent_span_id, parent.span_id)
         self.assertEqual(restored.trace_id, parent.trace_id)
 
-    def test_case_insensitive_header_read(self):
+    def test_case_insensitive_header_read(self) -> None:
         ctx = new_trace("tenant-A", "audit_emit")
         headers = to_headers(ctx)
         upper = {k.upper(): v for k, v in headers.items()}
@@ -128,54 +128,55 @@ class FailClosedReaderTests(unittest.TestCase):
     """from_headers returns None — never raises — on malformed input."""
 
     def _valid_headers(self) -> dict[str, str]:
-        return to_headers(new_trace("tenant-A", "input_validation"))
+        result: dict[str, str] = to_headers(new_trace("tenant-A", "input_validation"))
+        return result
 
-    def test_missing_trace_id_returns_none(self):
+    def test_missing_trace_id_returns_none(self) -> None:
         h = self._valid_headers()
         del h["x-qala-trace-id"]
         self.assertIsNone(from_headers(h))
 
-    def test_missing_span_id_returns_none(self):
+    def test_missing_span_id_returns_none(self) -> None:
         h = self._valid_headers()
         del h["x-qala-span-id"]
         self.assertIsNone(from_headers(h))
 
-    def test_missing_tenant_returns_none(self):
+    def test_missing_tenant_returns_none(self) -> None:
         h = self._valid_headers()
         del h["x-qala-tenant-id"]
         self.assertIsNone(from_headers(h))
 
-    def test_missing_phase_returns_none(self):
+    def test_missing_phase_returns_none(self) -> None:
         h = self._valid_headers()
         del h["x-qala-phase"]
         self.assertIsNone(from_headers(h))
 
-    def test_malformed_trace_id_returns_none(self):
+    def test_malformed_trace_id_returns_none(self) -> None:
         h = self._valid_headers()
         h["x-qala-trace-id"] = "not-a-uuid"
         self.assertIsNone(from_headers(h))
 
-    def test_malformed_parent_span_id_returns_none(self):
+    def test_malformed_parent_span_id_returns_none(self) -> None:
         parent = new_trace("tenant-A", "input_validation")
         child = child_span(parent, "model_call")
         h = to_headers(child)
         h["x-qala-parent-span-id"] = "not-a-uuid"
         self.assertIsNone(from_headers(h))
 
-    def test_unknown_phase_returns_none(self):
+    def test_unknown_phase_returns_none(self) -> None:
         h = self._valid_headers()
         h["x-qala-phase"] = "unknown_phase"
         self.assertIsNone(from_headers(h))
 
-    def test_malformed_tenant_returns_none(self):
+    def test_malformed_tenant_returns_none(self) -> None:
         h = self._valid_headers()
         h["x-qala-tenant-id"] = "bad tenant id with spaces"
         self.assertIsNone(from_headers(h))
 
-    def test_empty_headers_returns_none(self):
+    def test_empty_headers_returns_none(self) -> None:
         self.assertIsNone(from_headers({}))
 
-    def test_malformed_started_at_returns_none(self):
+    def test_malformed_started_at_returns_none(self) -> None:
         h = self._valid_headers()
         h["x-qala-started-at"] = "not-a-date"
         self.assertIsNone(from_headers(h))
@@ -197,7 +198,7 @@ class NoSecretsInHeadersTests(unittest.TestCase):
         re.compile(r"\.modal\.run", re.IGNORECASE),
     ]
 
-    def test_no_secret_shapes_in_headers(self):
+    def test_no_secret_shapes_in_headers(self) -> None:
         ctx = new_trace("tenant-A", "model_call")
         for value in to_headers(ctx).values():
             for pattern in self.SECRET_SHAPES:
@@ -206,7 +207,7 @@ class NoSecretsInHeadersTests(unittest.TestCase):
                     f"trace header value leaked a secret-shaped pattern: {value!r}",
                 )
 
-    def test_no_authorization_header_emitted(self):
+    def test_no_authorization_header_emitted(self) -> None:
         ctx = new_trace("tenant-A", "model_call")
         headers = {k.lower(): v for k, v in to_headers(ctx).items()}
         self.assertNotIn("authorization", headers)
