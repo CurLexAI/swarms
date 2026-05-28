@@ -269,6 +269,13 @@ class QalaAuditSink:
                     message="record is not valid JSON",
                     at_record=index,
                 )
+            if not isinstance(parsed, dict):
+                return QalaAuditVerifyErr(
+                    ok=False,
+                    error="AUDIT_CHAIN_BROKEN",
+                    message="record is not a JSON object",
+                    at_record=index,
+                )
             if parsed.get("prevHash") != expected_prev:
                 return QalaAuditVerifyErr(
                     ok=False,
@@ -276,14 +283,25 @@ class QalaAuditSink:
                     message=f"prev_hash mismatch at record {index}",
                     at_record=index,
                 )
-            canonical = _canonicalize(
-                event=parsed["event"],
-                occurred_at=parsed["occurredAt"],
-                payload=parsed.get("payload") or {},
-                span_id=parsed["spanId"],
-                tenant_id=parsed["tenantId"],
-                trace_id=parsed["traceId"],
-            )
+            # A record may be valid JSON yet missing required fields. Treat
+            # that as a broken chain (tamper/corruption), never a traceback,
+            # so the CLI keeps its documented exit-code contract.
+            try:
+                canonical = _canonicalize(
+                    event=parsed["event"],
+                    occurred_at=parsed["occurredAt"],
+                    payload=parsed.get("payload") or {},
+                    span_id=parsed["spanId"],
+                    tenant_id=parsed["tenantId"],
+                    trace_id=parsed["traceId"],
+                )
+            except KeyError as exc:
+                return QalaAuditVerifyErr(
+                    ok=False,
+                    error="AUDIT_CHAIN_BROKEN",
+                    message=f"record missing required field: {exc.args[0]}",
+                    at_record=index,
+                )
             recomputed = _sha256(f"{expected_prev}\n{canonical}")
             if recomputed != parsed.get("recordHash"):
                 return QalaAuditVerifyErr(

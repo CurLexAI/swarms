@@ -20,6 +20,7 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -35,7 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE = REPO_ROOT / "scripts" / "commander" / "qala-audit-integrity-gate.sh"
 
 
-def _run_gate(sink_path: Path) -> subprocess.CompletedProcess:
+def _run_gate(sink_path: Path) -> "subprocess.CompletedProcess[str]":
     return subprocess.run(
         ["bash", str(GATE), str(REPO_ROOT)],
         capture_output=True,
@@ -51,7 +52,7 @@ def _path_env() -> str:
     return os.environ.get("PATH", "")
 
 
-def _append_valid(sink, payload):
+def _append_valid(sink: Any, payload: dict[str, Any]) -> Any:
     return sink.append(
         event="policy_decision",
         trace_id="trace-1",
@@ -103,6 +104,29 @@ class AuditIntegrityGateTests(unittest.TestCase):
             )
             self.assertIn("[RESULT] FAIL", result.stdout)
             self.assertIn("AUDIT_CHAIN_BROKEN", result.stdout)
+
+    def test_malformed_record_reports_chain_broken(self) -> None:
+        # A record that is valid JSON but missing required fields must be
+        # classified as AUDIT_CHAIN_BROKEN (gate rc=1), never a traceback,
+        # so the CLI keeps its documented exit-code contract.
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "audit.jsonl"
+            sink = QalaAuditSink(path)
+            _append_valid(sink, {"i": 1})
+            first = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+            malformed = {"prevHash": first["recordHash"], "recordHash": "deadbeef"}
+            with path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(malformed) + "\n")
+
+            result = _run_gate(path)
+            self.assertEqual(
+                result.returncode,
+                1,
+                msg=f"expected FAIL, got rc={result.returncode}\n"
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+            )
+            self.assertIn("AUDIT_CHAIN_BROKEN", result.stdout)
+            self.assertNotIn("Traceback", result.stderr)
 
     def test_absent_log_passes(self) -> None:
         with TemporaryDirectory() as tmp:

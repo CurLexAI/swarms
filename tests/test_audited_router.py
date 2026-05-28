@@ -21,6 +21,7 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any, NoReturn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -45,7 +46,7 @@ _MARKER = "SECRET_MARKER_z9q"
 _CODING_TASK = f"refactor the python function {_MARKER} and add a unit test"
 
 
-def _events(path: Path) -> list[dict]:
+def _events(path: Path) -> list[dict[str, Any]]:
     return [
         json.loads(line)
         for line in path.read_text(encoding="utf-8").splitlines()
@@ -90,7 +91,7 @@ class AuditedRouterTests(unittest.TestCase):
             path = Path(tmp) / "audit.jsonl"
             sink = QalaAuditSink(path)
 
-            def _raise(*_args, **_kwargs):
+            def _raise(*_args: object, **_kwargs: object) -> NoReturn:
                 raise ValueError("No route defined for task kind")
 
             original = audited_router.build_execution_plan
@@ -109,7 +110,7 @@ class AuditedRouterTests(unittest.TestCase):
 
     def test_fail_closed_when_append_fails(self) -> None:
         class _FailingSink:
-            def append(self, **_kwargs):
+            def append(self, **_kwargs: object) -> object:
                 class _Err:
                     ok = False
                     error = "AUDIT_WRITE_FAILED"
