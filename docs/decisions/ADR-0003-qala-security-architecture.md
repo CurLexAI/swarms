@@ -77,7 +77,7 @@ external numbering.
 | Q4 | Output validation gate | EXTEND | `.agents/validators/bayyinah_validation_gate.py` (existing) |
 | Q5 | Sovereign PII detection | NEW | `.agents/validators/qala_ksa_pii.py` + `src/security/qalaKsaPii.ts` (Phase 2 item 4) |
 | Q6 | Trace & correlation | NEW | `.agents/validators/qala_trace.py` + `src/security/qalaTrace.ts` (Phase 2 item 2) |
-| Q7 | Sealed audit sink | NEW | `.agents/validators/qala_audit_sink.py` + `src/security/qalaAuditSink.ts` (Phase 2 item 3) |
+| Q7 | Sealed audit sink | NEW | `.agents/validators/qala_audit_sink.py` + `src/security/qalaAuditSink.ts` + `scripts/commander/qala-audit-integrity-gate.sh` (Phase 2 item 3) |
 | Q8 | Egress residency gate | NEW | `scripts/commander/qala-egress-residency-gate.sh` + `.agents/policies/qala-egress-residency.md` (Phase 2 item 7) |
 | Q9 | Threat detection / radar | EXTEND | `src/security/sovereignCyberRadar.ts` (existing) |
 
@@ -214,6 +214,14 @@ to. Lifts the chained-SHA-256 ledger pattern already present in
 authority anchoring, blockchain anchoring, IPFS publication — all
 explicitly deferred. The chain proves *internal* tamper-evidence, not
 external attestation.
+
+**Integrity gate.** `scripts/commander/qala-audit-integrity-gate.sh`
+wraps `QalaAuditSink.verify_chain` (via the `verify` CLI on the same
+module — no re-implementation) so chain integrity is a runnable CI gate.
+A *present but broken* chain fails closed; an *absent or empty* log
+passes (lazy sink, pre-activation state). Sink path resolves from
+`$QALA_AUDIT_SINK_PATH`, else `artifacts/security/qala-audit.jsonl`.
+Behavior is locked by `tests/test_qala_audit_integrity_gate.py`.
 
 ### Q8 — Egress residency gate (NEW)
 
