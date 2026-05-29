@@ -167,7 +167,7 @@ TOOLS: list[dict[str, Any]] = [
     },
 ]
 
-GATEWAY = AegisMcpGateway(TOOLS)
+GATEWAY: AegisMcpGateway | None = None
 
 FREE_BIRDS_REVIEW = [
     {"id": "falcon", "checks": ["security_review", "tenant_validation"]},
@@ -186,6 +186,15 @@ FREE_BIRDS_DESIGN = [
     {"id": "eagle", "checks": ["refactoring_with_behavioral_preservation", "performance_critical_implementation"]},
     {"id": "phoenix", "checks": ["complex_multi_file_feature_development", "system_design"]},
 ]
+
+
+def _gateway() -> AegisMcpGateway:
+    """Return the lazily initialized Aegis gateway instance."""
+
+    global GATEWAY
+    if GATEWAY is None:
+        GATEWAY = AegisMcpGateway(TOOLS)
+    return GATEWAY
 
 
 def _filter_birds(pool: list[dict[str, Any]], focus: list[str]) -> list[dict[str, Any]]:
@@ -276,6 +285,8 @@ def _handle(request: dict[str, Any]) -> None:
     method = request.get("method", "")
     request_id = request.get("id")
     params = request.get("params", {}) or {}
+    if not isinstance(params, dict):
+        params = {}
 
     if method == "initialize":
         _result(
@@ -293,7 +304,7 @@ def _handle(request: dict[str, Any]) -> None:
 
     if method == "tools/list":
         try:
-            tools = GATEWAY.filter_tools(params, request_id)
+            tools = _gateway().filter_tools(params, request_id)
         except AegisAuditError:
             _error(request_id, -32603, "Aegis audit failed for tool discovery.")
             return
@@ -301,12 +312,12 @@ def _handle(request: dict[str, Any]) -> None:
         return
 
     if method == "tools/call":
-        tool_name = params.get("name", "")
+        tool_name = str(params.get("name", ""))
         arguments = params.get("arguments", {}) or {}
         if not isinstance(arguments, dict):
             arguments = {}
         try:
-            decision = GATEWAY.authorize_tool_call(tool_name, arguments, params, request_id)
+            decision = _gateway().authorize_tool_call(tool_name, arguments, params, request_id)
         except AegisAuditError:
             _result(
                 request_id,
