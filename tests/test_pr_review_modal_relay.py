@@ -86,7 +86,7 @@ class BayyinahRelayContractTests(unittest.TestCase):
             {
                 "BAYYINAH_ENDPOINT": "https://bayyinah.modal.example/api",
                 "AGENT_API_TOKEN": "secret-token-xyz",
-                "GITHUB_TOKEN": "ghs_fake_token_for_test",
+                "GITHUB_TOKEN": "test-github-token",
             },
             clear=False,
         )
