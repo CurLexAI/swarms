@@ -15,26 +15,6 @@ if [[ ! -f "$WORKFLOW_FILE" ]]; then
 fi
 
 echo "[INFO] Parsing configured agents from $CONFIG_FILE"
-if command -v python3 >/dev/null 2>&1; then
-  PY=python3
-elif command -v python >/dev/null 2>&1; then
-  PY=python
-else
-  echo "[FAIL] python3/python not found"
-  exit 1
-fi
-"$PY" - <<'PY'
-import yaml
-
-path = ".agents/config/agents.yaml"
-with open(path, encoding="utf-8") as handle:
-    data = yaml.safe_load(handle) or {}
-agents = data.get("agents", {})
-print(f"[OK] configured_agent_count={len(agents)}")
-for key, val in agents.items():
-    val = val or {}
-    name = val.get("display_name") or key
-    model = (val.get("model") or {}).get("id") or "unknown"
 PYTHON_BIN="${PYTHON_BIN:-}"
 if [[ -z "$PYTHON_BIN" ]]; then
   if command -v python3 >/dev/null 2>&1; then
