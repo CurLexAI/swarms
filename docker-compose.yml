@@ -90,9 +90,49 @@ services:
       - mihwar-sovereign
     restart: unless-stopped
 
+  # Sovereign local model runtime — internal only, no published host ports.
+  # Reached by the Python providers (src/providers/local_ollama.py) via the
+  # Docker DNS name "ollama" on the internal mihwar-sovereign network.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: lexprim-ollama
+    expose:
+      - "11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mihwar-sovereign
+    restart: unless-stopped
+
+  # Sovereign local llama.cpp OpenAI-compatible server — internal only.
+  # Reached by src/providers/local_llama_cpp.py via the DNS name "llama-server".
+  # Model files are bind-mounted read-only from ${QARAR_MODEL_STORE:-./models}.
+  llama-server:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: lexprim-llama-server
+    command: -m /models/model.gguf --host 0.0.0.0 --port 8080 -c 8192
+    expose:
+      - "8080"
+    volumes:
+      - ${QARAR_MODEL_STORE:-./models}:/models:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mihwar-sovereign
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   wireguard_config:
+  ollama_data:
 
 networks:
   mihwar-sovereign:
