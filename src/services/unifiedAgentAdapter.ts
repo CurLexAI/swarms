@@ -764,6 +764,11 @@ export class UnifiedAgentAdapter {
     }
 
     try {
+      // PENDING -> RUNNING: AuditService.TASK_STATUS_TRANSITIONS only permits
+      // PENDING -> {RUNNING, FAILED}, so a terminal COMPLETED is invalid unless
+      // the task first transitions through RUNNING. Emit it before execution.
+      await AuditService.updateTaskStatus(taskId, "RUNNING", traceMetadata);
+
       if (agent.enable_reasoning) {
         logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
         const plan = await this.prepareReasoningPlan(agent, executionPayload);
