@@ -3,7 +3,7 @@
 This directory contains MCP (Model Context Protocol) servers that expose the Modal-hosted **Mihwar** and **Bayyinah** agents as callable tools inside MCP-compatible clients.
 
 **Two deployment models:**
-1. **Local** (`.agents/mcp/server.py`) — Python stdio server for GitHub Copilot, Claude Desktop, Cursor
+1. **Local** (`.agents/mcp/server.py`) — Python stdio server for GitHub Copilot, Codex, Claude Desktop, Cursor
 2. **Remote** (`.agents/mcp/modal-mcp/`) — Node.js HTTPS server on Render for ChatGPT, Claude web, and other remote clients
 
 See [RENDER_MCP_INTEGRATION.md](./RENDER_MCP_INTEGRATION.md) for remote deployment instructions.
@@ -25,7 +25,7 @@ The server speaks JSON-RPC over stdio and forwards tool calls to the Modal endpo
 
 No external dependencies required — uses only Python stdlib.
 
-> **Identity note.** The tools above are MCP-exposed surfaces, consumable by any MCP client (GitHub Copilot, Claude Desktop, Cursor, Continue, direct stdio peers). "Copilot" is the UI label of one such client, not a distinct runtime — every client hits the same JSON-RPC server and reaches the same Modal endpoints. The per-client setup sections below differ only in how each host spawns the stdio process and reads env vars.
+> **Identity note.** The tools above are MCP-exposed surfaces, consumable by any MCP client (GitHub Copilot, Codex, Claude Desktop, Cursor, Continue, direct stdio peers). "Copilot" is the UI label of one such client, not a distinct runtime — every client hits the same JSON-RPC server and reaches the same Modal endpoints. The per-client setup sections below differ only in how each host spawns the stdio process and reads env vars.
 
 ---
 
@@ -102,6 +102,66 @@ The `$VAR` references resolve from the repository's `copilot environment` secret
 
 ---
 
+## Codex CLI / IDE Extension Setup
+
+Codex reads MCP server configuration from `config.toml`. Prefer the user-scoped file (`~/.codex/config.toml`) so private endpoint and token environment wiring never lands in Git. Use project-scoped `.codex/config.toml` only for trusted worktrees, and never commit real bearer tokens, Modal URLs, or private endpoint values.
+
+### Local CurLexAI stdio server
+
+Add the local CurLexAI agent server as a stdio MCP server:
+
+```toml
+[mcp_servers.curlexai_agents]
+command = "python3"
+args = ["-u", "/absolute/path/to/swarms/.agents/mcp/server.py"]
+env_vars = [
+  "MIHWAR_ENDPOINT",
+  "BAYYINAH_ENDPOINT",
+  "AGENT_API_TOKEN",
+  "AEGIS_MCP_ROLE",
+  "AEGIS_TENANT_ID",
+  "QALA_AUDIT_SINK_PATH",
+]
+startup_timeout_sec = 10
+tool_timeout_sec = 60
+default_tools_approval_mode = "prompt"
+
+[mcp_servers.curlexai_agents.tools.bayyinah_review]
+approval_mode = "approve"
+```
+
+Operational notes:
+
+- Use `env_vars` to forward values already present in the local or remote executor environment; do not paste secret values into TOML.
+- For remote Codex stdio execution, set `experimental_environment = "remote"` and use `{ name = "VAR_NAME", source = "remote" }` entries for secrets that exist only in the remote executor.
+- Restrict `enabled_tools` when a Codex session only needs review tools. For example, observer sessions should allow `bayyinah_review` and `free_birds_review` only.
+- In the Codex TUI, run `/mcp` to confirm the server initialized and inspect available tools.
+
+### Render remote HTTP server
+
+Keep Render infrastructure MCP access separate from the CurLexAI agent server:
+
+```toml
+[mcp_servers.render]
+url = "https://mcp.render.com/mcp"
+default_tools_approval_mode = "prompt"
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+```
+
+If a remote HTTP MCP server requires bearer authentication, bind it to an environment variable instead of a literal token:
+
+```toml
+[mcp_servers.curlexai_remote_mcp]
+url = "https://example.internal/mcp"
+bearer_token_env_var = "MCP_BEARER_TOKEN"
+default_tools_approval_mode = "prompt"
+```
+
+OAuth-capable MCP servers should be authenticated with `codex mcp login <server-name>` after the server is configured. If the provider requires a fixed callback, configure `mcp_oauth_callback_port` or `mcp_oauth_callback_url` at the top level of `config.toml`.
+
+---
+
 ## Render MCP Workspace Setup
 
 `.vscode/mcp.json` defines Render as a remote HTTP MCP server:
@@ -137,9 +197,9 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
       "command": "python",
       "args": ["-u", "/absolute/path/to/swarms/.agents/mcp/server.py"],
       "env": {
-        "MIHWAR_ENDPOINT": "https://curlexai--mihwar-generate.modal.run",
-        "BAYYINAH_ENDPOINT": "https://curlexai--bayyinah-review.modal.run",
-        "AGENT_API_TOKEN": "your-token-here",
+        "MIHWAR_ENDPOINT": "$MIHWAR_ENDPOINT",
+        "BAYYINAH_ENDPOINT": "$BAYYINAH_ENDPOINT",
+        "AGENT_API_TOKEN": "$AGENT_API_TOKEN",
         "AEGIS_MCP_ROLE": "operator",
         "AEGIS_TENANT_ID": "system"
       }
@@ -159,9 +219,9 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 ## Local Smoke Test
 
 ```bash
-export MIHWAR_ENDPOINT="https://curlexai--mihwar-generate.modal.run"
-export BAYYINAH_ENDPOINT="https://curlexai--bayyinah-review.modal.run"
-export AGENT_API_TOKEN="your-token"
+export MIHWAR_ENDPOINT="${MIHWAR_ENDPOINT:?set in your secret manager}"
+export BAYYINAH_ENDPOINT="${BAYYINAH_ENDPOINT:?set in your secret manager}"
+export AGENT_API_TOKEN="${AGENT_API_TOKEN:?set in your secret manager}"
 export AEGIS_MCP_ROLE="operator"
 
 # List tools
