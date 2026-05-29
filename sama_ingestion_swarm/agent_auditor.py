@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """SAMA auditor/indexer agent for security-gated regulatory articles."""
 
 from __future__ import annotations

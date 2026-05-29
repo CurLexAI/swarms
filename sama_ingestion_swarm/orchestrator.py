@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Orchestrator for the SAMA ingestion swarm pipeline."""
 
 from __future__ import annotations
