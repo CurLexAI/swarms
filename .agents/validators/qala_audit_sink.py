@@ -16,9 +16,11 @@ Mirror of ``src/security/qalaAuditSink.ts``. See
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
+import sys
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -40,6 +42,10 @@ QalaAuditEvent = Literal[
     "egress_check_approved",
     "auth_check_blocked",
     "auth_check_approved",
+    # Qarar router decisions (audited via build_audited_execution_plan).
+    "classification_decision",
+    "route_decision",
+    "route_blocked",
 ]
 
 _QALA_AUDIT_EVENTS: Final[frozenset[str]] = frozenset(
@@ -56,6 +62,10 @@ _QALA_AUDIT_EVENTS: Final[frozenset[str]] = frozenset(
         "egress_check_approved",
         "auth_check_blocked",
         "auth_check_approved",
+        # Qarar router decisions (audited via build_audited_execution_plan).
+        "classification_decision",
+        "route_decision",
+        "route_blocked",
     }
 )
 
@@ -259,6 +269,13 @@ class QalaAuditSink:
                     message="record is not valid JSON",
                     at_record=index,
                 )
+            if not isinstance(parsed, dict):
+                return QalaAuditVerifyErr(
+                    ok=False,
+                    error="AUDIT_CHAIN_BROKEN",
+                    message="record is not a JSON object",
+                    at_record=index,
+                )
             if parsed.get("prevHash") != expected_prev:
                 return QalaAuditVerifyErr(
                     ok=False,
@@ -266,14 +283,25 @@ class QalaAuditSink:
                     message=f"prev_hash mismatch at record {index}",
                     at_record=index,
                 )
-            canonical = _canonicalize(
-                event=parsed["event"],
-                occurred_at=parsed["occurredAt"],
-                payload=parsed.get("payload") or {},
-                span_id=parsed["spanId"],
-                tenant_id=parsed["tenantId"],
-                trace_id=parsed["traceId"],
-            )
+            # A record may be valid JSON yet missing required fields. Treat
+            # that as a broken chain (tamper/corruption), never a traceback,
+            # so the CLI keeps its documented exit-code contract.
+            try:
+                canonical = _canonicalize(
+                    event=parsed["event"],
+                    occurred_at=parsed["occurredAt"],
+                    payload=parsed.get("payload") or {},
+                    span_id=parsed["spanId"],
+                    tenant_id=parsed["tenantId"],
+                    trace_id=parsed["traceId"],
+                )
+            except KeyError as exc:
+                return QalaAuditVerifyErr(
+                    ok=False,
+                    error="AUDIT_CHAIN_BROKEN",
+                    message=f"record missing required field: {exc.args[0]}",
+                    at_record=index,
+                )
             recomputed = _sha256(f"{expected_prev}\n{canonical}")
             if recomputed != parsed.get("recordHash"):
                 return QalaAuditVerifyErr(
@@ -305,6 +333,58 @@ class QalaAuditSink:
         return value if isinstance(value, str) else QALA_GENESIS_HASH
 
 
+def _resolve_verify_path(path_arg: str | None) -> Path:
+    if path_arg:
+        return Path(path_arg)
+    return _default_sink_path()
+
+
+def _main(argv: list[str] | None = None) -> int:
+    """CLI verifier for the sealed audit chain (Q7).
+
+    Reuses ``QalaAuditSink.verify_chain`` — it does not re-implement the
+    chain logic. Exit codes are stable so a shell gate can branch on them:
+
+      0  -> chain intact (or empty/absent log)
+      10 -> AUDIT_CHAIN_BROKEN (tamper, insertion, truncation, gap)
+      2  -> AUDIT_READ_FAILED (I/O failure) — fail-closed for the gate
+    """
+    parser = argparse.ArgumentParser(
+        prog="qala_audit_sink",
+        description="Verify the tamper-evident Qal'a audit chain (Q7).",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+    verify_p = sub.add_parser("verify", help="Verify the on-disk audit chain.")
+    verify_p.add_argument(
+        "--path",
+        default=None,
+        help=(
+            "Audit sink JSONL path (default: $QALA_AUDIT_SINK_PATH or "
+            "artifacts/security/qala-audit.jsonl)."
+        ),
+    )
+    args = parser.parse_args(argv)
+
+    if args.command == "verify":
+        sink = QalaAuditSink(_resolve_verify_path(args.path))
+        print(f"AUDIT_SINK_PATH: {sink.sink_path}")
+        result = sink.verify_chain()
+        if result.ok:
+            print(f"AUDIT_CHAIN_OK records_verified={result.records_verified}")
+            return 0
+        if result.error == "AUDIT_CHAIN_BROKEN":
+            print(
+                f"AUDIT_CHAIN_BROKEN at_record={result.at_record} "
+                f"message={result.message}"
+            )
+            return 10
+        print(f"AUDIT_READ_FAILED message={result.message}")
+        return 2
+
+    parser.error(f"unknown command: {args.command}")  # pragma: no cover
+    return 2  # pragma: no cover — parser.error exits before this
+
+
 __all__ = [
     "QalaAuditEvent",
     "QalaAuditRecord",
@@ -317,3 +397,7 @@ __all__ = [
     "QalaAuditVerifyResult",
     "QALA_GENESIS_HASH",
 ]
+
+
+if __name__ == "__main__":
+    sys.exit(_main())
