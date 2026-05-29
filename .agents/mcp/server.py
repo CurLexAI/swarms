@@ -4,10 +4,14 @@
 
 This server speaks the Model Context Protocol over stdio and forwards
 tool calls to the Modal-hosted private agents. The tools are MCP-exposed
-surfaces, consumable by any MCP-compatible client — GitHub Copilot,
+surfaces, consumable by any MCP-compatible client: GitHub Copilot,
 Claude Desktop, Cursor, Continue, or a direct stdio peer. "Copilot" is a
 UI label for one such client and is not a distinct runtime: every client
 hits the same JSON-RPC surface defined below.
+
+Aegis sits at this MCP boundary before any Modal call. It filters tool
+discovery by caller role, blocks prompt-injection style tool-call inputs,
+and emits sanitized Qal'a audit records for discovery and call decisions.
 
 It reads endpoints and tokens from environment variables sourced from
 the invoking client's environment (Copilot environment secrets, GitHub
@@ -20,6 +24,10 @@ Required env:
     MIHWAR_ENDPOINT
     BAYYINAH_ENDPOINT
     AGENT_API_TOKEN
+
+Optional Aegis env:
+    AEGIS_MCP_ROLE     default caller role (default: operator)
+    AEGIS_TENANT_ID    tenant id written to Qal'a audit records
 """
 
 from __future__ import annotations
@@ -30,6 +38,8 @@ import sys
 import urllib.error
 import urllib.request
 from typing import Any
+
+from aegis_gateway import AegisAuditError, AegisMcpGateway
 
 
 PROTOCOL_VERSION = "2024-11-05"
@@ -91,7 +101,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "free_birds_review",
         "description": (
-            "Free Birds swarm review pass — 8 aliased birds on Qwen2.5-Coder-32B "
+            "Free Birds swarm review pass: 8 aliased birds on Qwen2.5-Coder-32B "
             "(BAYYINAH_ENDPOINT). Each bird inspects a different angle: falcon "
             "(security/tenant), hawk (type/contract), shaheen (prompt-injection/secrets), "
             "kestrel (regression/coverage), osprey (dependency/supply-chain), harrier "
@@ -123,7 +133,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "free_birds_design",
         "description": (
-            "Free Birds swarm design pass — 4 aliased birds on DeepSeek-Coder-V2-Instruct "
+            "Free Birds swarm design pass: 4 aliased birds on DeepSeek-Coder-V2-Instruct "
             "(MIHWAR_ENDPOINT). owl (architecture/multi-file plan), raven (task "
             "decomposition/API contract), eagle (refactor/perf), phoenix (system design). "
             "Returns a plan, file list, and implementation outline."
@@ -157,24 +167,34 @@ TOOLS: list[dict[str, Any]] = [
     },
 ]
 
+GATEWAY: AegisMcpGateway | None = None
 
 FREE_BIRDS_REVIEW = [
-    {"id": "falcon",  "checks": ["security_review", "tenant_validation"]},
-    {"id": "hawk",    "checks": ["type_safety", "contract_validation"]},
+    {"id": "falcon", "checks": ["security_review", "tenant_validation"]},
+    {"id": "hawk", "checks": ["type_safety", "contract_validation"]},
     {"id": "shaheen", "checks": ["prompt_injection_surface", "secrets_leakage_scan"]},
     {"id": "kestrel", "checks": ["regression_check", "test_coverage_gap_detection"]},
-    {"id": "osprey",  "checks": ["dependency_risk_assessment", "supply_chain_check"]},
+    {"id": "osprey", "checks": ["dependency_risk_assessment", "supply_chain_check"]},
     {"id": "harrier", "checks": ["modal_boundary_check", "public_surface_audit"]},
-    {"id": "merlin",  "checks": ["merge_safety", "conflict_analysis"]},
-    {"id": "saker",   "checks": ["citation_validation", "legal_risk_review"]},
+    {"id": "merlin", "checks": ["merge_safety", "conflict_analysis"]},
+    {"id": "saker", "checks": ["citation_validation", "legal_risk_review"]},
 ]
 
 FREE_BIRDS_DESIGN = [
-    {"id": "owl",     "checks": ["architecture", "multi_file_planning"]},
-    {"id": "raven",   "checks": ["task_decomposition", "api_contract_design"]},
-    {"id": "eagle",   "checks": ["refactoring_with_behavioral_preservation", "performance_critical_implementation"]},
+    {"id": "owl", "checks": ["architecture", "multi_file_planning"]},
+    {"id": "raven", "checks": ["task_decomposition", "api_contract_design"]},
+    {"id": "eagle", "checks": ["refactoring_with_behavioral_preservation", "performance_critical_implementation"]},
     {"id": "phoenix", "checks": ["complex_multi_file_feature_development", "system_design"]},
 ]
+
+
+def _gateway() -> AegisMcpGateway:
+    """Return the lazily initialized Aegis gateway instance."""
+
+    global GATEWAY
+    if GATEWAY is None:
+        GATEWAY = AegisMcpGateway(TOOLS)
+    return GATEWAY
 
 
 def _filter_birds(pool: list[dict[str, Any]], focus: list[str]) -> list[dict[str, Any]]:
@@ -228,7 +248,7 @@ def _call_modal(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     # Bearer header (`_verify_bearer_token`); body `token` field is ignored
     # and an unauthenticated request returns 401 missing_authorization.
     # Keep this aligned with .agents/pr_review.py and .agents/providers/
-    # modal_provider.py — header is the single transport across the repo.
+    # modal_provider.py: header is the single transport across the repo.
     data = json.dumps(enriched).encode("utf-8")
     req = urllib.request.Request(
         endpoint,
@@ -265,6 +285,8 @@ def _handle(request: dict[str, Any]) -> None:
     method = request.get("method", "")
     request_id = request.get("id")
     params = request.get("params", {}) or {}
+    if not isinstance(params, dict):
+        params = {}
 
     if method == "initialize":
         _result(
@@ -281,12 +303,44 @@ def _handle(request: dict[str, Any]) -> None:
         return
 
     if method == "tools/list":
-        _result(request_id, {"tools": TOOLS})
+        try:
+            tools = _gateway().filter_tools(params, request_id)
+        except AegisAuditError:
+            _error(request_id, -32603, "Aegis audit failed for tool discovery.")
+            return
+        _result(request_id, {"tools": tools})
         return
 
     if method == "tools/call":
-        tool_name = params.get("name", "")
+        tool_name = str(params.get("name", ""))
         arguments = params.get("arguments", {}) or {}
+        if not isinstance(arguments, dict):
+            arguments = {}
+        try:
+            decision = _gateway().authorize_tool_call(tool_name, arguments, params, request_id)
+        except AegisAuditError:
+            _result(
+                request_id,
+                {
+                    "content": [{"type": "text", "text": "Error: Aegis audit failed."}],
+                    "isError": True,
+                },
+            )
+            return
+        if not decision.allowed:
+            _result(
+                request_id,
+                {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"Error: Aegis MCP gateway blocked request ({decision.reason}).",
+                        }
+                    ],
+                    "isError": True,
+                },
+            )
+            return
         try:
             output = _call_modal(tool_name, arguments)
         except Exception as exc:

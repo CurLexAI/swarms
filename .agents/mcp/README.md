@@ -20,10 +20,53 @@ The server speaks JSON-RPC over stdio and forwards tool calls to the Modal endpo
 |------|----------------|-------|
 | `mihwar_generate` | `MIHWAR_ENDPOINT` | DeepSeek-Coder-V2-Instruct |
 | `bayyinah_review` | `BAYYINAH_ENDPOINT` | Qwen2.5-Coder-32B-Instruct |
+| `free_birds_review` | `BAYYINAH_ENDPOINT` | Qwen2.5-Coder-32B-Instruct |
+| `free_birds_design` | `MIHWAR_ENDPOINT` | DeepSeek-Coder-V2-Instruct |
 
 No external dependencies required — uses only Python stdlib.
 
 > **Identity note.** The tools above are MCP-exposed surfaces, consumable by any MCP client (GitHub Copilot, Claude Desktop, Cursor, Continue, direct stdio peers). "Copilot" is the UI label of one such client, not a distinct runtime — every client hits the same JSON-RPC server and reaches the same Modal endpoints. The per-client setup sections below differ only in how each host spawns the stdio process and reads env vars.
+
+---
+
+## Aegis Gateway Controls
+
+The local stdio server includes the first Aegis MCP gateway layer:
+
+- `tools/list` is filtered by caller role.
+- `tools/call` is denied before Modal dispatch when the role cannot use the requested tool.
+- Tool-call arguments are inspected for prompt-injection style abuse, such as instruction override, hidden prompt disclosure, safety bypass, jailbreak persona, or secret-exfiltration requests.
+- Discovery and call decisions are written to the Qal'a sealed audit sink as sanitized `policy_decision` records. Raw tool arguments are never written; the audit payload records argument keys, byte length, SHA-256 hash, decision reason, and rule ids.
+
+Roles can be supplied through MCP request metadata:
+
+```json
+{
+  "_meta": {
+    "aegis": {
+      "role": "observer"
+    }
+  }
+}
+```
+
+If request metadata is absent, `AEGIS_MCP_ROLE` is used. Unknown roles degrade to `observer`.
+
+| Role | Discoverable/callable tools |
+|------|-----------------------------|
+| `observer` | `bayyinah_review`, `free_birds_review` |
+| `reviewer` | `bayyinah_review`, `free_birds_review` |
+| `architect` | all CurLexAI agent tools |
+| `operator` | all CurLexAI agent tools |
+| `admin` | all CurLexAI agent tools |
+
+Optional environment variables:
+
+```text
+AEGIS_MCP_ROLE=operator
+AEGIS_TENANT_ID=system
+QALA_AUDIT_SINK_PATH=artifacts/security/qala-audit.jsonl
+```
 
 ---
 
@@ -38,11 +81,13 @@ Open the **MCP configuration** page in your repository's Copilot settings and pa
       "type": "local",
       "command": "python",
       "args": ["-u", ".agents/mcp/server.py"],
-      "tools": ["mihwar_generate", "bayyinah_review"],
+      "tools": ["mihwar_generate", "bayyinah_review", "free_birds_review", "free_birds_design"],
       "env": {
         "MIHWAR_ENDPOINT": "$MIHWAR_ENDPOINT",
         "BAYYINAH_ENDPOINT": "$BAYYINAH_ENDPOINT",
-        "AGENT_API_TOKEN": "$AGENT_API_TOKEN"
+        "AGENT_API_TOKEN": "$AGENT_API_TOKEN",
+        "AEGIS_MCP_ROLE": "$AEGIS_MCP_ROLE",
+        "AEGIS_TENANT_ID": "$AEGIS_TENANT_ID"
       }
     }
   }
@@ -94,7 +139,9 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
       "env": {
         "MIHWAR_ENDPOINT": "https://curlexai--mihwar-generate.modal.run",
         "BAYYINAH_ENDPOINT": "https://curlexai--bayyinah-review.modal.run",
-        "AGENT_API_TOKEN": "your-token-here"
+        "AGENT_API_TOKEN": "your-token-here",
+        "AEGIS_MCP_ROLE": "operator",
+        "AEGIS_TENANT_ID": "system"
       }
     },
     "render": {
@@ -115,15 +162,16 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 export MIHWAR_ENDPOINT="https://curlexai--mihwar-generate.modal.run"
 export BAYYINAH_ENDPOINT="https://curlexai--bayyinah-review.modal.run"
 export AGENT_API_TOKEN="your-token"
+export AEGIS_MCP_ROLE="operator"
 
 # List tools
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
-{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":{"aegis":{"role":"observer"}}}}' \
   | python .agents/mcp/server.py
 
 # Call Bayyinah
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"bayyinah_review","arguments":{"code":"function add(a,b){return a+b}"}}}' \
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"bayyinah_review","arguments":{"code":"function add(a,b){return a+b}"},"_meta":{"aegis":{"role":"reviewer"}}}}' \
   | python .agents/mcp/server.py
 ```
 
@@ -156,7 +204,8 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
 
 - Tokens are read from environment variables; never logged or returned in errors.
 - Modal endpoints are not exposed to the client — only the tool names appear.
-- The server has no filesystem or shell access; it only forwards HTTPS POST requests.
+- The server has no filesystem or shell access for tools; it only forwards HTTPS POST requests after Aegis authorization.
+- Aegis audit records are sanitized and contain no raw tool-call input.
 
 ---
 
@@ -168,3 +217,4 @@ The community `@modelcontextprotocol/server-fetch` is generic and would require 
 - Defines stable tool names (`mihwar_generate`, `bayyinah_review`) instead of raw URLs.
 - Hides Modal endpoints from the client model entirely.
 - Returns JSON-RPC errors mapped from network failures without leaking endpoint details.
+- Adds Aegis role filtering, prompt-injection inspection, and Qal'a audit records at the MCP boundary.

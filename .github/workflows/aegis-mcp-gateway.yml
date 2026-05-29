@@ -1,0 +1,22 @@
+name: Aegis MCP Gateway
+
+on:
+  pull_request:
+    paths:
+      - ".agents/mcp/**"
+      - "tests/test_aegis_mcp_gateway.py"
+      - "scripts/commander/p0-security-test-gate.sh"
+      - ".github/workflows/aegis-mcp-gateway.yml"
+
+jobs:
+  aegis-mcp-gateway:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run Aegis MCP gateway tests
+        run: python -m unittest tests.test_aegis_mcp_gateway

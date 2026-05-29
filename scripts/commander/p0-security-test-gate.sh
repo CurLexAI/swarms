@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="${1:-.}"
 cd "$ROOT_DIR"
 
-echo "[P0] Running Bayyinah + Router Policy test gate"
+echo "[P0] Running Bayyinah + Router + Aegis MCP security test gate"
 PYTHON_BIN="${PYTHON_BIN:-}"
 if [[ -z "$PYTHON_BIN" ]]; then
   if command -v python3 >/dev/null 2>&1; then
@@ -19,4 +19,5 @@ fi
 
 "$PYTHON_BIN" -m unittest \
   tests.test_bayyinah_validation_gate \
-  tests.test_router_policy
+  tests.test_router_policy \
+  tests.test_aegis_mcp_gateway
