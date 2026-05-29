@@ -1,0 +1,31 @@
+name: modal-deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "modal/**"
+      - ".github/workflows/modal-deploy.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy-modal
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Modal
+        run: python -m pip install --upgrade modal
+      - name: Deploy Qarar RAG Infra
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: modal deploy modal/qarar_rag_infra.py
