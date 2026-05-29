@@ -30,6 +30,9 @@ ALLOWLIST=(
   "api.github.com"
   "github.com"
   "huggingface.co"
+  "ollama"
+  "llama-server"
+  "qarar-security-gate"
 )
 
 if (( ${#ALLOWLIST[@]} == 0 )); then
@@ -38,7 +41,7 @@ if (( ${#ALLOWLIST[@]} == 0 )); then
   exit 1
 fi
 
-SCAN_DIRS=(.agents src scripts)
+SCAN_DIRS=(.agents src scripts sama_ingestion_swarm)
 EXISTING_SCAN_DIRS=()
 for d in "${SCAN_DIRS[@]}"; do
   [[ -d "$d" ]] && EXISTING_SCAN_DIRS+=("$d")
@@ -70,6 +73,9 @@ ALLOWLIST = (
     "api.github.com",
     "github.com",
     "huggingface.co",
+    "ollama",
+    "llama-server",
+    "qarar-security-gate",
 )
 
 # RFC 2606 / RFC 6761 reserved special-use names. These cannot route in
