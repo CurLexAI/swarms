@@ -4,6 +4,32 @@
 
 This notebook is an operator archive for the Qarar/Bayyinah/Mihwar sovereign agent-control platform. It is intentionally documentation-only: it does not alter runtime behavior, deployment settings, secrets, or CI/CD.
 
+
+## Design Decision
+
+`VERIFIED` — This notebook is intentionally kept as a repository-native Markdown runbook instead of an executable deployment script. That keeps archival evidence reviewable in pull requests while preventing documentation changes from starting containers, deploying Modal services, mutating secrets, or changing CI/CD.
+
+## Layer Impact
+
+| Layer | Impact | Evidence Status |
+|---|---|---:|
+| Device Layer | No Windows agent, iOS companion, MDM, TPM, or posture-check behavior is changed. | VERIFIED |
+| Control Layer | No policy distribution, profile management, mTLS material, or secret configuration is changed. | VERIFIED |
+| Connectivity Layer | No eSIM, private 5G, WireGuard, carrier abstraction, or network route behavior is changed. | VERIFIED |
+| Decision Layer | No Ollama, llama.cpp, Modal, Mihwar, Bayyinah, or router runtime behavior is changed. | VERIFIED |
+| Evidence Layer | Operator-facing evidence and archive instructions are clarified. | VERIFIED |
+
+## Readiness Boundary
+
+| Claim | Status | Required Evidence To Upgrade |
+|---|---:|---|
+| Repository documentation archive exists and is reviewable. | VERIFIED | Current committed notebook content. |
+| Static repository gates passed in the authoring environment. | VERIFIED | Recorded command output from `python3 .agents/validate.py`, `python3 -m py_compile .agents/*.py`, and `npm run check`. |
+| Full Python test suite is green in this environment. | UNVERIFIED | Install the repository dependency set in a controlled environment and rerun `python3 -m pytest -q tests/`. |
+| Local Docker model runtime is live. | UNVERIFIED | Successful operator output from `docker compose up -d`, Ollama prompt execution, and llama.cpp health check. |
+| Modal deployment is live. | UNVERIFIED | Successful Modal deployment and backend-only smoke-test evidence without exposing private endpoints. |
+| Production deployment is ready. | UNVERIFIED | All relevant static gates plus live runtime evidence, secrets configured by the operator, and launch evidence recorded. |
+
 ## Evidence Discipline
 
 Every operational claim in this notebook uses exactly one evidence label:
@@ -42,7 +68,7 @@ Every operational claim in this notebook uses exactly one evidence label:
 
 ## Local Validation Commands
 
-Run these from the repository root after installing dependencies according to repository policy.
+Run these from the repository root after installing dependencies according to repository policy. Prefer the pinned repository dependency set in an isolated virtual environment over ad-hoc single-package installs, so test results reflect the declared runtime surface.
 
 ```bash
 # Validate agent repository assets without external services.
@@ -57,7 +83,7 @@ python3 .agents/invoke.py info
 # Run the aggregate Node/repository gate.
 npm run check
 
-# Run Python tests.
+# Run Python tests after the repository dependency set is present.
 python3 -m pytest -q tests/
 
 # Run Node unit tests that do not require backend integration secrets.
@@ -82,7 +108,7 @@ docker compose exec ollama ollama run deepseek-r1:8b "عاصمة السعودي�
 docker compose exec llama-server curl -s http://localhost:8080/health
 ```
 
-Status: `UNVERIFIED` in this session. The commands above must be executed on the live operator runtime before any production-ready runtime claim is made.
+Status: `UNVERIFIED` in this session. The commands above must be executed on the live operator runtime before any deployment-ready runtime claim is made. A passing static repository gate is not a substitute for live Docker or Modal smoke-test evidence.
 
 ## Zero-Trust Operating Principles
 
@@ -145,7 +171,9 @@ print(f"\n🎉 sync complete: {DEST_DIR}")
 
 - `VERIFIED` — Notebook file exists in the repository after this change.
 - `VERIFIED` — Notebook avoids committing secrets or private endpoint URLs.
+- `VERIFIED` — Documentation clarifies the distinction between static repository readiness and live deployment readiness.
 - `UNVERIFIED` — Live Docker proof remains pending until the operator runs the Docker commands above.
+- `UNVERIFIED` — Modal deployment proof remains pending until backend-only smoke tests are executed with operator-managed secrets.
 - `UNVERIFIED` — Google Drive sync remains pending until the Colab script is executed by an authenticated operator.
 
 ## Next Operator Action
