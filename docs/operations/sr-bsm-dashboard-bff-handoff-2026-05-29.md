@@ -1,38 +1,62 @@
-# SR.BSM Swarms Dashboard BFF Handoff — 2026-05-29
+# SR.BSM Dashboard BFF Correction Report — 2026-05-29
 
 ## Execution Verdict
 
-- Status: `BLOCKED` for direct SR.BSM source edit; `PARTIALLY_APPLIED` as a CurLexAI/swarms operational handoff.
-- Scope: Fix the Render build failure in SR.BSM without permanent ESLint or TypeScript bypasses, and route dashboard agent visibility through a server-only BFF.
-- Canonical Path: Browser Dashboard -> Next.js API Route / BFF in SR.BSM -> Qarar Security Gate / Mihwar Gateway -> Modal vLLM Backend.
+- Status: `BLOCKED` for direct SR.BSM source modification; `PARTIALLY_APPLIED` for this CurLexAI/swarms evidence and handoff update.
+- Scope: Correct the prior PR by separating source-level implementation guidance from what was actually verified in this repository and on public SR.BSM surfaces.
+- Canonical Path: Browser Dashboard -> SR.BSM Next.js BFF (`/api/agents`) -> Qarar Security Gate / Mihwar Gateway -> Modal vLLM backend.
 - Files Touched: `docs/operations/sr-bsm-dashboard-bff-handoff-2026-05-29.md`.
-- Blockers: `AUTH_MISSING` for direct access to `moteb1989/SR.BSM`; the target files are not present in the current `/workspace/swarms` worktree.
-- Hot Surface Risk: Dashboard runtime, security gateway contract, and Render build path are hot surfaces and must be changed only in the SR.BSM repository.
-- What Was Actually Changed: Added this handoff with the exact corrected implementation contract for the SR.BSM owner or agent that has repository access.
-- What Was Actually Verified: The current worktree does not contain `src/components/SwarmsDashboard.tsx` or `src/app/api/agents/route.ts`.
-- What Remains Unverified: SR.BSM lint, TypeScript, and build results; Qarar Security Gate runtime response shape; Render deployment status.
-- Next Valid Action: Run the implementation below inside SR.BSM, then validate with `npm run lint`, `npx tsc --noEmit`, and `npm run build`.
+- Blockers: `AUTH_MISSING` for `moteb1989/SR.BSM` source access; `/workspace/swarms` does not contain `src/components/SwarmsDashboard.tsx` or `src/app/api/agents/route.ts`.
+- Hot Surface Risk: SR.BSM dashboard hooks, `/api/agents`, CSP, Render runtime auth, and gateway credentials are hot surfaces.
+- What Was Actually Changed: This report now records public runtime evidence and a bounded implementation contract instead of implying that SR.BSM source was changed from the swarms worktree.
+- What Was Actually Verified: Public read-only probes reached `https://www.lexprim.com`, `https://lexprim.com`, `https://sr-bsm.onrender.com`, and `https://sr-bsm.onrender.com/api/agents`.
+- What Remains Unverified: SR.BSM repository source, SR.BSM lint, TypeScript, build output, gateway secret configuration, and Modal backend health.
+- Next Valid Action: Apply the source patch inside SR.BSM with repository access, then run `npm run lint`, `npx tsc --noEmit`, and `npm run build` in SR.BSM.
+
+## Evidence Labels
+
+- `VERIFIED`: Confirmed by local repository inspection or read-only public HTTP response headers/body.
+- `INFERRED`: Reasonable conclusion from verified evidence but not directly proven from source.
+- `UNVERIFIED`: Not checked because source access, secrets, private runtime, or authenticated deployment access is missing.
+
+## Public Surface Findings
+
+| Claim | Label | Evidence |
+|---|---:|---|
+| `https://www.lexprim.com` serves HTTP 200 over HTTPS. | VERIFIED | `curl -I https://www.lexprim.com` returned `HTTP/1.1 200 OK`. |
+| `https://lexprim.com` redirects to `https://www.lexprim.com/`. | VERIFIED | `curl -I https://lexprim.com` returned `HTTP/1.1 301 Moved Permanently` with `location: https://www.lexprim.com/`. |
+| `https://sr-bsm.onrender.com` serves HTTP 200 over HTTPS. | VERIFIED | `curl -I https://sr-bsm.onrender.com` returned `HTTP/1.1 200 OK`. |
+| Public unauthenticated `https://sr-bsm.onrender.com/api/agents` is protected. | VERIFIED | `curl -I https://sr-bsm.onrender.com/api/agents` returned `HTTP/1.1 401 Unauthorized`; body was `{"error":"Unauthorized","code":"UNAUTHORIZED"}`. |
+| The public CSP still allows direct connections to `https://*.modal.run` and external AI APIs. | VERIFIED | The `content-security-policy` response header included `connect-src 'self' https://*.modal.run https://api.openai.com https://api.anthropic.com https://api.perplexity.ai https://api.groq.com`. |
+| The deployed `/api/agents` implementation is the desired BFF contract. | UNVERIFIED | Source access is missing and the public unauthenticated route currently returns 401. |
+
+## Public Surface Verdict
+
+`HOLD` for security hardening before claiming the dashboard path is fully sovereign.
+
+Reasons:
+
+1. `VERIFIED`: The public CSP allows browser `connect-src` access to `https://*.modal.run`; this conflicts with the desired rule that the browser must not call Modal directly.
+2. `VERIFIED`: The public CSP allows browser `connect-src` access to external AI API domains. That may be intentional for another feature, but it is not verified as compatible with the dashboard-only `PUBLIC` metadata flow.
+3. `VERIFIED`: `/api/agents` returns 401 without browser credentials. If the dashboard is public and must display public metadata, the BFF contract needs to permit same-origin public metadata reads while keeping gateway credentials server-only. If the dashboard is authenticated, this is acceptable but must be documented in SR.BSM source and tests.
 
 ## Design Decision
 
-Use a narrow Next.js Backend-for-Frontend endpoint instead of exposing Modal or agent runtime credentials to the browser. The dashboard may request only `PUBLIC` agent metadata from `/api/agents`; the BFF is responsible for authenticating to `QARAR_SECURITY_GATE_AGENTS_URL` with `QARAR_SECURITY_GATE_TOKEN` from server-only environment variables.
+Do not bypass ESLint or TypeScript as the permanent Render fix. The source-level fix belongs in `src/components/SwarmsDashboard.tsx`: define `fetchAgents` with `useCallback`, then invoke it from `useEffect` with `[fetchAgents]` as the dependency array.
 
-## Layer Impact
+Do not route the dashboard directly to Modal. The dashboard may call only same-origin `/api/agents`; that route is a server-side adapter that calls the Qarar Security Gate or Mihwar Gateway with server-only credentials and returns sanitized `PUBLIC` agent cards.
 
-- Browser Dashboard: Calls only local `/api/agents`; it must not know Modal URLs, Modal SDKs, or private agent tokens.
-- SR.BSM BFF: Performs the server-side fetch, enforces `PUBLIC` classification, and returns sanitized cards.
-- Qarar Security Gate / Mihwar Gateway: Remains the sovereign policy enforcement point before any Modal vLLM runtime.
-- Modal vLLM Backend: Remains backend-only and is never called directly from frontend code.
+## Required SR.BSM Source Changes
 
-## Required Dashboard Correction
+### 1. Dashboard hook correction
 
-Target file in SR.BSM:
+Target file:
 
 ```text
 src/components/SwarmsDashboard.tsx
 ```
 
-Required pattern:
+Required implementation shape:
 
 ```tsx
 const fetchAgents = useCallback(async (): Promise<void> => {
@@ -42,9 +66,7 @@ const fetchAgents = useCallback(async (): Promise<void> => {
   try {
     const response = await fetch("/api/agents", {
       method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
+      headers: { Accept: "application/json" },
       cache: "no-store",
     });
 
@@ -68,198 +90,42 @@ useEffect(() => {
 }, [fetchAgents]);
 ```
 
-Do not add permanent build bypasses:
+### 2. Server-only `/api/agents` adapter contract
 
-```text
-eslint.ignoreDuringBuilds = true
-// or
-typescript.ignoreBuildErrors = true
-```
-
-## Required Server-Only BFF Endpoint
-
-Create this file in SR.BSM:
+Target file:
 
 ```text
 src/app/api/agents/route.ts
 ```
 
-```ts
-import { NextRequest, NextResponse } from "next/server";
+Required properties:
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+- Use `runtime = "nodejs"` and `dynamic = "force-dynamic"`.
+- Read only `QARAR_SECURITY_GATE_AGENTS_URL`, `QARAR_SECURITY_GATE_TOKEN`, and optional `QARAR_ALLOWED_ORIGIN` from `process.env`.
+- Never read `NEXT_PUBLIC_*` token variables.
+- Send `X-Qarar-Classification: PUBLIC` to the gateway.
+- Validate the gateway payload as `unknown` before returning data.
+- Drop any agent whose `classification` is not exactly `PUBLIC`.
+- Return only `AgentCard[]` with `id`, `name`, `role`, `status`, `classification`, optional `model`, `capabilities`, and optional `updatedAt`.
+- Return `Cache-Control: no-store`.
+- Do not import a Modal SDK.
+- Do not embed a Modal URL.
 
-type AgentStatus = "online" | "offline" | "degraded" | "unknown";
+### 3. CSP hardening
 
-type AgentCard = {
-  id: string;
-  name: string;
-  role: string;
-  status: AgentStatus;
-  classification: "PUBLIC";
-  model?: string;
-  capabilities: string[];
-  updatedAt?: string;
-};
+The SR.BSM/lexprim public CSP should be tightened after confirming all frontend features that require outbound connections.
 
-type GatewayAgent = {
-  id?: unknown;
-  name?: unknown;
-  role?: unknown;
-  status?: unknown;
-  classification?: unknown;
-  model?: unknown;
-  capabilities?: unknown;
-  updatedAt?: unknown;
-};
+For the dashboard-only agent metadata path, the desired browser policy is:
 
-type GatewayResponse = {
-  agents?: unknown;
-};
-
-type ErrorResponse = {
-  error: string;
-};
-
-function getRequiredEnv(name: string): string {
-  const value = process.env[name];
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
-
-function asString(value: unknown, fallback: string): string {
-  return typeof value === "string" && value.trim().length > 0
-    ? value
-    : fallback;
-}
-
-function asStatus(value: unknown): AgentStatus {
-  if (
-    value === "online" ||
-    value === "offline" ||
-    value === "degraded" ||
-    value === "unknown"
-  ) {
-    return value;
-  }
-  return "unknown";
-}
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter(
-    (item): item is string => typeof item === "string" && item.trim().length > 0,
-  );
-}
-
-function toPublicAgentCard(agent: GatewayAgent): AgentCard | null {
-  if (agent.classification !== "PUBLIC") {
-    return null;
-  }
-
-  const id = asString(agent.id, "");
-  const name = asString(agent.name, "");
-  if (id.length === 0 || name.length === 0) {
-    return null;
-  }
-
-  const model =
-    typeof agent.model === "string" && agent.model.trim().length > 0
-      ? agent.model
-      : undefined;
-  const updatedAt =
-    typeof agent.updatedAt === "string" && agent.updatedAt.trim().length > 0
-      ? agent.updatedAt
-      : undefined;
-
-  return {
-    id,
-    name,
-    role: asString(agent.role, "Sovereign agent"),
-    status: asStatus(agent.status),
-    classification: "PUBLIC",
-    model,
-    capabilities: asStringArray(agent.capabilities),
-    updatedAt,
-  };
-}
-
-function parseGatewayResponse(payload: GatewayResponse): AgentCard[] {
-  if (!Array.isArray(payload.agents)) {
-    return [];
-  }
-
-  return payload.agents
-    .map((item): AgentCard | null => {
-      if (typeof item !== "object" || item === null) {
-        return null;
-      }
-      return toPublicAgentCard(item as GatewayAgent);
-    })
-    .filter((item): item is AgentCard => item !== null);
-}
-
-function isAllowedOrigin(request: NextRequest): boolean {
-  const allowedOrigin = process.env.QARAR_ALLOWED_ORIGIN;
-  const origin = request.headers.get("origin");
-  if (!allowedOrigin || !origin) {
-    return true;
-  }
-  return origin === allowedOrigin;
-}
-
-export async function GET(
-  request: NextRequest,
-): Promise<NextResponse<AgentCard[] | ErrorResponse>> {
-  try {
-    if (!isAllowedOrigin(request)) {
-      return NextResponse.json({ error: "Forbidden origin" }, { status: 403 });
-    }
-
-    const gatewayUrl = getRequiredEnv("QARAR_SECURITY_GATE_AGENTS_URL");
-    const gatewayToken = getRequiredEnv("QARAR_SECURITY_GATE_TOKEN");
-    const response = await fetch(gatewayUrl, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${gatewayToken}`,
-        "X-Qarar-Classification": "PUBLIC",
-        "X-Qarar-Client": "SR.BSM-Dashboard",
-      },
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: `Gateway request failed with status ${response.status}` },
-        { status: 502 },
-      );
-    }
-
-    const payload = (await response.json()) as GatewayResponse;
-    const agents = parseGatewayResponse(payload);
-    return NextResponse.json(agents, {
-      status: 200,
-      headers: {
-        "Cache-Control": "no-store",
-      },
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown agents bridge error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
-}
+```text
+connect-src 'self'
 ```
 
-## Render Environment Variables
+If other public features require additional domains, document each exception with owner, feature, data classification, and removal criteria. Do not keep `https://*.modal.run` in browser `connect-src` for the dashboard path.
 
-Configure these only as server-side secrets in Render:
+### 4. Render environment variables
+
+Server-side only:
 
 ```text
 QARAR_SECURITY_GATE_AGENTS_URL=https://<security-gate-or-mihwar-host>/v1/agents?classification=PUBLIC
@@ -267,7 +133,7 @@ QARAR_SECURITY_GATE_TOKEN=<server-only-token>
 QARAR_ALLOWED_ORIGIN=https://lexprim.com
 ```
 
-Never use these client-exposed names for secrets:
+Forbidden for secrets:
 
 ```text
 NEXT_PUBLIC_QARAR_SECURITY_GATE_TOKEN
@@ -275,9 +141,9 @@ NEXT_PUBLIC_MODAL_TOKEN
 NEXT_PUBLIC_AGENT_API_TOKEN
 ```
 
-## Validation Commands for SR.BSM
+## Validation Required Inside SR.BSM
 
-Run inside SR.BSM after applying the code change:
+Run after applying the source changes in SR.BSM:
 
 ```bash
 npm run lint
@@ -285,4 +151,18 @@ npx tsc --noEmit
 npm run build
 ```
 
-Expected result: all three commands pass without `eslint.ignoreDuringBuilds` or `typescript.ignoreBuildErrors`.
+Do not add these permanent bypasses:
+
+```text
+eslint.ignoreDuringBuilds = true
+typescript.ignoreBuildErrors = true
+```
+
+## Acceptance Criteria
+
+- `VERIFIED`: `src/components/SwarmsDashboard.tsx` imports `useCallback` and includes `fetchAgents` in the `useEffect` dependency array.
+- `VERIFIED`: Browser dashboard code fetches only same-origin `/api/agents`.
+- `VERIFIED`: No frontend code references Modal URLs, Modal SDKs, or agent tokens.
+- `VERIFIED`: `/api/agents` filters non-`PUBLIC` records before response serialization.
+- `VERIFIED`: Public CSP no longer permits `https://*.modal.run` for dashboard-origin browser connections, unless a separate documented exception exists.
+- `VERIFIED`: `npm run lint`, `npx tsc --noEmit`, and `npm run build` pass inside SR.BSM.
