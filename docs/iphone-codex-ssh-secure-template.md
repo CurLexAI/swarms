@@ -73,6 +73,7 @@ Use this exact mapping in the iPhone form:
 - Username (اسم المستخدم): server account, e.g. `ubuntu`, `root`, or `git`
 - Password (كلمة المرور): server password, or leave blank when using SSH key authentication
 
+## 5) iPhone Terminal Host Entry (Termius-style, hardened)
 
 ## 5) ChatGPT Codex iPhone SSH Workspace Recovery
 
@@ -170,6 +171,7 @@ Use these hardened fields when key-based auth is enabled:
 
 Do **not** store privileged passwords in the app.
 
+## 6) Optional Local SSH Config (Mac/Workstation)
 ## 7) Optional Local SSH Config (Mac/Workstation)
 
 `~/.ssh/config`
@@ -189,6 +191,7 @@ Host codex-prod
   UserKnownHostsFile ~/.ssh/known_hosts
 ```
 
+## 7) Quick Verification Runbook
 ## 8) Quick Verification Runbook
 
 ```bash
@@ -199,6 +202,7 @@ ssh -i ~/.ssh/id_ed25519_codex codexops@<server_ip_or_dns> "hostname && whoami"
 sudo journalctl -u ssh --since "-30m" --no-pager
 ```
 
+## 8) Sovereign Guardrails
 ## 9) Sovereign Guardrails
 
 - Keep sensitive workloads on private network/VPN only.
@@ -206,3 +210,28 @@ sudo journalctl -u ssh --since "-30m" --no-pager
 - Rotate SSH keys periodically.
 - Enable centralized audit logging before production use.
 - Never expose private model endpoints or tokens in terminal history.
+
+## 9) Use Your Computer from iPhone (Codex Computer Use)
+
+Codex can operate your desktop environment from iPhone by using Computer Use sessions.
+
+### Supported Operations
+
+- Launch desktop applications on the connected workstation.
+- Work inside authenticated web sessions in Chrome.
+- Locate and use local files on the workstation.
+
+### Safe Operating Pattern
+
+1. Start Computer Use only on a trusted workstation (not shared/public hosts).
+2. Keep session scope task-specific and time-bounded.
+3. Do not open secrets vaults or private keys unless strictly required.
+4. End the session immediately after the task and rotate temporary credentials if used.
+
+### Minimum Security Controls
+
+- Require MFA on the control account.
+- Use device posture checks before granting remote control access.
+- Keep audit logs for session start, actions, and termination.
+- Restrict remote control to approved networks/VPN.
+
