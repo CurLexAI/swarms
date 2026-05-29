@@ -113,7 +113,7 @@ def _assert_audit_ok(result: Any, context: str) -> None:
 def _route_payload(action: AuditAction, decision: RouteDecision) -> dict[str, object]:
     return {
         "action": action,
-        "classification": decision.classification.value,
+        "classification": decision.classification.value if decision.classification else "UNKNOWN",
         "provider_selected": decision.provider_selected,
         "status": decision.status,
         "blocked_reason": decision.blocked_reason,
@@ -174,7 +174,15 @@ async def build_audited_execution_plan(
         raise ValueError("subject_id is required")
 
     trace_id = str(uuid.uuid4())
-    normalized_classification = DataClassification(str(classification).upper())
+    try:
+        normalized_classification: DataClassification | str = DataClassification(
+            str(classification).upper()
+        )
+        classification_value = normalized_classification.value
+    except ValueError:
+        normalized_classification = str(classification)
+        classification_value = "UNKNOWN"
+
     default_adapter = QalaAuditAdapter() if audit_sink is None else None
     sink: AuditSink = audit_sink if audit_sink is not None else cast(AuditSink, default_adapter)
     validator: AuditValidator = (
@@ -191,7 +199,7 @@ async def build_audited_execution_plan(
         tenant_id=subject_id,
         payload={
             "action": "classification_decision",
-            "classification": normalized_classification.value,
+            "classification": classification_value,
             "message_ar": "تم اعتماد تصنيف البيانات قبل اختيار مزود الاستدلال المحلي.",
         },
     )

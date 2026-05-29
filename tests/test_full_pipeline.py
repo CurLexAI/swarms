@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from src.core.audited_router import build_audited_execution_plan
-from src.core.classification import DataClassification
+from src.core.classification import DataClassification, classify_content
 from src.core.model_router import route
 from src.core.provider_interface import LLMProvider, ProviderError, is_sovereign_local_url
 from src.providers.local_llama_cpp import LocalLlamaCppProvider
@@ -60,6 +60,47 @@ class MockLocalProvider(LLMProvider):
 
 class FullPipelineTests(unittest.TestCase):
     """Integration coverage for local provider routing and audit recording."""
+
+
+    def test_classifier_uses_exact_hostname_and_precedence_trace(self) -> None:
+        decision = classify_content(
+            "https://evil.example/sama.gov.sa",
+            "public-looking circular",
+        )
+
+        self.assertEqual(decision.classification, DataClassification.INTERNAL)
+        self.assertIn("default_internal_when_uncertain", decision.reasons)
+        self.assertIn(
+            "source_hostname_not_allowlisted:evil.example",
+            decision.decision_trace,
+        )
+
+    def test_classifier_restricted_metadata_overrides_public_source_and_pii(self) -> None:
+        decision = classify_content(
+            "https://sama.gov.sa/regulations",
+            "Customer mobile 0500000000 appears in the sample.",
+            {"restricted": True, "sensitivity": "high"},
+        )
+
+        self.assertEqual(decision.classification, DataClassification.RESTRICTED)
+        self.assertIn("metadata_restricted_true", decision.reasons)
+        self.assertIn("sensitive_signal_escalation:CONFIDENTIAL", decision.decision_trace)
+        self.assertIn("final_classification:RESTRICTED", decision.decision_trace)
+
+    def test_unknown_classification_blocks_without_provider_call(self) -> None:
+        ollama = MockLocalProvider("local_ollama", "unused")
+        decision = asyncio.run(
+            route(
+                "TOP_SECRET",
+                "prompt",
+                providers={"local_ollama": ollama},
+            )
+        )
+
+        self.assertEqual(decision.status, "BLOCKED")
+        self.assertEqual(decision.blocked_reason, "BLOCKED_UNKNOWN_CLASSIFICATION")
+        self.assertIsNone(decision.classification)
+        self.assertEqual(ollama.health_calls, 0)
 
     def test_public_query_routes_to_local_ollama_mock(self) -> None:
         ollama = MockLocalProvider("local_ollama", "ollama-ok")

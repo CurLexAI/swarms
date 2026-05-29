@@ -21,14 +21,14 @@ LOCAL_OLLAMA = "local_ollama"
 LOCAL_LLAMA_CPP = "local_llama_cpp"
 
 RouteStatus = Literal["COMPLETED", "BLOCKED"]
-BlockedReason = Literal["BLOCKED_LOCAL_PROVIDER_UNAVAILABLE"]
+BlockedReason = Literal["BLOCKED_LOCAL_PROVIDER_UNAVAILABLE", "BLOCKED_UNKNOWN_CLASSIFICATION"]
 
 
 class RouteDecision(BaseModel):
     """Typed route result returned by the sovereign model router."""
 
     status: RouteStatus
-    classification: DataClassification
+    classification: DataClassification | None
     provider_selected: str | None = None
     response: str | None = None
     route_reason: str
@@ -118,6 +118,20 @@ def _blocked_decision(
     )
 
 
+def _unknown_classification_decision(classification: str) -> RouteDecision:
+    return RouteDecision(
+        status="BLOCKED",
+        classification=None,
+        provider_selected=None,
+        response=None,
+        route_reason=(
+            "تم حظر التوجيه لأن تصنيف البيانات غير معروف أو غير مدعوم: "
+            f"{classification}."
+        ),
+        blocked_reason="BLOCKED_UNKNOWN_CLASSIFICATION",
+    )
+
+
 async def route(
     classification: DataClassification | str,
     prompt: str,
@@ -139,7 +153,11 @@ async def route(
         provider remains healthy.
     """
 
-    normalized = normalize_classification(classification)
+    try:
+        normalized = normalize_classification(classification)
+    except ValueError:
+        return _unknown_classification_decision(str(classification))
+
     provider_map = providers if providers is not None else default_local_providers()
     failures: list[ProviderFailure] = []
 
