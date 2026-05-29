@@ -11,6 +11,8 @@
     "check:service-divergence": "node scripts/check-service-divergence.mjs",
     "check:boundary": "bash scripts/commander/adr-0001-boundary-gate.sh .",
     "check": "npm run check:service-divergence && npm run test:unit && npm run check:boundary && npm run check:cdn-sri && npm run check:audit-chain",
+    "check:audit-integrity": "bash scripts/commander/qala-audit-integrity-gate.sh .",
+    "check": "npm run check:service-divergence && npm run test:unit && npm run check:boundary && npm run check:cdn-sri && npm run check:audit-integrity",
     "security:radar:url": "tsx src/security/sovereignCyberRadar.ts scan-url",
     "security:radar:text": "tsx src/security/sovereignCyberRadar.ts scan-text",
     "security:radar:command": "tsx src/security/sovereignCyberRadar.ts scan-command",

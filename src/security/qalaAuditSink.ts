@@ -35,7 +35,11 @@ export type QalaAuditEvent =
   | "egress_check_blocked"
   | "egress_check_approved"
   | "auth_check_blocked"
-  | "auth_check_approved";
+  | "auth_check_approved"
+  // Qarar router decisions (audited via build_audited_execution_plan).
+  | "classification_decision"
+  | "route_decision"
+  | "route_blocked";
 
 const QALA_AUDIT_EVENTS: ReadonlySet<QalaAuditEvent> = new Set([
   "input_validation_blocked",
@@ -50,6 +54,10 @@ const QALA_AUDIT_EVENTS: ReadonlySet<QalaAuditEvent> = new Set([
   "egress_check_approved",
   "auth_check_blocked",
   "auth_check_approved",
+  // Qarar router decisions (audited via build_audited_execution_plan).
+  "classification_decision",
+  "route_decision",
+  "route_blocked",
 ]);
 
 export interface QalaAuditAppendInput {
