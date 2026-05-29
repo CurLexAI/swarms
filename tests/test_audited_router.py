@@ -95,14 +95,14 @@ class AuditedRouterTests(unittest.TestCase):
                 raise ValueError("No route defined for task kind")
 
             original = audited_router.build_execution_plan
-            audited_router.build_execution_plan = _raise
+            setattr(audited_router, "build_execution_plan", _raise)
             try:
                 with self.assertRaises(ValueError):
                     build_audited_execution_plan(
                         _CODING_TASK, tenant_id="tenant-A", sink=sink
                     )
             finally:
-                audited_router.build_execution_plan = original
+                setattr(audited_router, "build_execution_plan", original)
 
             kinds = [e["event"] for e in _events(path)]
             self.assertEqual(kinds, ["classification_decision", "route_blocked"])
