@@ -3,7 +3,7 @@ services:
     name: curlexai-mcp-server
     runtime: node
     rootDir: .agents/mcp/modal-mcp
-    buildCommand: npm install && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: node dist/server.js
     port: 8787
     envVars:
@@ -22,9 +22,9 @@ services:
       - key: MAX_LOG_LINES
         value: "200"
       - key: MIHWAR_ENDPOINT
-        value: https://curlexai--mihwar-generate.modal.run
+        sync: false
       - key: BAYYINAH_ENDPOINT
-        value: https://curlexai--bayyinah-review.modal.run
+        sync: false
       - key: AGENT_API_TOKEN
         sync: false
       - key: NODE_ENV
