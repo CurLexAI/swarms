@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """SAMA regulatory ingestion swarm package.
 
 The package is intentionally adapter-driven: agents accept object-store,

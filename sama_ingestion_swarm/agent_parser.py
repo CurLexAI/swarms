@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """SAMA parser agent for sovereign regulatory documents."""
 
 from __future__ import annotations
@@ -88,7 +90,7 @@ def split_articles(text: str) -> tuple[tuple[str | None, str], ...]:
 def _extract_html_text(content: bytes) -> str:
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(content, "html.parser")
-    return soup.get_text("\n", strip=True)
+    return str(soup.get_text("\n", strip=True))
 
 
 def _extract_pdf_text(content: bytes) -> str:

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Local llama.cpp OpenAI-compatible adapter for sovereign inference."""
 
 from __future__ import annotations

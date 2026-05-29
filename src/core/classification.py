@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Data classification primitives for sovereign model routing and ingestion."""
 
 from __future__ import annotations

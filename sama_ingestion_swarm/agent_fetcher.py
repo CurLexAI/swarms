@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """SAMA fetcher agent for sovereign regulatory ingestion."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Sovereign local-only model router for Qarar.
 
 The router never references or falls back to commercial providers. Public and

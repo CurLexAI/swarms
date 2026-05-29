@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Local Ollama adapter for sovereign inference."""
 
 from __future__ import annotations

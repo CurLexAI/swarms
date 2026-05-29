@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Audited wrapper around the sovereign local-only model router."""
 
 from __future__ import annotations

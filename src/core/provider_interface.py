@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Ports for sovereign local model providers.
 
 The router depends on this abstract port instead of concrete HTTP adapters.
