@@ -67,6 +67,7 @@ Every instruction file should begin with:
 - `scripts/commander/adr-0001-boundary-gate.sh` — fails when forbidden application-repo surfaces drift into `swarms`.
 - `scripts/commander/agent-presence-gate.sh` — checks configured agent inventory and runtime secret presence.
 - `scripts/commander/p0-security-test-gate.sh` — runs P0 Bayyinah/router security policy tests.
+- `scripts/commander/qala-audit-integrity-gate.sh` — verifies the Q7 sealed audit chain (`.agents/validators/qala_audit_sink.py`) is intact; fails closed on any tamper, insertion, or truncation.
 
 ## Required secrets for live runtime checks
 

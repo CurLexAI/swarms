@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """ADR-0005-pending stub. See .agents/gateway/README.md.
 
 This module is a deliberately inert OpenAI-compatible shim. It exposes
@@ -11,7 +13,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 ADR_REFERENCE = "docs/decisions/ADR-0005-public-llm-gateway.md"

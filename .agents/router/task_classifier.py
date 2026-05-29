@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Deterministic task classifier for Qarar routing."""
 
 from __future__ import annotations

@@ -28,6 +28,10 @@ const QALA_AUDIT_EVENTS = new Set([
     "egress_check_approved",
     "auth_check_blocked",
     "auth_check_approved",
+    // Qarar router decisions (audited via build_audited_execution_plan).
+    "classification_decision",
+    "route_decision",
+    "route_blocked",
 ]);
 function sha256(input) {
     return createHash("sha256").update(input, "utf8").digest("hex");

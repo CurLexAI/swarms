@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Lock the gateway stub's no-proxy property.
 
 These tests are the contract for `.agents/gateway/mcp_server.py` while
@@ -45,7 +47,7 @@ class GatewayStubContract(unittest.TestCase):
 
     def test_refuses_to_start_without_ack(self) -> None:
         try:
-            import fastapi  # noqa: F401
+            import fastapi  # type: ignore[import-not-found]  # noqa: F401
         except ImportError:
             self.skipTest("fastapi not installed in this environment")
         module = importlib.import_module("mcp_server")
@@ -78,7 +80,7 @@ class GatewayStubContract(unittest.TestCase):
 
     def test_all_model_routes_return_501(self) -> None:
         try:
-            from fastapi.testclient import TestClient
+            from fastapi.testclient import TestClient  # type: ignore[import-not-found]
         except ImportError:
             self.skipTest("fastapi/starlette not installed")
         os.environ["SWARMS_GATEWAY_STUB_ACK"] = "1"

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Regression tests for scripts/commander/adr-0001-boundary-gate.sh."""
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE = REPO_ROOT / "scripts" / "commander" / "adr-0001-boundary-gate.sh"
 
 
-def _run_gate(repo: Path) -> subprocess.CompletedProcess:
+def _run_gate(repo: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", str(GATE), str(repo)],
         capture_output=True,

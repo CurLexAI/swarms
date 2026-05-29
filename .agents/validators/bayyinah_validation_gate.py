@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Bayyinah validation gate.
 
 This gate enforces policy before a generated output can be treated as safe. It
