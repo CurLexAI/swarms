@@ -24,9 +24,10 @@ import os
 import re
 import sys
 import uuid
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, Mapping, Protocol, Sequence, cast
+from typing import Any, Final, Protocol, cast
 
 
 _DEFAULT_ROLE: Final[str] = "operator"
