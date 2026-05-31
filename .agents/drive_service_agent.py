@@ -321,11 +321,27 @@ def _load_config_from_env() -> DriveAgentConfig:
     if max_upload_bytes <= 0:
         raise DriveAgentError(DriveAgentErrorCode.CONFIG_NOT_FOUND, "QARAR_MAX_UPLOAD_BYTES must be positive")
 
-    allowlist_dirs = tuple(
-        Path(part).expanduser().resolve(strict=True)
-        for part in allowlist_raw.split(os.pathsep)
-        if part.strip()
-    )
+    validated_allowlist_dirs: list[Path] = []
+    for part in allowlist_raw.split(os.pathsep):
+        raw_part = part.strip()
+        if not raw_part:
+            continue
+        candidate = Path(raw_part)
+        if not candidate.is_absolute():
+            raise DriveAgentError(
+                DriveAgentErrorCode.CONFIG_NOT_FOUND,
+                "QARAR_UPLOAD_ALLOWLIST_DIRS entries must be absolute paths",
+            )
+        try:
+            resolved = candidate.expanduser().resolve(strict=True)
+        except OSError as exc:
+            raise DriveAgentError(
+                DriveAgentErrorCode.CONFIG_NOT_FOUND,
+                "Invalid QARAR_UPLOAD_ALLOWLIST_DIRS entry",
+            ) from exc
+        validated_allowlist_dirs.append(resolved)
+
+    allowlist_dirs = tuple(validated_allowlist_dirs)
     if not allowlist_dirs:
         raise DriveAgentError(DriveAgentErrorCode.CONFIG_NOT_FOUND, "Upload allowlist is empty")
 
