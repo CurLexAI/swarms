@@ -10,6 +10,7 @@ on:
       - "src/**/*.ts"
       - "scripts/**/*.ts"
       - "tests/**/*.ts"
+      - .github/workflows/copilot-setup-steps.yml
   push:
     branches:
       - main
@@ -20,6 +21,7 @@ on:
       - "src/**/*.ts"
       - "scripts/**/*.ts"
       - "tests/**/*.ts"
+      - .github/workflows/copilot-setup-steps.yml
 
 permissions:
   contents: read
