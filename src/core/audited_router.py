@@ -176,11 +176,11 @@ async def build_audited_execution_plan(
         raise ValueError("subject_id is required")
 
     trace_id = str(uuid.uuid4())
+    normalized_classification: DataClassification | str
     try:
-        normalized_classification: DataClassification | str = DataClassification(
-            str(classification).upper()
-        )
-        classification_value = normalized_classification.value
+        _dc = DataClassification(str(classification).upper())
+        classification_value = _dc.value
+        normalized_classification = _dc
     except ValueError:
         normalized_classification = str(classification)
         classification_value = "UNKNOWN"

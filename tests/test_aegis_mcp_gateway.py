@@ -81,7 +81,7 @@ class RecordingSink:
 
 
 def _jsonrpc_result(output: str) -> dict[str, Any]:
-    return json.loads(output.strip().splitlines()[-1])
+    return dict(json.loads(output.strip().splitlines()[-1]))
 
 
 class AegisGatewayTests(unittest.TestCase):

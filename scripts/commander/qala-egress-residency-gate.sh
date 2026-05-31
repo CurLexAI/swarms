@@ -33,6 +33,7 @@ ALLOWLIST=(
   "ollama"
   "llama-server"
   "qarar-security-gate"
+  "login.microsoftonline.com"
 )
 
 if (( ${#ALLOWLIST[@]} == 0 )); then
@@ -76,6 +77,7 @@ ALLOWLIST = (
     "ollama",
     "llama-server",
     "qarar-security-gate",
+    "login.microsoftonline.com",
 )
 
 # RFC 2606 / RFC 6761 reserved special-use names. These cannot route in

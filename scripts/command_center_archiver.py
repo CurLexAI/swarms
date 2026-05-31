@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Command Center archive builder for safe offline handoff.
 
 The archiver uses a default-deny policy: it copies only explicitly allowed file
@@ -11,12 +13,11 @@ resulting ``.tar.gz`` manually after review.
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import shutil
 import tarfile
 import tempfile
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
