@@ -22,6 +22,8 @@ FORBIDDEN_PATHS=(
   "src/factory"
   "src/control-hub"
   "src/api"
+  "src/core"
+  "src/providers"
   "src/apiSecurity.js"
   "public/index.html"
   "public/about"

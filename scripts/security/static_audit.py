@@ -59,6 +59,13 @@ def should_scan(path: Path) -> bool:
 
 def main() -> int:
     root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    if not root.exists():
+        print(f"Static audit target does not exist: {root}", file=sys.stderr)
+        return 2
+    if not root.is_dir():
+        print(f"Static audit target is not a directory: {root}", file=sys.stderr)
+        return 2
+
     findings: list[str] = []
     for path in root.rglob("*"):
         if not path.is_file() or not should_scan(path):
