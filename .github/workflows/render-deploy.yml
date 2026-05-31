@@ -19,6 +19,9 @@ jobs:
       - name: Validate deploy hook secret exists
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RENDER_DEPLOY_HOOK_URL}" ]; then
         shell: bash
         run: |
           set -euo pipefail
