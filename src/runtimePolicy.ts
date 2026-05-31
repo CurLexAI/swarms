@@ -1,4 +1,21 @@
-export type DataClassification = "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED";
+// SPDX-License-Identifier: MIT
+// Licensed under MIT
+/**
+ * Deprecated compatibility adapter for legacy runtime policy imports.
+ *
+ * The canonical runtime policy lives in `src/policy/runtime-policy.ts`. This
+ * module intentionally contains no independent provider registry or routing
+ * order; it only translates legacy request names into the canonical policy.
+ */
+
+import {
+  evaluateRuntimePolicy,
+  type DataClassification,
+  type ProviderId,
+  type RuntimePolicyDecision as CanonicalRuntimePolicyDecision,
+} from "./policy/runtime-policy.js";
+
+export type { DataClassification } from "./policy/runtime-policy.js";
 
 export type RuntimeMode =
   | "STANDARD"
@@ -8,17 +25,10 @@ export type RuntimeMode =
   | "LEGACY_OPEN_CLOUD";
 
 export type RuntimePurpose = "GENERAL" | "CI_SETUP";
-
-export type RuntimeProvider =
-  | "local_llama_cpp"
-  | "local_ollama"
-  | "modal_vllm"
-  | "external_provider"
-  | "notebook_public_experiment"
-  | "copilot_ci_setup";
+export type RuntimeProvider = ProviderId;
 
 export interface RuntimePolicyRequest {
-  readonly dataClassification: DataClassification;
+  readonly dataClassification: Exclude<DataClassification, "SECRET">;
   readonly mode?: RuntimeMode;
   readonly purpose?: RuntimePurpose;
   readonly allowExternalProvider?: boolean;
@@ -30,64 +40,46 @@ export interface RuntimePolicyDecision {
   readonly allowed: boolean;
   readonly providers: readonly RuntimeProvider[];
   readonly reason: string;
+  readonly canonicalDecision?: CanonicalRuntimePolicyDecision;
 }
-
-const LOCAL_RESTRICTED_ORDER = ["local_llama_cpp"] as const satisfies readonly RuntimeProvider[];
-const LOCAL_STANDARD_ORDER = ["local_ollama", "local_llama_cpp"] as const satisfies readonly RuntimeProvider[];
 
 export function selectRuntimeProviders(request: RuntimePolicyRequest): RuntimePolicyDecision {
   const mode = request.mode ?? "STANDARD";
 
   if (mode === "LEGACY_OPEN_CLOUD") {
-    return blocked("LEGACY_OPEN_CLOUD runtime is retired and blocked.");
+    return blocked("LEGACY_OPEN_CLOUD runtime is retired and blocked by the canonical policy adapter.");
   }
 
-  if (request.dataClassification === "RESTRICTED" || request.dataClassification === "CONFIDENTIAL") {
-    return {
-      allowed: true,
-      providers: LOCAL_RESTRICTED_ORDER,
-      reason: "Restricted and confidential data are constrained to local-only providers.",
-    };
+  if (mode === "NOTEBOOK" && request.allowNotebookRuntime !== true) {
+    return blocked("Notebook runtime requires explicit public experiment approval.");
   }
 
-  if (mode === "NOTEBOOK") {
-    if (request.dataClassification !== "PUBLIC" || !request.allowNotebookRuntime) {
-      return blocked("Notebook runtime is limited to public experiment workloads only.");
-    }
-
-    return {
-      allowed: true,
-      providers: ["notebook_public_experiment"],
-      reason: "Notebook runtime is allowed only for public experiment workloads.",
-    };
+  if (mode === "COPILOT_CLOUD_AGENT" && request.purpose !== "CI_SETUP") {
+    return blocked("Copilot cloud agent is limited to CI setup only.");
   }
 
-  if (mode === "COPILOT_CLOUD_AGENT") {
-    if (request.purpose !== "CI_SETUP") {
-      return blocked("Copilot cloud agent is limited to CI setup only.");
-    }
+  const canonicalDecision = evaluateRuntimePolicy({
+    classification: request.dataClassification,
+    requiresCodeGeneration: mode === "COPILOT_CLOUD_AGENT",
+    requiresLongContext: mode === "BURST" || mode === "COPILOT_CLOUD_AGENT",
+    humanApprovedCloudEgress:
+      request.allowExternalProvider === true ||
+      (mode === "COPILOT_CLOUD_AGENT" && request.purpose === "CI_SETUP"),
+  });
 
-    return {
-      allowed: true,
-      providers: ["copilot_ci_setup"],
-      reason: "Copilot cloud agent is permitted only for CI setup.",
-    };
-  }
+  const providers = request.allowModalProvider === true
+    ? canonicalDecision.providerOrder
+    : canonicalDecision.providerOrder.filter((provider) => !provider.startsWith("modal-"));
 
-  const providers: RuntimeProvider[] = [...LOCAL_STANDARD_ORDER];
-
-  if (request.allowModalProvider) {
-    providers.push("modal_vllm");
-  }
-
-  if (mode === "BURST" && request.dataClassification === "PUBLIC" && request.allowExternalProvider) {
-    providers.push("external_provider");
+  if (providers.length === 0) {
+    return blocked("Canonical runtime policy returned no providers after legacy compatibility filters.");
   }
 
   return {
     allowed: true,
     providers,
-    reason: "Runtime providers selected by data classification and mode.",
+    reason: "Providers selected by canonical runtime policy via deprecated compatibility adapter.",
+    canonicalDecision,
   };
 }
 

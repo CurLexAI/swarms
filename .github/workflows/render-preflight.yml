@@ -1,0 +1,70 @@
+name: Render Preflight
+
+on:
+  pull_request:
+    paths:
+      - "render.yaml"
+      - ".agents/mcp/modal-mcp/**"
+      - ".github/workflows/render-preflight.yml"
+      - ".github/workflows/render-deploy.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "render.yaml"
+      - ".agents/mcp/modal-mcp/**"
+      - ".github/workflows/render-preflight.yml"
+      - ".github/workflows/render-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: no-secrets-render-preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate render blueprint contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          render_yaml = Path("render.yaml")
+          text = render_yaml.read_text(encoding="utf-8")
+
+          required_markers = {
+              "runtime: node": "Render service must declare the Node runtime.",
+              "rootDir: .agents/mcp/modal-mcp": "Render rootDir must stay scoped to the Modal MCP gateway.",
+              "buildCommand: npm ci --include=dev && npm run build": "Build must install dev dependencies for TypeScript compilation.",
+              "startCommand: node dist/server.js": "Start command must run the compiled MCP server.",
+              "healthCheckPath: /healthz": "Health check path must remain explicit.",
+              "sync: false": "Sensitive values must remain externally managed confidential settings.",
+          }
+          missing = [message for marker, message in required_markers.items() if marker not in text]
+          if missing:
+              for message in missing:
+                  print(f"ERROR: {message}")
+              raise SystemExit(1)
+
+          forbidden_markers = (
+              "api.render.com/v1/services/",
+              "deploy/srv-",
+          )
+          for marker in forbidden_markers:
+              if marker in text:
+                  print(f"ERROR: render.yaml must not contain deploy hook/API material: {marker}")
+                  raise SystemExit(1)
+          print("Render blueprint preflight passed without confidential values.")
+          PY
+
+      - name: Validate Modal MCP package metadata
+        working-directory: .agents/mcp/modal-mcp
+        run: |
+          set -euo pipefail
+          npm ci --include=dev
+          npm run build

@@ -26,7 +26,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --include=dev
 
       - name: Run TypeScript typecheck
         run: npm run typecheck --if-present
@@ -34,5 +34,8 @@ jobs:
       - name: Run lint
         run: npm run lint --if-present
 
-      - name: Run tests
+      - name: Run aggregate no-secrets checks
+        run: npm run check --if-present
+
+      - name: Run repository tests
         run: npm test --if-present

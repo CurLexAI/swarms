@@ -55,6 +55,7 @@ run_required_check "P0 security test gate" "bash scripts/commander/p0-security-t
 run_required_check "Modal boundary gate" "bash scripts/commander/modal-boundary-gate.sh ."
 run_required_check "ADR-0001 boundary gate" "bash scripts/commander/adr-0001-boundary-gate.sh ."
 run_required_check "Agent presence gate" "bash scripts/commander/agent-presence-gate.sh ."
+run_required_check "Strict swarm presence monitor" "npm run check:swarms-presence:strict"
 run_required_check "Codex commander gate" "bash .agents/skills/codex-commander/scripts/codex_commander_gate.sh ."
 run_required_check "Qal'a audit integrity gate" "bash scripts/commander/qala-audit-integrity-gate.sh ."
 
