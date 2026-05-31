@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Helper: load `.agents` Python modules under a synthetic package for tests.
 
 The `.agents` directory uses a leading dot, which is not a valid Python
@@ -27,7 +29,7 @@ def _ensure_pkg(qualified: str, dir_path: Path) -> None:
     sys.modules[qualified] = pkg
 
 
-def _load_module(qualified: str, file_path: Path):
+def _load_module(qualified: str, file_path: Path) -> types.ModuleType:
     if qualified in sys.modules:
         return sys.modules[qualified]
     spec = importlib.util.spec_from_file_location(qualified, file_path)

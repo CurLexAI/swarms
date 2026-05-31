@@ -15,7 +15,7 @@ This repository operates under the **LexPrime** GitHub Enterprise — https://gi
 - **Codex Commander** is the repository execution lead skill. It scopes work, plans small PRs, runs gates, and reports with `COMMANDER REPORT` discipline.
 - **Bayyinah** is the validation and review gate. Runtime activation must remain `UNVERIFIED` until endpoint smoke tests pass.
 - **Mihwar** is the implementation and fix-suggestion agent. It must not be treated as live unless `MIHWAR_ENDPOINT` and `AGENT_API_TOKEN` are configured and smoke-tested.
-- **Render** is the application origin.
+- **Render** hosts the repository-defined `curlexai-mcp-server` Modal MCP Gateway. The BSM backend and public product API origin are distinct external services unless their source and Render blueprint are intentionally supplied to this repository.
 - **Cloudflare** is the edge layer for DNS/TLS/WAF concerns.
 - **Modal** is backend-only model runtime. Public browser, iPhone, or frontend code must not call `*.modal.run` directly.
 
@@ -67,6 +67,7 @@ Every instruction file should begin with:
 - `scripts/commander/adr-0001-boundary-gate.sh` — fails when forbidden application-repo surfaces drift into `swarms`.
 - `scripts/commander/agent-presence-gate.sh` — checks configured agent inventory and runtime secret presence.
 - `scripts/commander/p0-security-test-gate.sh` — runs P0 Bayyinah/router security policy tests.
+- `scripts/commander/qala-audit-integrity-gate.sh` — verifies the Q7 sealed audit chain (`.agents/validators/qala_audit_sink.py`) is intact; fails closed on any tamper, insertion, or truncation.
 
 ## Required secrets for live runtime checks
 

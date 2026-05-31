@@ -155,10 +155,12 @@ db_password=hunter2 token=abc123 INTERNAL ERROR: stack frame exploded`;
   );
 
   assert.equal(jsonCalled, false, "response.json() must not be called when response.ok=false");
-  assert.equal(updateTaskStatusCalls.length, 1);
-  assert.equal(updateTaskStatusCalls[0][1], "FAILED");
-  assert.match(updateTaskStatusCalls[0][2].error, /RUNTIME_FAILURE: Python engine returned HTTP 500/i);
-  assert.doesNotMatch(updateTaskStatusCalls[0][2].error, /Traceback|db_password|token/i);
+  // PENDING -> RUNNING -> FAILED: AuditService rejects PENDING -> terminal directly.
+  assert.equal(updateTaskStatusCalls.length, 2);
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "FAILED");
+  assert.match(updateTaskStatusCalls[1][2].error, /RUNTIME_FAILURE: Python engine returned HTTP 500/i);
+  assert.doesNotMatch(updateTaskStatusCalls[1][2].error, /Traceback|db_password|token/i);
 });
 
 test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 contract", async (t) => {
@@ -230,10 +232,11 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
     }
   );
 
-  assert.equal(updateTaskStatusCalls.length, 1);
-  assert.equal(updateTaskStatusCalls[0][1], "FAILED");
-  assert.match(updateTaskStatusCalls[0][2].error, /RUNTIME_FAILURE: python engine request transport failure/i);
-  assert.doesNotMatch(updateTaskStatusCalls[0][2].error, /ECONNREFUSED|python-backend\.internal/i);
+  assert.equal(updateTaskStatusCalls.length, 2);
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "FAILED");
+  assert.match(updateTaskStatusCalls[1][2].error, /RUNTIME_FAILURE: python engine request transport failure/i);
+  assert.doesNotMatch(updateTaskStatusCalls[1][2].error, /ECONNREFUSED|python-backend\.internal/i);
 });
 
 test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUND cause and keeps client errors sanitized", async (t) => {
@@ -308,21 +311,6 @@ test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUN
     ]
   ]);
 
-  await assert.rejects(
-    async () =>
-      adapter.executeAgent(
-        "py-agent",
-        "user-1",
-        { tenant_id: "tenant-1", input: "run", metadata: { source: "integration-test" } },
-        ["scope:execute"],
-        "tenant-1"
-      ),
-    (error) => {
-      assert.match(error.message, /RUNTIME_FAILURE: python engine (request transport failure|exhausted retry budget)/i);
-      assert.doesNotMatch(error.message, /ENOTFOUND/i);
-      assert.doesNotMatch(error.message, /python-backend\.invalid/i);
-  });
-
   adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
 
   process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
@@ -342,7 +330,10 @@ test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUN
   assert.ok(requestFailureAudit, "PYTHON_ENGINE_REQUEST_FAILURE audit event should have been logged");
   assert.equal(requestFailureAudit[3].error_code, "UNKNOWN", "audit event should capture sanitized error_code");
   assert.equal(requestFailureAudit[3].error_name, "TypeError", "audit event should capture error_name");
-  assert.equal(updateTaskStatusCalls.length, 1);
+  // PENDING -> RUNNING then RUNNING -> FAILED once the retry budget is exhausted.
+  assert.equal(updateTaskStatusCalls.length, 2);
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "FAILED");
 });
 
 test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ECONNREFUSED cause and keeps client errors sanitized", async (t) => {
@@ -404,7 +395,9 @@ test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ECONNREF
   const result = await adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run" }, ["scope:execute"], "tenant-1");
   assert.equal(result.status, "success");
   assert.equal(attempts, 2, "retryable ECONNREFUSED cause should retry once before success");
-  assert.equal(updateTaskStatusCalls[0][1], "COMPLETED");
+  // PENDING -> RUNNING -> COMPLETED: AuditService rejects PENDING -> COMPLETED directly.
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "COMPLETED");
 });
 
 test("UnifiedAgentAdapter.executeAgent rejects successful non-JSON python responses with sanitized runtime error", async (t) => {
@@ -486,9 +479,10 @@ test("UnifiedAgentAdapter.executeAgent rejects successful non-JSON python respon
   );
 
   assert.equal(jsonCalled, false, "response.json() must not be called when content-type is not application/json");
-  assert.equal(updateTaskStatusCalls.length, 1);
-  assert.equal(updateTaskStatusCalls[0][1], "FAILED");
-  assert.match(updateTaskStatusCalls[0][2].error, /Python engine request failed with status 200/);
+  assert.equal(updateTaskStatusCalls.length, 2);
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "FAILED");
+  assert.match(updateTaskStatusCalls[1][2].error, /Python engine request failed with status 200/);
 });
 
 test("UnifiedAgentAdapter.executeAgent retries retryable 503 responses up to PYTHON_BACKEND_MAX_ATTEMPTS total attempts", async (t) => {
@@ -535,7 +529,10 @@ test("UnifiedAgentAdapter.executeAgent retries retryable 503 responses up to PYT
 
   await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"));
   assert.equal(fetchCalls, 3);
-  assert.equal(updateTaskStatusCalls.length, 1);
+  // PENDING -> RUNNING then RUNNING -> FAILED after retry budget is exhausted.
+  assert.equal(updateTaskStatusCalls.length, 2);
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "FAILED");
 });
 
 test("UnifiedAgentAdapter.executeAgent performs a single outbound attempt for retryable 503 when PYTHON_BACKEND_MAX_ATTEMPTS=1", async (t) => {
@@ -734,9 +731,10 @@ test("UnifiedAgentAdapter.executeAgent maps AbortError timeout to PYTHON_ENGINE_
     }
   );
 
-  assert.equal(taskUpdates.length, 1);
-  assert.equal(taskUpdates[0][1], "FAILED");
-  assert.match(taskUpdates[0][2].blocker ?? taskUpdates[0][2].failure_class ?? "", /PYTHON_ENGINE_TIMEOUT/);
-  const errorText = taskUpdates[0][2].error ?? "";
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.match(taskUpdates[1][2].blocker ?? taskUpdates[1][2].failure_class ?? "", /PYTHON_ENGINE_TIMEOUT/);
+  const errorText = taskUpdates[1][2].error ?? "";
   assert.doesNotMatch(errorText, /password|token|secret|api.?key|bearer/i);
 });

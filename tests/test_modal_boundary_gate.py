@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Regression tests for scripts/commander/modal-boundary-gate.sh.
 
 These tests build an isolated temp-repo fixture, copy the gate script
@@ -37,7 +39,7 @@ def _build_fixture(tmp: Path) -> None:
     shutil.copy(ADR_GATE, tmp / "scripts" / "commander" / "adr-0001-boundary-gate.sh")
 
 
-def _run_gate(repo: Path) -> subprocess.CompletedProcess:
+def _run_gate(repo: Path) -> subprocess.CompletedProcess[str]:
     # Strip any inherited boundary secrets so [WARN] lines stay deterministic.
     env = {
         k: v

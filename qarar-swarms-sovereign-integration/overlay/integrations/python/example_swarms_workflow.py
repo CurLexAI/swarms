@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 from __future__ import annotations
 
 from qarar_swarms import create_qarar_tool

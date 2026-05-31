@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Anthropic provider adapter boundary."""
 
 from __future__ import annotations

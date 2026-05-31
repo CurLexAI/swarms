@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 from __future__ import annotations
 
 import json
@@ -6,8 +8,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Callable, Mapping, Optional, Sequence
 
-import requests
-from dotenv import load_dotenv
+import requests  # type: ignore[import-untyped]
+from dotenv import load_dotenv  # type: ignore[import-not-found]
 
 SOVEREIGN_MODEL_IDS = {"deepseek-r1-32b", "allam-7b", "qwen-72b-arabic"}
 TASK_MODEL_MAP = {

@@ -22,6 +22,8 @@ FORBIDDEN_PATHS=(
   "src/factory"
   "src/control-hub"
   "src/api"
+  "src/core"
+  "src/providers"
   "src/apiSecurity.js"
   "public/index.html"
   "public/about"
@@ -42,17 +44,25 @@ for d in "${SCAN_DIRS[@]}"; do
   [[ -e "$d" ]] && EXISTING_SCAN_DIRS+=("$d")
 done
 
+contains_autostart() {
+  if (( ${#EXISTING_SCAN_DIRS[@]} == 0 )); then
+    return 1
+  fi
+  # Do not depend on ripgrep. CI runners may not have rg installed.
+  # Search code/config only; markdown is excluded because docs may mention the
+  # forbidden flag to prohibit it.
+  find "${EXISTING_SCAN_DIRS[@]}" \
+    \( -path "*/.git/*" -o -path "*/node_modules/*" \) -prune -o \
+    -type f \
+    ! -name "*.md" \
+    -print0 \
+    | xargs -0 grep -I -E -n '(^|[^A-Za-z0-9_])autoStart([^A-Za-z0-9_]|$)' >/dev/null 2>&1
+}
+
 if (( ${#EXISTING_SCAN_DIRS[@]} == 0 )); then
   warn "no boundary-relevant directories found to scan"
 else
-  # Exclude markdown: real activation flags live in code/config
-  # (YAML/JSON/TS/JS/Python/shell). Docs/skills may name the
-  # forbidden flag — typically to forbid it — without that being drift.
-  if rg -n --hidden \
-        --glob '!.git/**' \
-        --glob '!node_modules/**' \
-        --glob '!**/*.md' \
-        '\bautoStart\b' "${EXISTING_SCAN_DIRS[@]}" >/dev/null 2>&1; then
+  if contains_autostart; then
     fail "BOUNDARY_DRIFT: autoStart activation flag detected"
   else
     ok "no autoStart activation flag detected"

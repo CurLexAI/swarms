@@ -65,3 +65,9 @@ skills:
     role: "Hugging Face Hub CLI for downloading, uploading, and managing repos, models, datasets, and spaces"
     risk: "medium"
     runtime_activation: false
+  - id: render-skills-catalog
+    path: ".agents/skills/render-skills-catalog"
+    clients: ["gemini", "claude-code", "codex", "chatgpt"]
+    role: "safe catalog and selection wrapper for official Render AI agent skills"
+    risk: "high"
+    runtime_activation: false

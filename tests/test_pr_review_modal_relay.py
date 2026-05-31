@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """
 Integration test: pr_review.py ↔ Modal endpoint HTTP relay.
 
@@ -21,22 +23,23 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
-import io
 import json
-import sys
+import types
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch, MagicMock
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PR_REVIEW_PATH = REPO_ROOT / ".agents" / "pr_review.py"
 
 
-def _load_pr_review():
+def _load_pr_review() -> types.ModuleType:
     spec = importlib.util.spec_from_file_location("pr_review", PR_REVIEW_PATH)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -56,7 +59,7 @@ def _make_args(agent: str = "bayyinah", bayyinah_report: str = "") -> argparse.N
     )
 
 
-def _fake_response(status: int, payload):
+def _fake_response(status: int, payload: Any) -> MagicMock:
     resp = MagicMock(spec=requests.Response)
     resp.status_code = status
     if isinstance(payload, (dict, list)):
@@ -77,20 +80,20 @@ def _fake_response(status: int, payload):
 class BayyinahRelayContractTests(unittest.TestCase):
     """Bayyinah Modal endpoint payload + comment posting contract."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.env_patch = patch.dict(
             "os.environ",
             {
                 "BAYYINAH_ENDPOINT": "https://bayyinah.modal.example/api",
                 "AGENT_API_TOKEN": "secret-token-xyz",
-                "GITHUB_TOKEN": "ghs_fake_token_for_test",
+                "GITHUB_TOKEN": "test-github-token",
             },
             clear=False,
         )
         self.env_patch.start()
         self.addCleanup(self.env_patch.stop)
 
-    def test_approve_verdict_returns_cleanly(self):
+    def test_approve_verdict_returns_cleanly(self) -> None:
         endpoint_response = _fake_response(
             200,
             {
@@ -127,7 +130,7 @@ class BayyinahRelayContractTests(unittest.TestCase):
         self.assertIn("Bayyinah Code Review", body)
         self.assertIn("APPROVED", body)
 
-    def test_request_changes_verdict_exits_nonzero(self):
+    def test_request_changes_verdict_exits_nonzero(self) -> None:
         endpoint_response = _fake_response(
             200,
             {
@@ -152,7 +155,7 @@ class BayyinahRelayContractTests(unittest.TestCase):
 class ErrorSanitizationTests(unittest.TestCase):
     """Endpoint URL and upstream errors must never leak through _call_endpoint."""
 
-    def test_network_error_omits_endpoint_url(self):
+    def test_network_error_omits_endpoint_url(self) -> None:
         secret_url = "https://very-secret-endpoint.modal.run/abc-token-xyz"
         with patch.object(pr_review.requests, "post",
                           side_effect=requests.ConnectionError(f"refused at {secret_url}")):
@@ -162,12 +165,12 @@ class ErrorSanitizationTests(unittest.TestCase):
                          "secret endpoint URL must not appear in error message")
         self.assertNotIn("abc-token-xyz", result["error"])
 
-    def test_timeout_returns_clean_message(self):
+    def test_timeout_returns_clean_message(self) -> None:
         with patch.object(pr_review.requests, "post", side_effect=requests.Timeout()):
             result = pr_review._call_endpoint("https://x.modal.run", {"token": "t"})
         self.assertEqual(result, {"error": "Agent timed out after 300s"})
 
-    def test_5xx_response_returns_error_dict(self):
+    def test_5xx_response_returns_error_dict(self) -> None:
         bad_response = _fake_response(503, "stack trace with secret=hunter2")
         with patch.object(pr_review.requests, "post", return_value=bad_response):
             result = pr_review._call_endpoint("https://x.modal.run", {"token": "t"})
@@ -179,7 +182,7 @@ class ErrorSanitizationTests(unittest.TestCase):
 class MissingSecretsTests(unittest.TestCase):
     """_require_env must hard-fail before any HTTP call when secrets are missing."""
 
-    def test_missing_bayyinah_endpoint_exits_before_http(self):
+    def test_missing_bayyinah_endpoint_exits_before_http(self) -> None:
         with patch.dict("os.environ", {"BAYYINAH_ENDPOINT": "", "AGENT_API_TOKEN": "t"}, clear=False):
             with patch.object(pr_review.requests, "post") as mock_post:
                 with self.assertRaises(SystemExit) as ctx:
@@ -187,7 +190,7 @@ class MissingSecretsTests(unittest.TestCase):
                 self.assertEqual(ctx.exception.code, 1)
             mock_post.assert_not_called()
 
-    def test_missing_mihwar_endpoint_exits_before_http(self):
+    def test_missing_mihwar_endpoint_exits_before_http(self) -> None:
         with patch.dict("os.environ", {"MIHWAR_ENDPOINT": "", "AGENT_API_TOKEN": "t"}, clear=False):
             with patch.object(pr_review.requests, "post") as mock_post:
                 with self.assertRaises(SystemExit) as ctx:

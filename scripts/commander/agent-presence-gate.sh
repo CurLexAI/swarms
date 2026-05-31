@@ -16,25 +16,12 @@ fi
 
 echo "[INFO] Parsing configured agents from $CONFIG_FILE"
 if command -v python3 >/dev/null 2>&1; then
-  PY=python3
+  PYTHON_BIN=python3
 elif command -v python >/dev/null 2>&1; then
-  PY=python
+  PYTHON_BIN=python
 else
-  echo "[FAIL] python3/python not found"
+  echo "[FAIL] PYTHON_NOT_FOUND: python3 or python is required"
   exit 1
-fi
-"$PY" - <<'PY'
-import yaml
-
-path = ".agents/config/agents.yaml"
-with open(path, encoding="utf-8") as handle:
-    data = yaml.safe_load(handle) or {}
-agents = data.get("agents", {})
-print(f"[OK] configured_agent_count={len(agents)}")
-for key, val in agents.items():
-    val = val or {}
-    name = val.get("display_name") or key
-    model = (val.get("model") or {}).get("id") or "unknown"
 PYTHON_BIN="${PYTHON_BIN:-}"
 if [[ -z "$PYTHON_BIN" ]]; then
   if command -v python3 >/dev/null 2>&1; then
@@ -69,7 +56,7 @@ for key, val in agents.items():
 PY
 
 echo "[INFO] Inspecting workflow gates in $WORKFLOW_FILE"
-if rg -n "needs\.bayyinah-review\.outputs\.verdict == 'REQUEST_CHANGES'" "$WORKFLOW_FILE" >/dev/null; then
+if grep -E -n "needs\.bayyinah-review\.outputs\.verdict == 'REQUEST_CHANGES'" "$WORKFLOW_FILE" >/dev/null; then
   echo "[OK] Mihwar is gated on Bayyinah REQUEST_CHANGES"
 else
   echo "[WARN] Mihwar gate condition not found"

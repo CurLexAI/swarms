@@ -2,6 +2,8 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { loadConfig } from './config.js';
 import { newModalClient } from './modalClient.js';
+import { evaluateMcpTextInput } from './policyGate.js';
+import type { PolicyDecision } from './policyGate.js';
 import { Result, ToolError } from './types.js';
 
 type Json = Record<string, unknown>;
@@ -69,6 +71,30 @@ function authIsValid(header: string, token: string): boolean {
   return timingSafeEqual(expected, actual);
 }
 
+function blockedPolicyResponse(decision: PolicyDecision): Json {
+  return {
+    ok: false,
+    blocked: true,
+    riskLevel: decision.riskLevel,
+    reason: decision.reason
+  };
+}
+
+function evaluateToolPolicy(input: unknown): Result<string, ToolError> {
+  const decision = evaluateMcpTextInput(input);
+  if (!decision.allowed) {
+    return {
+      ok: false,
+      error: {
+        code: 'POLICY_BLOCKED',
+        message: JSON.stringify(blockedPolicyResponse(decision))
+      }
+    };
+  }
+
+  return { ok: true, value: decision.sanitizedText };
+}
+
 function validateId(raw: unknown, field: string): Result<string, ToolError> {
   const value = String(raw ?? '');
   if (!SAFE_ID_RE.test(value)) {
@@ -127,8 +153,9 @@ function ensureDeploymentAllowed(deploymentId: string): Result<string, ToolError
 }
 
 const server = createServer(async (req, res) => {
-  if (req.url === '/healthz' && req.method === 'GET') {
+  if ((req.url === '/health' || req.url === '/healthz') && req.method === 'GET') {
     return json(res, 200, { status: 'ok' });
+    return json(res, 200, { status: 'ok', service: 'modal-mcp' });
   }
 
   if (req.url === '/sse' && req.method === 'GET') {
@@ -216,6 +243,9 @@ const server = createServer(async (req, res) => {
       const id = validateId(args?.endpointId, 'endpointId');
       if (!id.ok) return json(res, 400, { error: id.error.message });
 
+      const decision = evaluateToolPolicy(args);
+      if (!decision.ok) return json(res, 403, JSON.parse(decision.error.message) as Json);
+
       const prompt = String(args?.prompt ?? '');
       return json(res, 200, await modal.runSafeInference(id.value, prompt));
     }
@@ -223,6 +253,9 @@ const server = createServer(async (req, res) => {
     case 'mihwar_generate': {
       const task = String(args?.task ?? '');
       if (!task) return json(res, 400, { error: 'task is required' });
+
+      const decision = evaluateToolPolicy(args);
+      if (!decision.ok) return json(res, 403, JSON.parse(decision.error.message) as Json);
 
       const code = args?.code ? String(args.code) : undefined;
       const context = args?.context ? String(args.context) : undefined;
@@ -232,6 +265,9 @@ const server = createServer(async (req, res) => {
     case 'bayyinah_review': {
       const code = String(args?.code ?? '');
       if (!code) return json(res, 400, { error: 'code is required' });
+
+      const decision = evaluateToolPolicy(args);
+      if (!decision.ok) return json(res, 403, JSON.parse(decision.error.message) as Json);
 
       const context = args?.context ? String(args.context) : undefined;
       return json(res, 200, await modal.bayyinahReview(code, context));

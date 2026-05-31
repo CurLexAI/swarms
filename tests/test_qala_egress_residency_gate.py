@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Behavior tests for ``scripts/commander/qala-egress-residency-gate.sh``.
 
 Contracts under test (per ADR-0003 §Q8 and the gate's policy doc):
@@ -47,7 +49,7 @@ def _make_repo(workdir: Path, file_path: str, content: str) -> None:
 
 
 class RepositoryPassesTests(unittest.TestCase):
-    def test_current_repo_passes(self):
+    def test_current_repo_passes(self) -> None:
         result = _run_gate(REPO_ROOT)
         self.assertEqual(
             result.returncode,
@@ -59,7 +61,7 @@ class RepositoryPassesTests(unittest.TestCase):
 
 
 class UnapprovedHostFailsTests(unittest.TestCase):
-    def test_unapproved_host_fails_gate(self):
+    def test_unapproved_host_fails_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _make_repo(
@@ -77,7 +79,7 @@ class UnapprovedHostFailsTests(unittest.TestCase):
             self.assertIn("UNAPPROVED_EGRESS", result.stdout)
             self.assertIn("attacker.evil-host.zz", result.stdout)
 
-    def test_unapproved_ip_literal_fails_gate(self):
+    def test_unapproved_ip_literal_fails_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _make_repo(d, "src/oops.py", 'url = "http://8.8.8.8/x"\n')
@@ -87,7 +89,7 @@ class UnapprovedHostFailsTests(unittest.TestCase):
 
 
 class ReservedExemptionsTests(unittest.TestCase):
-    def test_example_com_is_exempt(self):
+    def test_example_com_is_exempt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _make_repo(
@@ -102,7 +104,7 @@ class ReservedExemptionsTests(unittest.TestCase):
                 f"example.com must be exempt. stdout:\n{result.stdout}",
             )
 
-    def test_invalid_tld_is_exempt(self):
+    def test_invalid_tld_is_exempt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _make_repo(
@@ -112,13 +114,13 @@ class ReservedExemptionsTests(unittest.TestCase):
             )
             self.assertEqual(_run_gate(d).returncode, 0)
 
-    def test_localhost_is_exempt(self):
+    def test_localhost_is_exempt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _make_repo(d, "src/x.py", 'url = "http://localhost:8080/x"\n')
             self.assertEqual(_run_gate(d).returncode, 0)
 
-    def test_documentation_ip_is_exempt(self):
+    def test_documentation_ip_is_exempt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _make_repo(
@@ -135,13 +137,13 @@ class ReservedExemptionsTests(unittest.TestCase):
 
 
 class ScanScopeTests(unittest.TestCase):
-    def test_docs_directory_is_not_scanned(self):
+    def test_docs_directory_is_not_scanned(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _make_repo(d, "docs/note.md", "See https://attacker.evil-host.zz\n")
             self.assertEqual(_run_gate(d).returncode, 0)
 
-    def test_tests_directory_is_not_scanned(self):
+    def test_tests_directory_is_not_scanned(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _make_repo(d, "tests/fix.py", 'u = "https://attacker.evil-host.zz"\n')
@@ -149,7 +151,7 @@ class ScanScopeTests(unittest.TestCase):
 
 
 class AllowlistedHostsPassTests(unittest.TestCase):
-    def test_modal_subdomain_is_allowed(self):
+    def test_modal_subdomain_is_allowed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _make_repo(
@@ -159,7 +161,7 @@ class AllowlistedHostsPassTests(unittest.TestCase):
             )
             self.assertEqual(_run_gate(d).returncode, 0)
 
-    def test_github_api_is_allowed(self):
+    def test_github_api_is_allowed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _make_repo(
@@ -169,7 +171,7 @@ class AllowlistedHostsPassTests(unittest.TestCase):
             )
             self.assertEqual(_run_gate(d).returncode, 0)
 
-    def test_huggingface_is_allowed(self):
+    def test_huggingface_is_allowed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _make_repo(d, ".agents/x.py", 'url = "https://huggingface.co/model"\n')

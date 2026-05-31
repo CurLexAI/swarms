@@ -178,15 +178,6 @@ function getTransportErrorCodes(error) {
 function isRetryableNetworkError(error) {
     if (!(error instanceof Error) || error.name === "AbortError")
         return false;
-    const code = error.code;
-    return (code === "ECONNRESET" ||
-        code === "ETIMEDOUT" ||
-        code === "EAI_AGAIN" ||
-        code === "UND_ERR_CONNECT_TIMEOUT" ||
-        code === "ENOTFOUND" ||
-        code === "ECONNREFUSED" ||
-        code === "EHOSTUNREACH" ||
-        code === "ENETUNREACH");
     const { errorCode, causeCode } = getTransportErrorCodes(error);
     if (errorCode && RETRYABLE_TRANSPORT_CODES.has(errorCode))
         return true;
@@ -558,6 +549,10 @@ export class UnifiedAgentAdapter {
             throw new Error(`RUNTIME_FAILURE: audit initialization failed for task ${taskId}`);
         }
         try {
+            // PENDING -> RUNNING: AuditService.TASK_STATUS_TRANSITIONS only permits
+            // PENDING -> {RUNNING, FAILED}, so a terminal COMPLETED is invalid unless
+            // the task first transitions through RUNNING. Emit it before execution.
+            await AuditService.updateTaskStatus(taskId, "RUNNING", traceMetadata);
             if (agent.enable_reasoning) {
                 logger.info(`🧠 Agent [${agent.name}] is reasoning about the legal task...`);
                 const plan = await this.prepareReasoningPlan(agent, executionPayload);
@@ -786,7 +781,6 @@ export class UnifiedAgentAdapter {
                         task_id: taskId,
                         endpoint,
                         backend_error_fingerprint: String(sanitizeForAudit(sanitizeBackendErrorForAudit(rawError))).length
-                        backend_error_fingerprint: sanitizeForAudit(sanitizeBackendErrorForAudit(rawError)).length
                     });
                     throw createPythonRuntimeError({ code: mappedCode, status: response.status, retryable, correlationId, message: `${mappedCode}: Python engine returned HTTP ${response.status} ${response.statusText || "unknown"}` });
                 }

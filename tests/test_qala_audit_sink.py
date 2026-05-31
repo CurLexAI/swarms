@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Unit tests for `.agents/validators/qala_audit_sink.py`.
 
 Contracts under test (per ADR-0003 §Q7):
@@ -20,6 +22,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -33,7 +36,11 @@ QalaAuditSink = qala_audit_sink.QalaAuditSink
 QALA_GENESIS_HASH = qala_audit_sink.QALA_GENESIS_HASH
 
 
-def _valid_append(sink, event="input_validation_approved", payload=None):
+def _valid_append(
+    sink: "Any",
+    event: str = "input_validation_approved",
+    payload: "dict[str, Any] | None" = None,
+) -> "Any":
     return sink.append(
         event=event,
         trace_id="trace-id-1",
@@ -44,7 +51,7 @@ def _valid_append(sink, event="input_validation_approved", payload=None):
 
 
 class GenesisChainTests(unittest.TestCase):
-    def test_first_record_chains_from_genesis(self):
+    def test_first_record_chains_from_genesis(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
             result = _valid_append(sink)
@@ -53,7 +60,7 @@ class GenesisChainTests(unittest.TestCase):
             self.assertNotEqual(result.value.record_hash, QALA_GENESIS_HASH)
             self.assertEqual(len(result.value.record_hash), 64)  # SHA-256 hex
 
-    def test_subsequent_records_chain_correctly(self):
+    def test_subsequent_records_chain_correctly(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
             a = _valid_append(sink, payload={"i": 1})
@@ -62,7 +69,7 @@ class GenesisChainTests(unittest.TestCase):
             self.assertEqual(b.value.prev_hash, a.value.record_hash)
             self.assertEqual(c.value.prev_hash, b.value.record_hash)
 
-    def test_empty_file_verifies_as_zero(self):
+    def test_empty_file_verifies_as_zero(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
             verify = sink.verify_chain()
@@ -71,7 +78,7 @@ class GenesisChainTests(unittest.TestCase):
 
 
 class TamperEvidenceTests(unittest.TestCase):
-    def test_modifying_a_prior_payload_breaks_chain(self):
+    def test_modifying_a_prior_payload_breaks_chain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "audit.jsonl"
             sink = QalaAuditSink(path)
@@ -94,7 +101,7 @@ class TamperEvidenceTests(unittest.TestCase):
             self.assertEqual(verify.error, "AUDIT_CHAIN_BROKEN")
             self.assertEqual(verify.at_record, 0)
 
-    def test_modifying_prev_hash_breaks_chain(self):
+    def test_modifying_prev_hash_breaks_chain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "audit.jsonl"
             sink = QalaAuditSink(path)
@@ -111,7 +118,7 @@ class TamperEvidenceTests(unittest.TestCase):
             self.assertFalse(verify.ok)
             self.assertEqual(verify.at_record, 1)
 
-    def test_inserting_a_record_breaks_chain(self):
+    def test_inserting_a_record_breaks_chain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "audit.jsonl"
             sink = QalaAuditSink(path)
@@ -129,7 +136,7 @@ class TamperEvidenceTests(unittest.TestCase):
             verify = sink.verify_chain()
             self.assertFalse(verify.ok)
 
-    def test_truncating_a_record_breaks_chain(self):
+    def test_truncating_a_record_breaks_chain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "audit.jsonl"
             sink = QalaAuditSink(path)
@@ -144,7 +151,7 @@ class TamperEvidenceTests(unittest.TestCase):
 
 
 class InputValidationTests(unittest.TestCase):
-    def test_rejects_unknown_event(self):
+    def test_rejects_unknown_event(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
             result = sink.append(
@@ -156,7 +163,7 @@ class InputValidationTests(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error, "AUDIT_INVALID_EVENT")
 
-    def test_rejects_missing_trace_id(self):
+    def test_rejects_missing_trace_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
             result = sink.append(
@@ -168,7 +175,7 @@ class InputValidationTests(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error, "AUDIT_INVALID_INPUT")
 
-    def test_rejects_missing_tenant(self):
+    def test_rejects_missing_tenant(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
             result = sink.append(
@@ -180,7 +187,7 @@ class InputValidationTests(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error, "AUDIT_INVALID_INPUT")
 
-    def test_payload_defaults_to_empty(self):
+    def test_payload_defaults_to_empty(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
             result = sink.append(
@@ -196,19 +203,19 @@ class InputValidationTests(unittest.TestCase):
 class AppendOnlyApiTests(unittest.TestCase):
     """The sink must NOT expose an update or delete method."""
 
-    def test_no_update_method(self):
+    def test_no_update_method(self) -> None:
         sink = QalaAuditSink(Path(tempfile.gettempdir()) / "audit-noop.jsonl")
         self.assertFalse(hasattr(sink, "update"))
         self.assertFalse(hasattr(sink, "modify"))
 
-    def test_no_delete_method(self):
+    def test_no_delete_method(self) -> None:
         sink = QalaAuditSink(Path(tempfile.gettempdir()) / "audit-noop.jsonl")
         self.assertFalse(hasattr(sink, "delete"))
         self.assertFalse(hasattr(sink, "remove"))
 
 
 class DeterministicCanonicalizationTests(unittest.TestCase):
-    def test_payload_key_order_does_not_affect_hash(self):
+    def test_payload_key_order_does_not_affect_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             sink_a = QalaAuditSink(Path(tmp) / "a.jsonl")
             sink_b = QalaAuditSink(Path(tmp) / "b.jsonl")
