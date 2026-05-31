@@ -66,6 +66,9 @@ if [ -z "${BAYYINAH_ENDPOINT:-}" ] || \
    [ -z "${AGENT_API_TOKEN:-}" ]; then
     echo "[HOLD] one or more secrets are UNSET; aborting before any network call."
     echo "[HOLD] bind BAYYINAH_ENDPOINT, MIHWAR_ENDPOINT, AGENT_API_TOKEN and re-run."
+    # Canonical verdict label shared with .github/workflows/modal-runtime-activation.yml.
+    # Missing secrets are a HOLD, never a FAIL.
+    echo "STATUS=UNVERIFIED_SECRET_MISSING"
     exit 2
 fi
 
@@ -142,10 +145,12 @@ echo "bayyinah=$bayyinah_verdict mihwar=$mihwar_verdict"
 
 if [ "$status" -ne 0 ]; then
     echo "[BLOCK] at least one endpoint failed; runtime is not READY."
+    echo "STATUS=BLOCKED_MODAL_FAILURE"
     exit 3
 fi
 
 echo "[READY] both endpoints answered 2xx with JSON-shaped bodies."
+echo "STATUS=VERIFIED_ENDPOINT_SMOKE"
 echo "Now update docs/launch-evidence/agent-launch.md §5 with this run's"
 echo "host + http_code values. Do NOT paste response bodies."
 exit 0
