@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "curlexai-agents": {
+      "type": "local",
+      "command": "python",
+      "args": ["-u", ".agents/mcp/server.py"],
+      "tools": [
+        "mihwar_generate",
+        "bayyinah_review",
+        "free_birds_review",
+        "free_birds_design"
+      ],
+      "env": {
+        "MIHWAR_ENDPOINT": "$COPILOT_MCP_MIHWAR_ENDPOINT",
+        "BAYYINAH_ENDPOINT": "$COPILOT_MCP_BAYYINAH_ENDPOINT",
+        "AGENT_API_TOKEN": "$COPILOT_MCP_AGENT_API_TOKEN"
+      }
+    }
+  }
+}

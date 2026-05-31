@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Evidence-oriented presence monitor for CurLexAI swarms agents.
 
 This replaces illustrative/mock presence checks with safe evidence collection.

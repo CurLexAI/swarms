@@ -25,6 +25,7 @@ skill. See `docs/decisions/ADR-0003-qala-security-architecture.md`
 | `ollama` | Local Ollama Docker/internal service for sovereign inference | `src/providers/local_ollama.py` |
 | `llama-server` | Local llama.cpp Docker/internal service for sovereign inference | `src/providers/local_llama_cpp.py` |
 | `qarar-security-gate` | Internal DLP/PII gate for SAMA ingestion decisions | `sama_ingestion_swarm/agent_auditor.py` |
+| `login.microsoftonline.com` | Azure Entra OIDC metadata endpoint for tenant identity verification | `scripts/commander/swarm-presence-monitor.py` |
 
 Any other host appearing in scanned source files requires either:
 
