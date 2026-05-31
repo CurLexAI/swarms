@@ -53,6 +53,29 @@ For the current Modal MCP Gateway Blueprint, Render should use:
 Runtime secrets for the service belong in the Render dashboard, not in GitHub, except for the single deploy-hook secret used by the gated workflow.
 
 ## If Deploy Fails
+GitHub → Settings → Environments → production → Environment secrets
+
+Do not store deploy hooks in:
+
+- repository variables
+- `.env`
+- `render.yaml`
+- README files
+- docs
+- code comments
+
+## Render service settings
+
+Use the Render dashboard to confirm these service settings:
+
+- Root Directory: `.agents/mcp/modal-mcp`
+- Build Command: `npm ci --include=dev && npm run build`
+- Start Command: `node dist/server.js`
+- Health Check Path: `/health`
+
+Runtime secrets for the service belong in Render service environment variables, not in GitHub, except for the single GitHub Environment Secret used to trigger the deploy hook.
+
+## If deploy fails
 
 Check in order:
 
@@ -66,3 +89,13 @@ Check in order:
 8. Secret scan output.
 
 Treat any previous deploy hook value as compromised if it appeared in a local environment file, Actions log, issue, PR, or documentation. Rotate it in Render and store only the new value as `RENDER_DEPLOY_HOOK_URL` in the protected `production` GitHub Environment.
+2. `rootDir` points to the service directory that contains `package.json`.
+3. Build command matches the service package manager and lockfile.
+4. Start command matches the compiled server entrypoint.
+5. Health check path returns HTTP 200 without authentication.
+6. Required runtime environment variables are present in the Render dashboard.
+7. Secret scan output does not report deploy hooks or provider tokens.
+
+## Rotation rule
+
+Treat any old deploy hook named `RENDER_DEPLOY_HOOK` as compromised if it was previously exposed or stored outside protected secrets. Rotate the hook in Render and store only the new `RENDER_DEPLOY_HOOK_URL` value in the protected `production` GitHub Environment secret.

@@ -25,6 +25,19 @@ jobs:
           if [ -f render.yaml ]; then
             echo "render.yaml found"
             ruby <<'RUBY'
+      - name: Validate Render blueprint if present
+        id: blueprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f render.yaml ]; then
+            echo "render.yaml not found; continuing with repository-level runtime detection."
+            echo "app_dir=." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "render.yaml found"
+          ruby <<'RB'
           require 'yaml'
 
           path = 'render.yaml'
@@ -56,6 +69,15 @@ jobs:
           text = File.read(path, encoding: 'UTF-8').downcase
           forbidden = [
             'render_deploy_hook',
+          if services && !services.is_a?(Array)
+            warn 'render.yaml services must be a list'
+            exit 1
+          end
+
+          text = File.read(path).downcase
+          forbidden = [
+            'render_deploy_hook',
+            'render_deploy_hook_url',
             'api.render.com/deploy',
             'sk-',
             'ghp_',
@@ -117,6 +139,47 @@ jobs:
           elif [ -f "$service_path/Dockerfile" ]; then
             echo "project_type=docker" >> "$GITHUB_OUTPUT"
           elif [ -f "$service_path/index.html" ] || [ -d "$service_path/public" ] || [ -d "$service_path/static" ]; then
+          found = forbidden.find { |marker| text.include?(marker) }
+          if found
+            warn "forbidden secret/deploy marker found in render.yaml: #{found}"
+            exit 1
+          end
+
+          puts 'render.yaml syntax and no-secrets checks passed'
+          RB
+
+          app_dir="$(ruby <<'RB'
+          require 'yaml'
+          data = YAML.safe_load_file('render.yaml', permitted_classes: [], aliases: false)
+          services = data.fetch('services', []) || []
+          web = services.find { |service| service.is_a?(Hash) && service['type'] == 'web' }
+          puts((web && web['rootDir']) || '.')
+          RB
+          )"
+          if [ ! -d "$app_dir" ]; then
+            echo "render.yaml rootDir does not exist: $app_dir"
+            exit 1
+          fi
+          echo "app_dir=$app_dir" >> "$GITHUB_OUTPUT"
+          echo "Render app directory: $app_dir"
+
+      - name: Detect project type
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_dir="${{ steps.blueprint.outputs.app_dir }}"
+          if [ -z "$app_dir" ]; then
+            app_dir="."
+          fi
+
+          if [ -f "$app_dir/package.json" ]; then
+            echo "project_type=node" >> "$GITHUB_OUTPUT"
+          elif [ -f "$app_dir/pyproject.toml" ] || [ -f "$app_dir/requirements.txt" ]; then
+            echo "project_type=python" >> "$GITHUB_OUTPUT"
+          elif [ -f "$app_dir/Dockerfile" ]; then
+            echo "project_type=docker" >> "$GITHUB_OUTPUT"
+          elif [ -f "$app_dir/index.html" ] || [ -d "$app_dir/public" ]; then
             echo "project_type=static" >> "$GITHUB_OUTPUT"
           else
             echo "project_type=unknown" >> "$GITHUB_OUTPUT"
@@ -125,6 +188,12 @@ jobs:
       - name: Node preflight
         if: steps.detect.outputs.project_type == 'node'
         working-directory: ${{ steps.render.outputs.service_path }}
+          echo "app_dir=$app_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Node preflight
+        if: steps.detect.outputs.project_type == 'node'
+        working-directory: ${{ steps.detect.outputs.app_dir }}
+        shell: bash
         run: |
           set -euo pipefail
           node --version
@@ -133,6 +202,7 @@ jobs:
             npm ci --include=dev
           else
             npm install --include=dev
+            npm install
           fi
           npm run build --if-present
           npm test --if-present
@@ -151,11 +221,26 @@ jobs:
           if [ -d tests ]; then
             python -m pip install pytest
             pytest -q
+        working-directory: ${{ steps.detect.outputs.app_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            python3 -m pip install -r requirements.txt
+          fi
+          python3 -m compileall .
+          if [ -d tests ]; then
+            python3 -m pip install pytest
+            python3 -m pytest -q
           fi
 
       - name: Docker preflight
         if: steps.detect.outputs.project_type == 'docker'
         working-directory: ${{ steps.render.outputs.service_path }}
+        working-directory: ${{ steps.detect.outputs.app_dir }}
+        shell: bash
         run: |
           set -euo pipefail
           docker build -t qarar-render-preflight .
@@ -176,4 +261,20 @@ jobs:
         run: |
           echo "Could not detect Node, Python, Docker, or static project type."
           echo "Render deployment requires render.yaml to point at a recognizable runtime."
+        working-directory: ${{ steps.detect.outputs.app_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f index.html ] && [ ! -d public ]; then
+            echo "Static app requires index.html or public/."
+            exit 1
+          fi
+          echo "Static app preflight passed."
+
+      - name: Unknown project type
+        if: steps.detect.outputs.project_type == 'unknown'
+        shell: bash
+        run: |
+          echo "Could not detect Node, Python, Docker, or static project type."
+          echo "Render deployment requires render.yaml with a valid rootDir or a recognizable runtime."
           exit 1

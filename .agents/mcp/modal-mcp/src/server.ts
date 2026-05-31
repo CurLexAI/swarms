@@ -155,6 +155,7 @@ function ensureDeploymentAllowed(deploymentId: string): Result<string, ToolError
 const server = createServer(async (req, res) => {
   if ((req.url === '/health' || req.url === '/healthz') && req.method === 'GET') {
     return json(res, 200, { status: 'ok' });
+    return json(res, 200, { status: 'ok', service: 'modal-mcp' });
   }
 
   if (req.url === '/sse' && req.method === 'GET') {
