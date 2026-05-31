@@ -60,6 +60,10 @@ def test_render_deploy_is_separate_manual_environment_gate() -> None:
     assert "RENDER_SERVICE_ID" not in fastconnect
 
 
+    for secret_name in ("MCP_BEARER_TOKEN", "MODAL_API_TOKEN", "MIHWAR_ENDPOINT", "BAYYINAH_ENDPOINT", "AGENT_API_TOKEN"):
+        assert re.search(rf"key: {secret_name}\n\s+sync: false", render_yaml)
+
+
 def test_copilot_mcp_default_is_offline_no_secrets_python3() -> None:
     """GitHub Copilot MCP must default to the offline no-secrets server."""
 
@@ -108,6 +112,8 @@ def test_modal_qdrant_surface_is_snapshot_only_and_not_volume_backed_live_storag
     assert 'volumes={"/qdrant' not in source
     assert 'LOCAL_STORAGE = Path("/qdrant/storage")' in source
     assert 'SNAPSHOT_DIR = Path("/snapshots")' in source
+    assert "LOCAL_STORAGE = Path(\"/qdrant/storage\")" in source
+    assert "SNAPSHOT_DIR = Path(\"/snapshots\")" in source
 
 
 def test_static_audit_has_no_external_tool_dependency_and_fails_on_findings(tmp_path: Path) -> None:
@@ -118,10 +124,14 @@ def test_static_audit_has_no_external_tool_dependency_and_fails_on_findings(tmp_
     assert "command -v rg" not in source
     assert "rglob" in source
 
+    import importlib.util
+
     spec = importlib.util.spec_from_file_location(
         "static_audit", REPO_ROOT / "scripts/security/static_audit.py"
     )
     assert spec is not None and spec.loader is not None
+    import sys
+
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -129,6 +139,8 @@ def test_static_audit_has_no_external_tool_dependency_and_fails_on_findings(tmp_
     secret_file = tmp_path / "leak.py"
     token = "ghp_" + "123456789012345678901234567890123456"
     secret_file.write_text(f'TOKEN = "{token}"\n', encoding="utf-8")
+
+    import sys
 
     original_argv = sys.argv
     try:
@@ -145,6 +157,12 @@ def test_runtime_policy_check_script_exists_for_aggregate_gate() -> None:
     assert "evaluateRuntimePolicy" in script
     assert "selectRuntimeProviders" not in script
     assert "invalid classification fails closed" in script
+    """Aggregate npm check must have a concrete runtime policy script."""
+
+    script = read_text("scripts/check-runtime-policy.ts")
+    assert "evaluateRuntimePolicy" in script
+    assert "selectRuntimeProviders" in script
+    assert "Runtime policy check passed." in script
 
 
 def test_no_secrets_preflight_workflows_do_not_require_runtime_secrets() -> None:
@@ -175,10 +193,14 @@ def test_no_secrets_preflight_workflows_do_not_require_runtime_secrets() -> None
 def test_swarm_presence_no_network_json_is_preflight_safe() -> None:
     """No-network swarm presence must serialize JSON and not fail preflight on skipped external checks."""
 
+    import importlib.util
+
     spec = importlib.util.spec_from_file_location(
         "swarm_presence_monitor", REPO_ROOT / "scripts/commander/swarm-presence-monitor.py"
     )
     assert spec is not None and spec.loader is not None
+    import sys
+
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
