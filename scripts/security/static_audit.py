@@ -12,6 +12,10 @@ SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("github", re.compile(r"gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}")),
     ("telegram", re.compile(r"\d{8,12}:[A-Za-z0-9_-]{30,}")),
     ("google", re.compile(r"AIza[0-9A-Za-z_-]{20,}")),
+    ("groq", re.compile(r"gsk_[A-Za-z0-9_-]{20,}")),
+    ("xai", re.compile(r"xai-[A-Za-z0-9_-]{20,}")),
+    ("perplexity", re.compile(r"pplx-[A-Za-z0-9_-]{20,}")),
+    ("render", re.compile(r"api\.render\.com/deploy/srv-[A-Za-z0-9_-]+")),
     ("private-key", re.compile(r"-----BEGIN (RSA |EC |OPENSSH |)?PRIVATE KEY-----")),
     ("bcrypt", re.compile(r"\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}")),
 ]
