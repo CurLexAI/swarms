@@ -14,7 +14,6 @@ from typing import Any
 import httpx
 import modal
 from fastapi import FastAPI, Header, HTTPException, Request
-from pydantic import BaseModel, Field
 
 QDRANT_PORT = 6333
 QDRANT_URL = f"http://127.0.0.1:{QDRANT_PORT}"
@@ -30,19 +29,9 @@ image = (
 app = modal.App("qarar-rag-infra", image=image)
 
 
-class IngestDoc(BaseModel):
-    doc_id: str = Field(min_length=3, max_length=128)
-    text: str = Field(min_length=1, max_length=100_000)
-    source: str = Field(min_length=1, max_length=512)
-    authority: str = Field(min_length=1, max_length=128)
-    article: str | None = None
-    section: str | None = None
-
-
-class SearchRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=4_000)
-    top_k: int = Field(default=5, ge=1, le=20)
-
+# Public Modal surface is deliberately snapshot-only. Ingest and search are
+# handled by separately reviewed workers so this class never exposes Qdrant REST
+# semantics or mutable data-plane operations through an ASGI route.
 
 def _safe_log(event_type: str, payload: dict[str, Any]) -> None:
     redacted: dict[str, Any] = {}
@@ -199,40 +188,6 @@ class QararRAGInfra:
                 }
             except httpx.HTTPError:
                 return {"ok": False, "collection": COLLECTION_NAME}
-
-        @web.post("/ingest")
-        async def ingest(
-            request: Request,
-            x_qarar_timestamp: str = Header(...),
-            x_qarar_signature: str = Header(...),
-        ):
-            raw_body = await self._verify_request(request, x_qarar_timestamp, x_qarar_signature)
-            docs_json = json.loads(raw_body.decode("utf-8"))
-            docs = [IngestDoc.model_validate(item) for item in docs_json]
-            for doc in docs:
-                reject_secret_like_text(doc.text)
-            _safe_log("ingest_accepted", {"count": len(docs), "collection": COLLECTION_NAME})
-            return {
-                "ok": True,
-                "accepted": len(docs),
-                "note": "Embedding worker integration is intentionally separate.",
-            }
-
-        @web.post("/search")
-        async def search(
-            request: Request,
-            x_qarar_timestamp: str = Header(...),
-            x_qarar_signature: str = Header(...),
-        ):
-            raw_body = await self._verify_request(request, x_qarar_timestamp, x_qarar_signature)
-            req = SearchRequest.model_validate_json(raw_body)
-            reject_secret_like_text(req.query)
-            _safe_log("search_accepted", {"top_k": req.top_k, "collection": COLLECTION_NAME})
-            return {
-                "ok": True,
-                "results": [],
-                "note": "Vector embedding integration must populate query vector before Qdrant search.",
-            }
 
         @web.post("/snapshot")
         async def snapshot(

@@ -19,4 +19,4 @@ jobs:
           python-version: "3.11"
 
       - name: Run Aegis MCP gateway tests
-        run: python -m unittest tests.test_aegis_mcp_gateway
+        run: python3 -m unittest tests.test_aegis_mcp_gateway

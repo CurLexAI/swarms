@@ -19,7 +19,7 @@ import sys
 import urllib.error
 import urllib.request
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -69,7 +69,7 @@ class Report:
             return 1
         if self.strict and (self.summary[HOLD] + self.summary[SKIPPED]) > 0:
             return 1
-        if (self.summary[HOLD] + self.summary[SKIPPED]) > 0:
+        if self.summary[HOLD] > 0:
             return 2
         return 0
 
@@ -80,7 +80,7 @@ class Report:
                 "repo": self.repo,
                 "strict": self.strict,
                 "summary": self.summary,
-                "checks": [check.__dict__ for check in self.checks],
+                "checks": [asdict(check) for check in self.checks],
                 "exitCode": self.exit_code,
             },
             ensure_ascii=False,
