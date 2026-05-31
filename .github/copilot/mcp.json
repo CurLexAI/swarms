@@ -1,20 +1,15 @@
 {
   "mcpServers": {
-    "curlexai-agents": {
+    "qarar-offline-mcp": {
       "type": "local",
       "command": "python",
-      "args": ["-u", ".agents/mcp/server.py"],
+      "args": ["-u", ".agents/mcp/server_offline.py"],
       "tools": [
-        "mihwar_generate",
-        "bayyinah_review",
-        "free_birds_review",
-        "free_birds_design"
-      ],
-      "env": {
-        "MIHWAR_ENDPOINT": "$COPILOT_MCP_MIHWAR_ENDPOINT",
-        "BAYYINAH_ENDPOINT": "$COPILOT_MCP_BAYYINAH_ENDPOINT",
-        "AGENT_API_TOKEN": "$COPILOT_MCP_AGENT_API_TOKEN"
-      }
+        "repo_static_audit",
+        "mihwar_generate_offline",
+        "bayyinah_review_offline",
+        "qarar_agent_registry_suggest"
+      ]
     }
   }
 }
