@@ -1,0 +1,66 @@
+name: Kamikaze Recovery Task
+description: Task for the Kamikaze Recovery Supervisor to fix CI/CD, PR, deploy, or security-gate failures.
+title: "[Recovery]: "
+labels:
+  - recovery
+  - ci
+  - supervisor
+  - no-secrets
+body:
+  - type: dropdown
+    id: failure_type
+    attributes:
+      label: Failure type
+      options:
+        - Aegis Security Gate
+        - secret-scan
+        - Render deploy
+        - Render preflight
+        - Modal deploy
+        - MCP setup
+        - Merge conflict
+        - GitHub Actions
+        - Tests
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: symptom
+    attributes:
+      label: Symptom
+      description: What failed?
+      placeholder: "Example: Aegis failed on test_adr_0001_boundary_gate.py"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste redacted logs only. Do not paste secrets.
+      placeholder: "Paste safe logs here."
+    validations:
+      required: false
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      value: |
+        - Do not add secrets.
+        - Do not deploy production.
+        - Do not disable gates.
+        - Do not merge automatically.
+        - Keep human review required.
+    validations:
+      required: true
+  - type: textarea
+    id: expected_output
+    attributes:
+      label: Expected output
+      value: |
+        - Root cause analysis
+        - Minimal patch
+        - Regression test
+        - CI verification
+        - Merge recommendation
+    validations:
+      required: true

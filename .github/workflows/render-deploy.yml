@@ -1,0 +1,51 @@
+name: render-deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy-render-production
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Validate deploy hook secret exists
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${RENDER_DEPLOY_HOOK_URL:-}" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL is missing from the protected production environment."
+            exit 1
+          fi
+          case "${RENDER_DEPLOY_HOOK_URL}" in
+            https://api.render.com/deploy/srv-*)
+              echo "Render deploy hook shape is valid."
+              ;;
+            *)
+              echo "Render deploy hook has invalid shape."
+              exit 1
+              ;;
+          esac
+
+      - name: Trigger Render deploy
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --request POST \
+            "${RENDER_DEPLOY_HOOK_URL}" >/dev/null
+          echo "Render deploy triggered."
