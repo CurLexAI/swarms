@@ -1,44 +1,53 @@
-name: Copilot setup steps
+name: Copilot Setup Steps
+
 on:
   workflow_dispatch:
   pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+      - tsconfig.json
+      - "src/**/*.ts"
+      - "scripts/**/*.ts"
+      - "tests/**/*.ts"
   push:
     branches:
       - main
+    paths:
+      - package.json
+      - package-lock.json
+      - tsconfig.json
+      - "src/**/*.ts"
+      - "scripts/**/*.ts"
+      - "tests/**/*.ts"
+
 permissions:
   contents: read
+
 jobs:
   copilot-setup-steps:
-    name: Prepare no-secrets Copilot MCP environment
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
-      - name: Install local MCP dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install "mcp>=1.0.0"
-      - name: Verify no production secrets are required
-        run: |
-          unset OPENAI_API_KEY || true
-          unset ANTHROPIC_API_KEY || true
-          unset GEMINI_API || true
-          unset GEMINI_API_KEY || true
-          unset GROK_API || true
-          unset GROQ_API_KEY || true
-          unset GITHUB_TOKEN_OVERRIDE || true
-          unset RENDER_DEPLOY_HOOK || true
-          unset RAPTOR_TELEGRAM_BOT_TOKEN || true
-          echo "NO_SECRETS_MODE=true" >> "$GITHUB_ENV"
-      - name: Validate offline MCP server exists
-        run: |
-          test -f .agents/mcp/server_offline.py
-          python -m py_compile .agents/mcp/server_offline.py
-      - name: Security reminder
-        run: |
-          echo "Copilot MCP is configured in no-secrets offline mode."
-          echo "Do not add live tokens, deploy hooks, or provider API keys to this repository."
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build --if-present
+
+      - name: Check runtime policy
+        run: npm run check:runtime-policy --if-present
+
+      - name: Test runtime policy
+        run: npm run test:runtime-policy --if-present
+
+      - name: Test
+        run: npm test --if-present
