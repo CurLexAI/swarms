@@ -8,6 +8,9 @@ on:
       - "scripts/commander/p0-security-test-gate.sh"
       - ".github/workflows/aegis-mcp-gateway.yml"
 
+permissions:
+  contents: read
+
 jobs:
   aegis-mcp-gateway:
     runs-on: ubuntu-latest
