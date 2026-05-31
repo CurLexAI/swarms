@@ -66,7 +66,7 @@ def main() -> int:
                 line = text.count("\n", 0, match.start()) + 1
                 findings.append(f"{path}:{line}: possible {name} secret")
     if findings:
-        print("\n".join(findings))
+        print(f"Potential secrets detected: {len(findings)} finding(s).")
         return 1
     print("No obvious secrets found.")
     return 0
