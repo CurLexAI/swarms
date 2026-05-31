@@ -69,6 +69,11 @@ class AdrBoundaryGateTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("BOUNDARY_DRIFT: autoStart activation flag detected", result.stdout)
 
+    def test_autostart_detection_does_not_depend_on_ripgrep(self) -> None:
+        gate_text = GATE.read_text(encoding="utf-8")
+        self.assertNotIn("rg -n", gate_text)
+        self.assertIn("grep", gate_text)
+
 
 if __name__ == "__main__":
     unittest.main()
