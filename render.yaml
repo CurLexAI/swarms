@@ -6,6 +6,8 @@ services:
     buildCommand: npm ci --include=dev && npm run build
     startCommand: node dist/server.js
     port: 8787
+    healthCheckPath: /health
+    # This service is the Modal MCP Gateway only; BSM backend and public product API origins are external.
     envVars:
       - key: MCP_BASE_URL
         value: https://curlexai-mcp-server.onrender.com
