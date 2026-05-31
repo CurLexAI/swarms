@@ -17,7 +17,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
 
       - name: Install core Python dependencies
         run: python3 -m pip install pyyaml pytest requests httpx pydantic modal beautifulsoup4 pdfplumber minio qdrant-client

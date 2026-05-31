@@ -6,7 +6,7 @@ description: >
   repository-wide implementation strategy. Qarar never executes code directly —
   it coordinates Mihwar (generation) and Bayyinah (review).
 target: github-copilot
-tools: ["read", "search", "github/*"]
+tools: ["read", "search", "github/*", "curlexai-agents/mihwar_generate", "curlexai-agents/bayyinah_review", "curlexai-agents/free_birds_review", "curlexai-agents/free_birds_design"]
 disable-model-invocation: false
 user-invocable: true
 metadata:

@@ -6,7 +6,7 @@ description: >
   leakage, prompt-injection surface review, and final policy validation before merge.
   Routes review work through the MCP tool `bayyinah_review` or the slash command `/bayyinah`.
 target: github-copilot
-tools: ["read", "search", "github/*"]
+tools: ["read", "search", "github/*", "curlexai-agents/bayyinah_review", "curlexai-agents/free_birds_review"]
 disable-model-invocation: false
 user-invocable: true
 metadata:

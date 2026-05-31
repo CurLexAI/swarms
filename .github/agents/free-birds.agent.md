@@ -6,7 +6,7 @@ description: >
   Mihwar/DeepSeek). Each bird inspects a different angle. Trigger via `/free-birds`
   in PR comments or through the MCP tools `free_birds_review` / `free_birds_design`.
 target: github-copilot
-tools: ["read", "search", "github/*"]
+tools: ["read", "search", "github/*", "curlexai-agents/free_birds_review", "curlexai-agents/free_birds_design"]
 disable-model-invocation: false
 user-invocable: true
 metadata:

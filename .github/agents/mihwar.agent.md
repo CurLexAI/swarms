@@ -6,7 +6,7 @@ description: >
   API design, and performance-sensitive changes. Routes heavy code-generation work
   through the MCP tool `mihwar_generate` or the slash command `/mihwar` in PR comments.
 target: github-copilot
-tools: ["read", "edit", "search", "github/*"]
+tools: ["read", "edit", "search", "github/*", "curlexai-agents/mihwar_generate", "curlexai-agents/free_birds_design"]
 disable-model-invocation: false
 user-invocable: true
 metadata:
