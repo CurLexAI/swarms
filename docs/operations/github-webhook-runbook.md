@@ -47,8 +47,21 @@ The application receiver must:
 |---|---|---|
 | `403 Forbidden · GitHub` | Payload URL still points to `github.com/...` | Edit the webhook URL and redeliver a new ping. |
 | `404` from Render/SR.BSM | Host is correct but route is missing | Add `/api/webhooks/github` in the application repo. |
-| `401` from Render/SR.BSM | Route exists but signature or secret mismatch | Compare GitHub webhook secret with runtime `GITHUB_WEBHOOK_SECRET`. |
+| `401` from Render/SR.BSM with log `missing GITHUB_WEBHOOK_SECRET security configuration` | Route exists but the runtime has no webhook secret configured | Set the runtime secret in the deployment secret store, keep the same value in GitHub webhook settings, restart/redeploy the runtime, then redeliver a GitHub `ping`. |
+| `401` from Render/SR.BSM without missing-secret log | Route exists but signature or secret mismatch | Compare GitHub webhook secret with runtime `GITHUB_WEBHOOK_SECRET`, verify raw-body preservation, and redeliver a new signed event. |
 | `200` for `ping` | Receiver wiring is valid | Test selected real events. |
+
+
+## Missing-secret recovery procedure
+
+When runtime logs contain `Cannot verify GitHub webhook signature: missing GITHUB_WEBHOOK_SECRET security configuration`, the receiver is failing closed by design. Operators must not remove signature validation or commit a fallback secret.
+
+1. Generate a new high-entropy webhook secret outside Git.
+2. Store it as `GITHUB_WEBHOOK_SECRET` in the application runtime secret store.
+3. Configure the exact same value in GitHub repository webhook settings.
+4. Restart or redeploy the application runtime so the process reads the secret.
+5. Redeliver a `ping` event from GitHub and confirm a `200` response after signature verification.
+6. If `401` continues after the secret is present, inspect raw-body preservation and `X-Hub-Signature-256` handling before changing any event logic.
 
 ## Minimal Node receiver shape for the application repo
 
