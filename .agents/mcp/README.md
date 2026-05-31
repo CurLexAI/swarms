@@ -3,7 +3,7 @@
 This directory contains MCP (Model Context Protocol) servers that expose the Modal-hosted **Mihwar** and **Bayyinah** agents as callable tools inside MCP-compatible clients.
 
 **Two deployment models:**
-1. **Local** (`.agents/mcp/server.py`) — Python stdio server for GitHub Copilot, Claude Desktop, Cursor
+1. **Local** (`.agents/mcp/server.py`) — Python stdio server for GitHub Copilot, Codex, Claude Desktop, Cursor
 2. **Remote** (`.agents/mcp/modal-mcp/`) — Node.js HTTPS server on Render for ChatGPT, Claude web, and other remote clients
 
 See [RENDER_MCP_INTEGRATION.md](./RENDER_MCP_INTEGRATION.md) for remote deployment instructions.
@@ -20,10 +20,53 @@ The server speaks JSON-RPC over stdio and forwards tool calls to the Modal endpo
 |------|----------------|-------|
 | `mihwar_generate` | `MIHWAR_ENDPOINT` | DeepSeek-Coder-V2-Instruct |
 | `bayyinah_review` | `BAYYINAH_ENDPOINT` | Qwen2.5-Coder-32B-Instruct |
+| `free_birds_review` | `BAYYINAH_ENDPOINT` | Qwen2.5-Coder-32B-Instruct |
+| `free_birds_design` | `MIHWAR_ENDPOINT` | DeepSeek-Coder-V2-Instruct |
 
 No external dependencies required — uses only Python stdlib.
 
-> **Identity note.** The tools above are MCP-exposed surfaces, consumable by any MCP client (GitHub Copilot, Claude Desktop, Cursor, Continue, direct stdio peers). "Copilot" is the UI label of one such client, not a distinct runtime — every client hits the same JSON-RPC server and reaches the same Modal endpoints. The per-client setup sections below differ only in how each host spawns the stdio process and reads env vars.
+> **Identity note.** The tools above are MCP-exposed surfaces, consumable by any MCP client (GitHub Copilot, Codex, Claude Desktop, Cursor, Continue, direct stdio peers). "Copilot" is the UI label of one such client, not a distinct runtime — every client hits the same JSON-RPC server and reaches the same Modal endpoints. The per-client setup sections below differ only in how each host spawns the stdio process and reads env vars.
+
+---
+
+## Aegis Gateway Controls
+
+The local stdio server includes the first Aegis MCP gateway layer:
+
+- `tools/list` is filtered by caller role.
+- `tools/call` is denied before Modal dispatch when the role cannot use the requested tool.
+- Tool-call arguments are inspected for prompt-injection style abuse, such as instruction override, hidden prompt disclosure, safety bypass, jailbreak persona, or secret-exfiltration requests.
+- Discovery and call decisions are written to the Qal'a sealed audit sink as sanitized `policy_decision` records. Raw tool arguments are never written; the audit payload records argument keys, byte length, SHA-256 hash, decision reason, and rule ids.
+
+Roles can be supplied through MCP request metadata:
+
+```json
+{
+  "_meta": {
+    "aegis": {
+      "role": "observer"
+    }
+  }
+}
+```
+
+If request metadata is absent, `AEGIS_MCP_ROLE` is used. Unknown roles degrade to `observer`.
+
+| Role | Discoverable/callable tools |
+|------|-----------------------------|
+| `observer` | `bayyinah_review`, `free_birds_review` |
+| `reviewer` | `bayyinah_review`, `free_birds_review` |
+| `architect` | all CurLexAI agent tools |
+| `operator` | all CurLexAI agent tools |
+| `admin` | all CurLexAI agent tools |
+
+Optional environment variables:
+
+```text
+AEGIS_MCP_ROLE=operator
+AEGIS_TENANT_ID=system
+QALA_AUDIT_SINK_PATH=artifacts/security/qala-audit.jsonl
+```
 
 ---
 
@@ -38,11 +81,13 @@ Open the **MCP configuration** page in your repository's Copilot settings and pa
       "type": "local",
       "command": "python",
       "args": ["-u", ".agents/mcp/server.py"],
-      "tools": ["mihwar_generate", "bayyinah_review"],
+      "tools": ["mihwar_generate", "bayyinah_review", "free_birds_review", "free_birds_design"],
       "env": {
         "MIHWAR_ENDPOINT": "$MIHWAR_ENDPOINT",
         "BAYYINAH_ENDPOINT": "$BAYYINAH_ENDPOINT",
-        "AGENT_API_TOKEN": "$AGENT_API_TOKEN"
+        "AGENT_API_TOKEN": "$AGENT_API_TOKEN",
+        "AEGIS_MCP_ROLE": "$AEGIS_MCP_ROLE",
+        "AEGIS_TENANT_ID": "$AEGIS_TENANT_ID"
       }
     }
   }
@@ -54,6 +99,66 @@ GitHub Copilot's schema requires:
 - `"tools": [...]` — explicit allowlist of tool names the server provides.
 
 The `$VAR` references resolve from the repository's `copilot environment` secrets.
+
+---
+
+## Codex CLI / IDE Extension Setup
+
+Codex reads MCP server configuration from `config.toml`. Prefer the user-scoped file (`~/.codex/config.toml`) so private endpoint and token environment wiring never lands in Git. Use project-scoped `.codex/config.toml` only for trusted worktrees, and never commit real bearer tokens, Modal URLs, or private endpoint values.
+
+### Local CurLexAI stdio server
+
+Add the local CurLexAI agent server as a stdio MCP server:
+
+```toml
+[mcp_servers.curlexai_agents]
+command = "python3"
+args = ["-u", "/absolute/path/to/swarms/.agents/mcp/server.py"]
+env_vars = [
+  "MIHWAR_ENDPOINT",
+  "BAYYINAH_ENDPOINT",
+  "AGENT_API_TOKEN",
+  "AEGIS_MCP_ROLE",
+  "AEGIS_TENANT_ID",
+  "QALA_AUDIT_SINK_PATH",
+]
+startup_timeout_sec = 10
+tool_timeout_sec = 60
+default_tools_approval_mode = "prompt"
+
+[mcp_servers.curlexai_agents.tools.bayyinah_review]
+approval_mode = "approve"
+```
+
+Operational notes:
+
+- Use `env_vars` to forward values already present in the local or remote executor environment; do not paste secret values into TOML.
+- For remote Codex stdio execution, set `experimental_environment = "remote"` and use `{ name = "VAR_NAME", source = "remote" }` entries for secrets that exist only in the remote executor.
+- Restrict `enabled_tools` when a Codex session only needs review tools. For example, observer sessions should allow `bayyinah_review` and `free_birds_review` only.
+- In the Codex TUI, run `/mcp` to confirm the server initialized and inspect available tools.
+
+### Render remote HTTP server
+
+Keep Render infrastructure MCP access separate from the CurLexAI agent server:
+
+```toml
+[mcp_servers.render]
+url = "https://mcp.render.com/mcp"
+default_tools_approval_mode = "prompt"
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+```
+
+If a remote HTTP MCP server requires bearer authentication, bind it to an environment variable instead of a literal token:
+
+```toml
+[mcp_servers.curlexai_remote_mcp]
+url = "https://example.internal/mcp"
+bearer_token_env_var = "MCP_BEARER_TOKEN"
+default_tools_approval_mode = "prompt"
+```
+
+OAuth-capable MCP servers should be authenticated with `codex mcp login <server-name>` after the server is configured. If the provider requires a fixed callback, configure `mcp_oauth_callback_port` or `mcp_oauth_callback_url` at the top level of `config.toml`.
 
 ---
 
@@ -92,9 +197,11 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
       "command": "python",
       "args": ["-u", "/absolute/path/to/swarms/.agents/mcp/server.py"],
       "env": {
-        "MIHWAR_ENDPOINT": "https://curlexai--mihwar-generate.modal.run",
-        "BAYYINAH_ENDPOINT": "https://curlexai--bayyinah-review.modal.run",
-        "AGENT_API_TOKEN": "your-token-here"
+        "MIHWAR_ENDPOINT": "$MIHWAR_ENDPOINT",
+        "BAYYINAH_ENDPOINT": "$BAYYINAH_ENDPOINT",
+        "AGENT_API_TOKEN": "$AGENT_API_TOKEN",
+        "AEGIS_MCP_ROLE": "operator",
+        "AEGIS_TENANT_ID": "system"
       }
     },
     "render": {
@@ -112,18 +219,19 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 ## Local Smoke Test
 
 ```bash
-export MIHWAR_ENDPOINT="https://curlexai--mihwar-generate.modal.run"
-export BAYYINAH_ENDPOINT="https://curlexai--bayyinah-review.modal.run"
-export AGENT_API_TOKEN="your-token"
+export MIHWAR_ENDPOINT="${MIHWAR_ENDPOINT:?set in your secret manager}"
+export BAYYINAH_ENDPOINT="${BAYYINAH_ENDPOINT:?set in your secret manager}"
+export AGENT_API_TOKEN="${AGENT_API_TOKEN:?set in your secret manager}"
+export AEGIS_MCP_ROLE="operator"
 
 # List tools
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
-{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":{"aegis":{"role":"observer"}}}}' \
   | python .agents/mcp/server.py
 
 # Call Bayyinah
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"bayyinah_review","arguments":{"code":"function add(a,b){return a+b}"}}}' \
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"bayyinah_review","arguments":{"code":"function add(a,b){return a+b}"},"_meta":{"aegis":{"role":"reviewer"}}}}' \
   | python .agents/mcp/server.py
 ```
 
@@ -156,7 +264,8 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
 
 - Tokens are read from environment variables; never logged or returned in errors.
 - Modal endpoints are not exposed to the client — only the tool names appear.
-- The server has no filesystem or shell access; it only forwards HTTPS POST requests.
+- The server has no filesystem or shell access for tools; it only forwards HTTPS POST requests after Aegis authorization.
+- Aegis audit records are sanitized and contain no raw tool-call input.
 
 ---
 
@@ -168,3 +277,4 @@ The community `@modelcontextprotocol/server-fetch` is generic and would require 
 - Defines stable tool names (`mihwar_generate`, `bayyinah_review`) instead of raw URLs.
 - Hides Modal endpoints from the client model entirely.
 - Returns JSON-RPC errors mapped from network failures without leaking endpoint details.
+- Adds Aegis role filtering, prompt-injection inspection, and Qal'a audit records at the MCP boundary.

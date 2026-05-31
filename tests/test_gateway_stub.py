@@ -81,6 +81,9 @@ class GatewayStubContract(unittest.TestCase):
     def test_all_model_routes_return_501(self) -> None:
         try:
             from fastapi.testclient import TestClient
+        except (ImportError, RuntimeError) as exc:
+            self.skipTest(f"fastapi/starlette test client not available: {exc}")
+            from fastapi.testclient import TestClient
         except ImportError:
             self.skipTest("fastapi/starlette not installed")
         os.environ["SWARMS_GATEWAY_STUB_ACK"] = "1"

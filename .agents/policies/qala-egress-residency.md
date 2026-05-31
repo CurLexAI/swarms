@@ -22,6 +22,10 @@ skill. See `docs/decisions/ADR-0003-qala-security-architecture.md`
 | `api.github.com` | PR review comments, user info | `.agents/pr_review.py`, `.agents/mcp/cloudflare-mcp/src/github-handler.ts` |
 | `github.com` | GitHub OAuth authorization and token exchange | `.agents/mcp/cloudflare-mcp/src/github-handler.ts` |
 | `huggingface.co` | Model weight pull (Modal runtime only — never client) | `.agents/modal_app.py` |
+| `ollama` | Local Ollama Docker/internal service for sovereign inference | `src/providers/local_ollama.py` |
+| `llama-server` | Local llama.cpp Docker/internal service for sovereign inference | `src/providers/local_llama_cpp.py` |
+| `qarar-security-gate` | Internal DLP/PII gate for SAMA ingestion decisions | `sama_ingestion_swarm/agent_auditor.py` |
+| `login.microsoftonline.com` | Azure Entra OIDC metadata endpoint for tenant identity verification | `scripts/commander/swarm-presence-monitor.py` |
 
 Any other host appearing in scanned source files requires either:
 
@@ -38,6 +42,7 @@ The gate scans:
 - `.agents/` (Python operations layer)
 - `src/` (Node / TypeScript adapters)
 - `scripts/` (build/check scripts)
+- `sama_ingestion_swarm/` (private SAMA ingestion pipeline)
 
 It does NOT scan:
 

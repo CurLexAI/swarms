@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE = REPO_ROOT / "scripts" / "commander" / "adr-0001-boundary-gate.sh"
 
 
-def _run_gate(repo: Path) -> subprocess.CompletedProcess:
+def _run_gate(repo: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", str(GATE), str(repo)],
         capture_output=True,
@@ -87,6 +87,11 @@ class AdrBoundaryGateTests(unittest.TestCase):
             result = _run_gate(tmp)
             self.assertEqual(result.returncode, 1)
             self.assertIn("BOUNDARY_DRIFT: autoStart activation flag detected", result.stdout)
+
+    def test_autostart_detection_does_not_depend_on_ripgrep(self) -> None:
+        gate_text = GATE.read_text(encoding="utf-8")
+        self.assertNotIn("rg -n", gate_text)
+        self.assertIn("grep", gate_text)
 
 
 if __name__ == "__main__":

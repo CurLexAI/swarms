@@ -8,6 +8,7 @@ import (
 	"mihwar.qarar.sa/core/internal/esim"
 	"mihwar.qarar.sa/core/internal/mdm"
 	"mihwar.qarar.sa/core/internal/policy"
+	"mihwar.qarar.sa/core/internal/security"
 )
 
 // Server is the Mihwar Core HTTP/QUIC gateway.
@@ -37,31 +38,26 @@ func (s *Server) buildRouter() *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(s.auditMiddleware())
-	r.Use(s.authMiddleware())
 
-	// Policy
-	r.POST("/api/v1/policy/evaluate", s.evaluatePolicy)
-
-	// Device enrollment
-	r.POST("/api/v1/devices/enroll", s.enrollDevice)
-
-	// Apple MDM
-	r.POST("/mdm/checkin", s.mdm.CheckIn)
-	r.PUT("/mdm/connect", s.mdm.Connect)
-	r.GET("/mdm/scep", s.mdm.SCEP)
-
-	// eSIM lifecycle
-	r.POST("/api/v1/esim/order", s.esim.OrderProfile)
-	r.POST("/api/v1/esim/activate", s.esim.ActivateProfile)
-	r.POST("/api/v1/esim/revoke", s.esim.RevokeProfile)
-
-	// Telemetry ingestion
-	r.POST("/api/v1/telemetry", s.ingestTelemetry)
-
-	// Health
+	// Health remains outside the signed control plane for load-balancer probes.
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "sovereign", "region": "SA"})
 	})
+
+	api := r.Group("/api/v1")
+	api.Use(security.HMACMiddleware())
+	api.POST("/policy/evaluate", s.evaluatePolicy)
+	api.POST("/devices/enroll", s.enrollDevice)
+	api.POST("/esim/order", s.esim.OrderProfile)
+	api.POST("/esim/activate", s.esim.ActivateProfile)
+	api.POST("/esim/revoke", s.esim.RevokeProfile)
+	api.POST("/telemetry", s.ingestTelemetry)
+
+	mdmGroup := r.Group("/mdm")
+	mdmGroup.Use(security.HMACMiddleware())
+	mdmGroup.POST("/checkin", s.mdm.CheckIn)
+	mdmGroup.PUT("/connect", s.mdm.Connect)
+	mdmGroup.GET("/scep", s.mdm.SCEP)
 
 	return r
 }

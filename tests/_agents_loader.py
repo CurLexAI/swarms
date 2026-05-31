@@ -29,7 +29,7 @@ def _ensure_pkg(qualified: str, dir_path: Path) -> None:
     sys.modules[qualified] = pkg
 
 
-def _load_module(qualified: str, file_path: Path):
+def _load_module(qualified: str, file_path: Path) -> types.ModuleType:
     if qualified in sys.modules:
         return sys.modules[qualified]
     spec = importlib.util.spec_from_file_location(qualified, file_path)

@@ -1,0 +1,50 @@
+name: modal-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_deploy:
+        description: "Type DEPLOY_MODAL to run the gated Modal deployment"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy-modal
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate manual deployment gate
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.confirm_deploy }}" != "DEPLOY_MODAL" ]]; then
+            echo "Manual Modal deploy denied: confirmation phrase did not match."
+            exit 1
+          fi
+
+      - name: Install Modal
+        run: python3 -m pip install --upgrade "modal>=0.64,<1.0"
+
+      - name: Validate required secrets
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${MODAL_TOKEN_ID:-}" || -z "${MODAL_TOKEN_SECRET:-}" ]]; then
+            echo "Required Modal deployment secrets are missing."
+            exit 1
+          fi
+
+      - name: Deploy Qarar RAG Infra
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: modal deploy modal/qarar_rag_infra.py

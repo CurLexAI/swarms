@@ -22,6 +22,16 @@ elif command -v python >/dev/null 2>&1; then
 else
   echo "[FAIL] PYTHON_NOT_FOUND: python3 or python is required"
   exit 1
+PYTHON_BIN="${PYTHON_BIN:-}"
+if [[ -z "$PYTHON_BIN" ]]; then
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+  else
+    echo "[FAIL] PYTHON_NOT_FOUND: python3 or python is required"
+    exit 1
+  fi
 fi
 
 "$PYTHON_BIN" - <<'PY'
@@ -46,7 +56,7 @@ for key, val in agents.items():
 PY
 
 echo "[INFO] Inspecting workflow gates in $WORKFLOW_FILE"
-if rg -n "needs\.bayyinah-review\.outputs\.verdict == 'REQUEST_CHANGES'" "$WORKFLOW_FILE" >/dev/null; then
+if grep -E -n "needs\.bayyinah-review\.outputs\.verdict == 'REQUEST_CHANGES'" "$WORKFLOW_FILE" >/dev/null; then
   echo "[OK] Mihwar is gated on Bayyinah REQUEST_CHANGES"
 else
   echo "[WARN] Mihwar gate condition not found"

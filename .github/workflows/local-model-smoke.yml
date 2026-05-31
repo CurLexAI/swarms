@@ -1,0 +1,89 @@
+name: Local Model Runtime Smoke (self-hosted)
+
+# Sovereign live test for the local model-serving infrastructure added to
+# docker-compose.yml (ollama + llama-server). It runs ONLY on manual dispatch
+# and ONLY on a self-hosted runner, so it never queues against GitHub-hosted
+# runners or blocks other PRs. Keep this runner inside the sovereign network.
+#
+# The default path tests Ollama end-to-end using the in-image `ollama` CLI
+# (no dependency on curl being present in the image). The llama-server probe
+# is opt-in because it requires a real GGUF at ${QARAR_MODEL_STORE}/model.gguf.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ollama_model:
+        description: "Ollama model to pull and test (small by default)"
+        default: "qwen2.5:0.5b"
+        required: true
+      pull_model:
+        description: "Pull + run the Ollama model (needs egress to the model registry)"
+        type: boolean
+        default: true
+      test_llama_server:
+        description: "Also bring up llama-server and probe /health (needs a GGUF at QARAR_MODEL_STORE/model.gguf)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: [self-hosted]
+    env:
+      # Fixed project name so the bridge network resolves to
+      # "lexprim_mihwar-sovereign" for the optional sidecar probe.
+      COMPOSE_PROJECT_NAME: lexprim
+      SOVEREIGN_NET: lexprim_mihwar-sovereign
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start services
+        run: |
+          if [ "${{ inputs.test_llama_server }}" = "true" ]; then
+            docker compose up -d ollama llama-server
+          else
+            docker compose up -d ollama
+          fi
+
+      - name: Show service status
+        run: docker compose ps
+
+      - name: Wait for Ollama to respond
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose exec -T ollama ollama list >/dev/null 2>&1; then
+              echo "ollama is responding"
+              exit 0
+            fi
+            echo "waiting for ollama to come up ($i/30)…"
+            sleep 5
+          done
+          echo "::error::ollama did not become ready in time"
+          docker compose logs ollama || true
+          exit 1
+
+      - name: Pull model
+        if: ${{ inputs.pull_model }}
+        run: docker compose exec -T ollama ollama pull "${{ inputs.ollama_model }}"
+
+      - name: Live generation test (Ollama)
+        if: ${{ inputs.pull_model }}
+        run: |
+          echo "Prompt: عاصمة السعودية؟"
+          docker compose exec -T ollama ollama run "${{ inputs.ollama_model }}" "ما هي عاصمة المملكة العربية السعودية؟ أجب بكلمة واحدة."
+
+      - name: Probe llama-server /health
+        if: ${{ inputs.test_llama_server }}
+        run: |
+          # llama.cpp's image may not ship curl, so probe from a sidecar that
+          # joins the same internal network. expose-only ports are reachable
+          # by service name from inside the network, not from the host.
+          docker run --rm --network "$SOVEREIGN_NET" curlimages/curl:latest \
+            -fsS http://llama-server:8080/health
+          echo "llama-server /health OK"
+
+      - name: Teardown
+        if: always()
+        run: docker compose down

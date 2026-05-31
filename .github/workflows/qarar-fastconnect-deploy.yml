@@ -1,4 +1,4 @@
-name: Qarar FastConnect — Build & Deploy
+name: Qarar FastConnect — Build Preflight
 
 on:
   push:
@@ -9,7 +9,24 @@ on:
       - "nginx/**"
       - "docker-compose.yml"
       - "render.yaml"
+  pull_request:
+    paths:
+      - "windows-agent/**"
+      - "mihwar-core/**"
+      - "nginx/**"
+      - "docker-compose.yml"
+      - "render.yaml"
   workflow_dispatch:
+    inputs:
+      deploy_render:
+        description: "Set true to trigger the gated Render deployment"
+        required: false
+        type: boolean
+        default: false
+      confirm_deploy:
+        description: "Type DEPLOY_RENDER to confirm the production Render deployment"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -60,7 +77,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.25"
           cache-dependency-path: mihwar-core/go.sum
       - name: Vet
         run: cd mihwar-core && go vet ./...
@@ -92,20 +109,34 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # Render deploys are intentionally separated into render-deploy.yml.
+  # This workflow remains a no-secrets build preflight only.
   # ── 5. Deploy to Render ───────────────────────────────────────────────────
   deploy-render:
     name: Deploy to Render
     needs: [build-mihwar-core, docker-build]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_render && inputs.confirm_deploy == 'DEPLOY_RENDER'
     environment: production
     steps:
       - uses: actions/checkout@v4
+      - name: Validate required Render secrets
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RENDER_API_KEY:-}" || -z "${RENDER_SERVICE_ID:-}" ]]; then
+            echo "Required Render deployment secrets are missing."
+            exit 1
+          fi
+
       - name: Deploy via Render API
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
         run: |
+          set -euo pipefail
           curl -sf -X POST \
             "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
             -H "Authorization: Bearer ${RENDER_API_KEY}" \

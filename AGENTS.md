@@ -117,6 +117,33 @@ Configuration lives in `.agents/config/agents.yaml`.
 Deployment lives in `.agents/modal_app.py`.
 PR orchestration lives in `.agents/pr_review.py` and `.github/workflows/agent-review.yml`.
 
+## Kamikaze Recovery Supervisor
+
+The repository includes one recovery supervisor agent:
+
+- ID: `kamikaze-recovery-supervisor`
+- Arabic name: `سرب كاميكازي للإصلاح السريع`
+- Purpose: fix CI/CD, PR, Render, Modal, MCP, Aegis, and security-gate failures.
+- Mode: no-secrets, draft-only, human-review-required.
+
+This agent must never:
+
+- add secrets
+- deploy production
+- merge PRs
+- disable gates
+- weaken tests
+- bypass Mihwar or Bayyinah
+
+It may:
+
+- inspect failures
+- propose patches
+- open fix PRs
+- write runbooks
+- assign follow-up issues
+- request human review
+
 ---
 
 ## iPhone Command Center
@@ -236,3 +263,57 @@ See `CLAUDE.md` and `README.md` for the full list. The key ones:
 ### Workspace layout
 
 Both `/agent/repos/FRONT` and `/agent/repos/swarms` contain the same codebase (different GitHub repos: `CurLexAI/FRONT` and `CurLexAI/swarms`). The canonical repo is `swarms`.
+
+---
+
+## NO-SECRETS / OFFLINE MCP Mode
+
+The Copilot coding agent runs in **NO-SECRETS / OFFLINE MCP** mode by default. This means:
+
+- Copilot uses the local offline MCP server (`.agents/mcp/server_offline.py`) only.
+- No live Mihwar, Bayyinah, Modal, Render, or any external endpoint is called.
+- No API keys, tokens, deploy hooks, or provider credentials are required or expected.
+
+### Security rules (mandatory for all agents)
+
+- Do not add API keys, tokens, deploy hooks, passwords, private keys, or live endpoints to this repository.
+- Do not create or modify `.env` files with real values — use `.env.example` for variable names only.
+- Do not use GitHub repository variables as a substitute for secrets — variables are not a secure location for tokens.
+- Do not call external Mihwar, Bayyinah, Modal, Render, Telegram, OpenAI, Anthropic, Gemini, Groq, xAI, or Perplexity endpoints.
+- All generated outputs must be draft-only.
+- Any runtime execution must be guarded by explicit human review before activation.
+
+### MCP tools available (offline, no network calls)
+
+| Tool | Purpose |
+|------|---------|
+| `repo_static_audit` | Scan repository for secret patterns — no external calls |
+| `mihwar_generate_offline` | Return a structured implementation plan — no model call |
+| `bayyinah_review_offline` | Static risk-marker check — no model call |
+| `qarar_agent_registry_suggest` | Recommend a minimal safe agent registry |
+
+### Implementation priorities (offline mode)
+
+1. Secret scanning and `.gitignore` hardening.
+2. HMAC middleware for internal auth boundaries.
+3. Hash-chained audit ledger.
+4. MCP policy gate.
+5. Offline RAG / Evidence Core scaffolding.
+
+### Capability matrix
+
+| Capability | Offline (no secrets) |
+|---|---|
+| Repository inspection | Yes |
+| Code generation and patches | Yes |
+| Local MCP tools | Yes |
+| Live Mihwar (DeepSeek-Coder-V2) | No |
+| Live Bayyinah (Qwen2.5-Coder-32B) | No |
+| Modal deployment | No |
+| Render deploy hook | No |
+| Telegram notifications | No |
+
+To enable live agents, configure the following GitHub Copilot secrets (Settings → Copilot → Secrets) and switch `mcp.json` back to `server.py`:
+- `COPILOT_MCP_MIHWAR_ENDPOINT`
+- `COPILOT_MCP_BAYYINAH_ENDPOINT`
+- `COPILOT_MCP_AGENT_API_TOKEN`
