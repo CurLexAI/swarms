@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Aegis final verification gate for CurLexAI/swarms.
 
 This script performs local, evidence-oriented checks for the repository's

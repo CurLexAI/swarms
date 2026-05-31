@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Command Center archive builder for safe offline handoff.
 
 The archiver uses a default-deny policy: it copies only explicitly allowed file
