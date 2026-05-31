@@ -15,8 +15,7 @@
     "check:cdn-sri": "node scripts/check-cdn-sri.mjs",
     "check:swarms-presence": "python3 scripts/commander/swarm-presence-monitor.py --repo-root . --no-network",
     "check:swarms-extraction": "python3 scripts/commander/swarms-extraction-gate.py --repo-root .",
-    "check": "npm run check:service-divergence && npm run test:unit && npm run check:boundary && npm run check:cdn-sri && npm run check:audit-integrity && npm run check:swarms-presence && npm run check:supabase-boundary",
-    "check": "npm run check:service-divergence && npm run test:unit && npm run check:boundary && npm run check:cdn-sri && npm run check:audit-integrity && npm run check:swarms-presence && npm run check:runtime-policy && npm run test:runtime-policy",
+    "check": "npm run check:service-divergence && npm run test:unit && npm run check:boundary && npm run check:cdn-sri && npm run check:audit-integrity && npm run check:swarms-presence && npm run check:supabase-boundary && npm run check:runtime-policy && npm run test:runtime-policy",
     "security:radar:url": "tsx src/security/sovereignCyberRadar.ts scan-url",
     "security:radar:text": "tsx src/security/sovereignCyberRadar.ts scan-text",
     "security:radar:command": "tsx src/security/sovereignCyberRadar.ts scan-command",
@@ -24,7 +23,7 @@
     "integrity:frontend": "node scripts/generate-frontend-integrity.mjs",
     "test:cdn-sri": "node --test tests/cdn-sri-validation.test.js",
     "doctor:cli": "node scripts/dev-cli-doctor.mjs",
-    "check:supabase-boundary": "node scripts/check-supabase-public-boundary.mjs"
+    "check:supabase-boundary": "node scripts/check-supabase-public-boundary.mjs",
     "check:runtime-policy": "tsx scripts/check-runtime-policy.ts",
     "test:runtime-policy": "node --import tsx --test tests/runtime-policy.test.ts",
     "check:swarms-presence:strict": "python3 scripts/commander/swarm-presence-monitor.py --repo-root . --strict"
