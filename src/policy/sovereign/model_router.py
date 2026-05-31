@@ -14,10 +14,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from src.core.classification import DataClassification
-from src.core.provider_interface import LLMProvider, ProviderError
-from src.providers.local_llama_cpp import LocalLlamaCppProvider
-from src.providers.local_ollama import LocalOllamaProvider
+from src.policy.sovereign.classification import DataClassification
+from src.policy.sovereign.provider_interface import LLMProvider, ProviderError
+from src.policy.sovereign.providers.local_llama_cpp import LocalLlamaCppProvider
+from src.policy.sovereign.providers.local_ollama import LocalOllamaProvider
 
 LOCAL_OLLAMA = "local_ollama"
 LOCAL_LLAMA_CPP = "local_llama_cpp"

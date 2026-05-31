@@ -1,8 +1,8 @@
-id: kamikaze-recovery-supervisor
-name_ar: "سرب كاميكازي للإصلاح السريع"
-name_en: "Kamikaze Recovery Supervisor"
+id: recovery-supervisor
+name_ar: "مشرف الاسترداد الآمن"
+name_en: "Recovery Supervisor"
 type: supervisor_agent
-status: active
+status: proposed
 version: "1.0.0"
 mission: >
   وكيل مشرف عام مختص بإصلاح مشاكل المستودع، متابعة المهندسين،
@@ -20,8 +20,8 @@ scope:
     - aegis_gate_failures
     - engineer_followup
     - issue_assignment
-    - regression_test_creation
-    - runbook_updates
+    - regression_test_proposals
+    - runbook_update_proposals
   excluded:
     - production_deploy_without_approval
     - deleting_files_without_review
@@ -49,10 +49,6 @@ allowed_operations:
   - inspect_ci_logs
   - summarize_failures
   - propose_patch
-  - create_fix_branch
-  - open_pull_request
-  - add_tests
-  - update_runbook
   - write_engineer_followup
   - classify_incident
   - create_issue
@@ -99,7 +95,7 @@ escalation:
       - modal_endpoint_public
       - mcp_policy_bypass
       - merge_conflict_in_security_file
-    action: "open_fix_pr_and_request_review"
+    action: "propose_fix_and_request_review"
   medium:
     conditions:
       - flaky_test

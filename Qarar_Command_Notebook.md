@@ -56,11 +56,11 @@ Every operational claim in this notebook uses exactly one evidence label:
 | SAMA fetcher agent | `sama_ingestion_swarm/agent_fetcher.py` | VERIFIED | File exists in this checkout. |
 | SAMA parser agent | `sama_ingestion_swarm/agent_parser.py` | VERIFIED | File exists in this checkout. |
 | SAMA auditor agent | `sama_ingestion_swarm/agent_auditor.py` | VERIFIED | File exists in this checkout. |
-| Classification policy | `src/core/classification.py` | VERIFIED | File exists in this checkout. |
-| Sovereign model router | `src/core/model_router.py` | VERIFIED | File exists in this checkout. |
-| Audited router wrapper | `src/core/audited_router.py` | VERIFIED | File exists in this checkout. |
-| Local Ollama provider | `src/providers/local_ollama.py` | VERIFIED | File exists in this checkout. |
-| Local llama.cpp provider | `src/providers/local_llama_cpp.py` | VERIFIED | File exists in this checkout. |
+| Classification policy | `src/policy/sovereign/classification.py` | VERIFIED | File exists in this checkout. |
+| Sovereign model router | `src/policy/sovereign/model_router.py` | VERIFIED | File exists in this checkout. |
+| Audited router wrapper | `src/policy/sovereign/audited_router.py` | VERIFIED | File exists in this checkout. |
+| Local Ollama provider | `src/policy/sovereign/providers/local_ollama.py` | VERIFIED | File exists in this checkout. |
+| Local llama.cpp provider | `src/policy/sovereign/providers/local_llama_cpp.py` | VERIFIED | File exists in this checkout. |
 | Aegis MCP gateway | `.agents/mcp/aegis_gateway.py` | VERIFIED | File exists in this checkout. |
 | Legacy Aegis verifier path | `scripts/verify_aegis.py` | UNVERIFIED | The file is not present in this checkout; use repository validation gates listed below instead. |
 | Mobile gate path | `mobile-gate/` | UNVERIFIED | The directory is not present in this checkout. |
@@ -143,11 +143,11 @@ FILES_TO_SYNC = [
     "Qarar_Command_Notebook.md",
     "docker-compose.yml",
     ".agents/mcp/aegis_gateway.py",
-    "src/core/classification.py",
-    "src/core/model_router.py",
-    "src/core/audited_router.py",
-    "src/providers/local_ollama.py",
-    "src/providers/local_llama_cpp.py",
+    "src/policy/sovereign/classification.py",
+    "src/policy/sovereign/model_router.py",
+    "src/policy/sovereign/audited_router.py",
+    "src/policy/sovereign/providers/local_ollama.py",
+    "src/policy/sovereign/providers/local_llama_cpp.py",
     "sama_ingestion_swarm/agent_fetcher.py",
     "sama_ingestion_swarm/agent_parser.py",
     "sama_ingestion_swarm/agent_auditor.py",

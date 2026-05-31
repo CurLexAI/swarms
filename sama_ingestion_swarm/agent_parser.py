@@ -15,8 +15,8 @@ from pydantic import BaseModel, Field
 
 from sama_ingestion_swarm import record_audit_event
 from sama_ingestion_swarm.agent_fetcher import FetchResult
-from src.core.audited_router import QalaAuditAdapter
-from src.core.classification import ClassificationDecision, classify_content
+from src.policy.sovereign.audited_router import QalaAuditAdapter
+from src.policy.sovereign.classification import ClassificationDecision, classify_content
 
 
 class ObjectStore(Protocol):

@@ -10,7 +10,7 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field
 
-from src.core.provider_interface import (
+from src.policy.sovereign.provider_interface import (
     LLMProvider,
     ProviderError,
     ProviderGenerateRequest,

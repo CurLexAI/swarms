@@ -117,12 +117,12 @@ Configuration lives in `.agents/config/agents.yaml`.
 Deployment lives in `.agents/modal_app.py`.
 PR orchestration lives in `.agents/pr_review.py` and `.github/workflows/agent-review.yml`.
 
-## Kamikaze Recovery Supervisor
+## Recovery Supervisor
 
 The repository includes one recovery supervisor agent:
 
-- ID: `kamikaze-recovery-supervisor`
-- Arabic name: `سرب كاميكازي للإصلاح السريع`
+- ID: `recovery-supervisor`
+- Arabic name: `مشرف الاسترداد الآمن`
 - Purpose: fix CI/CD, PR, Render, Modal, MCP, Aegis, and security-gate failures.
 - Mode: no-secrets, draft-only, human-review-required.
 
@@ -139,8 +139,8 @@ It may:
 
 - inspect failures
 - propose patches
-- open fix PRs
-- write runbooks
+- request fix PRs
+- propose runbook updates
 - assign follow-up issues
 - request human review
 
