@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Validate GitHub Copilot custom agent profiles for Qarar control-plane safety."""
 from __future__ import annotations
 
