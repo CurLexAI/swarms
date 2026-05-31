@@ -1,3 +1,12 @@
+name: Render Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_manual_gated_deploy:
+        description: "Type DEPLOY to trigger the production Render deploy hook"
+        required: true
+        type: string
 name: render-deploy
 
 on:
@@ -6,6 +15,34 @@ on:
 permissions:
   contents: read
 
+jobs:
+  deploy:
+    name: manual-gated-render-deploy
+    runs-on: ubuntu-latest
+    environment: production
+    if: ${{ github.event.inputs.confirm_manual_gated_deploy == 'DEPLOY' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate required production secret
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RENDER_DEPLOY_HOOK_URL:-}" ]]; then
+            echo "Render deploy hook secret is not configured for the production environment."
+            exit 1
+          fi
+          echo "Render deploy hook secret is configured."
+
+      - name: Trigger Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --request POST "$RENDER_DEPLOY_HOOK_URL" >/dev/null
+          echo "Render deploy hook triggered."
 concurrency:
   group: render-production-deploy
   cancel-in-progress: false

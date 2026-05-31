@@ -5,7 +5,9 @@
 
 This replaces illustrative/mock presence checks with safe evidence collection.
 It never prints token values. Default mode returns exit code 2 (HOLD) when
-runtime evidence is missing; --strict treats HOLD as failure.
+runtime evidence is missing. Explicitly skipped no-network checks are reported
+as unverified evidence without failing no-secrets local validation; --strict
+treats HOLD or skipped checks as failure.
 """
 
 from __future__ import annotations

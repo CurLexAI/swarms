@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
 import json
 import re
 """Regression tests for no-secrets integration control-plane gates."""
@@ -33,6 +34,32 @@ def test_render_blueprint_is_manual_gated_and_uses_secret_sync() -> None:
     assert "startCommand: node dist/server.js" in render_yaml
     assert "api.render.com/deploy" not in render_yaml
     assert "deploy hook" not in render_yaml.lower()
+    for secret_name in (
+        "MCP_BEARER_TOKEN",
+        "MODAL_API_TOKEN",
+        "MIHWAR_ENDPOINT",
+        "BAYYINAH_ENDPOINT",
+        "AGENT_API_TOKEN",
+    ):
+        assert re.search(rf"key: {secret_name}\n\s+sync: false", render_yaml)
+
+
+def test_render_deploy_is_separate_manual_environment_gate() -> None:
+    """Render deploy authority must live only in the manual production workflow."""
+
+    deploy = read_text(".github/workflows/render-deploy.yml")
+    fastconnect = read_text(".github/workflows/qarar-fastconnect-deploy.yml")
+
+    assert "workflow_dispatch:" in deploy
+    assert "environment: production" in deploy
+    assert "confirm_manual_gated_deploy == 'DEPLOY'" in deploy
+    assert "secrets.RENDER_DEPLOY_HOOK_URL" in deploy
+    assert "vars.RENDER_DEPLOY_HOOK_URL" not in deploy
+    assert "api.render.com/v1/services" not in fastconnect
+    assert "RENDER_API_KEY" not in fastconnect
+    assert "RENDER_SERVICE_ID" not in fastconnect
+
+
     for secret_name in ("MCP_BEARER_TOKEN", "MODAL_API_TOKEN", "MIHWAR_ENDPOINT", "BAYYINAH_ENDPOINT", "AGENT_API_TOKEN"):
         assert re.search(rf"key: {secret_name}\n\s+sync: false", render_yaml)
 
@@ -83,6 +110,8 @@ def test_modal_qdrant_surface_is_snapshot_only_and_not_volume_backed_live_storag
     assert not any(route for route in routes if "collections" in route[1])
     assert 'volumes={"/snapshots": volume}' in source
     assert 'volumes={"/qdrant' not in source
+    assert 'LOCAL_STORAGE = Path("/qdrant/storage")' in source
+    assert 'SNAPSHOT_DIR = Path("/snapshots")' in source
     assert "LOCAL_STORAGE = Path(\"/qdrant/storage\")" in source
     assert "SNAPSHOT_DIR = Path(\"/snapshots\")" in source
 
@@ -122,6 +151,12 @@ def test_static_audit_has_no_external_tool_dependency_and_fails_on_findings(tmp_
 
 
 def test_runtime_policy_check_script_exists_for_aggregate_gate() -> None:
+    """Aggregate npm check must have a concrete canonical runtime policy script."""
+
+    script = read_text("scripts/check-runtime-policy.ts")
+    assert "evaluateRuntimePolicy" in script
+    assert "selectRuntimeProviders" not in script
+    assert "invalid classification fails closed" in script
     """Aggregate npm check must have a concrete runtime policy script."""
 
     script = read_text("scripts/check-runtime-policy.ts")
@@ -138,12 +173,14 @@ def test_no_secrets_preflight_workflows_do_not_require_runtime_secrets() -> None
         ".github/workflows/aegis-mcp-gateway.yml",
         ".github/workflows/secret-scan.yml",
         ".github/workflows/constitutional-compliance.yml",
+        ".github/workflows/render-preflight.yml",
     ]
     for workflow in preflight_workflows:
         content = read_text(workflow)
         assert "secrets.BAYYINAH_ENDPOINT" not in content
         assert "secrets.MIHWAR_ENDPOINT" not in content
         assert "secrets.AGENT_API_TOKEN" not in content
+        assert "secrets.RENDER_DEPLOY_HOOK_URL" not in content
 
     assert "python3 -m unittest tests.test_aegis_mcp_gateway" in read_text(
         ".github/workflows/aegis-mcp-gateway.yml"

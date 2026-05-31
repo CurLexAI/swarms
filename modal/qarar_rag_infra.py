@@ -33,6 +33,7 @@ app = modal.App("qarar-rag-infra", image=image)
 # handled by separately reviewed workers so this class never exposes Qdrant REST
 # semantics or mutable data-plane operations through an ASGI route.
 
+
 def _safe_log(event_type: str, payload: dict[str, Any]) -> None:
     redacted: dict[str, Any] = {}
     for key, value in payload.items():

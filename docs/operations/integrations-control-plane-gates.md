@@ -10,6 +10,9 @@ VERIFIED: The repository workflows are separated into the following operational 
 
 | Bucket | Workflows | Rule |
 |---|---|---|
+| No-secrets preflight | `aegis-gate.yml`, `aegis-mcp-gateway.yml`, `constitutional-compliance.yml`, `secret-scan.yml`, `frontend-sri.yml`, `copilot-setup-steps.yml`, `render-preflight.yml` | Must not require private runtime secrets or production deploy authority. |
+| Manual gated deploy / runtime smoke | `render-deploy.yml`, `modal-deploy.yml`, `modal-runtime-activation.yml`, `smoke-modal.yml`, `local-model-smoke.yml` | Requires explicit dispatch and/or protected secrets; no production deploy is implied by source changes. |
+| Build preflight | `qarar-fastconnect-deploy.yml` | Builds and boundary-checks only; Render deployment is intentionally separated. |
 | No-secrets preflight | `aegis-gate.yml`, `aegis-mcp-gateway.yml`, `constitutional-compliance.yml`, `secret-scan.yml`, `frontend-sri.yml`, `copilot-setup-steps.yml` | Must not require private runtime secrets. |
 | Manual gated deploy / runtime smoke | `modal-deploy.yml`, `modal-runtime-activation.yml`, `smoke-modal.yml`, `qarar-fastconnect-deploy.yml`, `local-model-smoke.yml` | Requires explicit dispatch and/or repository secrets; no production deploy is implied by source changes. |
 | Agent review with optional secrets | `agent-review.yml`, `bayyinah-swe.yml`, `mihwar-swe.yml`, `free-birds-swe.yml`, `opencode.yml` | Missing secrets produce `UNVERIFIED`/skipped review instead of source-code success claims. |
@@ -17,6 +20,9 @@ VERIFIED: The repository workflows are separated into the following operational 
 
 ## Render boundary
 
+VERIFIED: `render.yaml` defines the Modal MCP Gateway service under `.agents/mcp/modal-mcp`, with `npm ci --include=dev && npm run build`, `node dist/server.js`, `/healthz`, and `autoDeploy: false`.
+
+VERIFIED: Render deployment is manual-gated by `.github/workflows/render-deploy.yml` and uses `RENDER_DEPLOY_HOOK_URL` from protected GitHub Environment secrets. Do not add deploy hooks, plaintext endpoint URLs, or GitHub Variables as secret substitutes.
 VERIFIED: `render.yaml` defines the Modal MCP Gateway service under `.agents/mcp/modal-mcp`, with `npm ci --include=dev && npm run build`, `node dist/server.js`, and `/healthz`.
 
 VERIFIED: Render deployment is manual-gated by `autoDeploy: false` and uses `sync: false` for private tokens/endpoints. Do not add deploy hooks, plaintext endpoint URLs, or GitHub Variables as secret substitutes.
@@ -39,6 +45,7 @@ VERIFIED: Aegis remains fail-closed: repository controls and Python tests must p
 
 UNVERIFIED: Live Render, Modal, Mihwar, Bayyinah, and Copilot cloud-agent availability were not tested because this change intentionally avoids external services and secrets.
 
+UNVERIFIED: GitHub org-level Copilot cloud-agent assignment state was not queried with privileged credentials in this PR.
 UNVERIFIED: GitHub org-level Copilot cloud-agent assignment state was not queried in this PR; use a user-to-server token and the GraphQL suggestedActors query from the issue if needed.
 
 ## Merge recommendation

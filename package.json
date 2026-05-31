@@ -26,7 +26,8 @@
     "doctor:cli": "node scripts/dev-cli-doctor.mjs",
     "check:supabase-boundary": "node scripts/check-supabase-public-boundary.mjs"
     "check:runtime-policy": "tsx scripts/check-runtime-policy.ts",
-    "test:runtime-policy": "node --import tsx --test tests/runtime-policy.test.ts"
+    "test:runtime-policy": "node --import tsx --test tests/runtime-policy.test.ts",
+    "check:swarms-presence:strict": "python3 scripts/commander/swarm-presence-monitor.py --repo-root . --strict"
   },
   "dependencies": {
     "js-yaml": "^4.1.0",

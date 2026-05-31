@@ -1,4 +1,4 @@
-name: Qarar FastConnect — Build & Deploy
+name: Qarar FastConnect — Build Preflight
 
 on:
   push:
@@ -109,6 +109,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # Render deploys are intentionally separated into render-deploy.yml.
+  # This workflow remains a no-secrets build preflight only.
   # ── 5. Deploy to Render ───────────────────────────────────────────────────
   deploy-render:
     name: Deploy to Render

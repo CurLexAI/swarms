@@ -227,7 +227,7 @@ export const providerRegistry: Readonly<Record<ProviderId, ProviderRegistryEntry
     id: "cursor-cloud",
     displayName: "Cursor Cloud Coding Agent",
     trustBoundary: "EXTERNAL_CLOUD",
-    capabilities: ["code_generation", "long_context", "cloud_inference"],
+    capabilities: ["text_generation", "code_generation", "long_context", "cloud_inference"],
     allowedClassifications: ["PUBLIC"],
     requiresHumanReview: true,
   },
