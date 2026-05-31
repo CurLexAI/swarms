@@ -279,6 +279,19 @@ export class NodeExecutionDispatchError extends Error {
             this.cause = cause;
     }
 }
+const RUNTIME_OUTPUT_FIELDS = ["output", "message", "result", "data"];
+
+function hasValidRuntimeOutputShape(payload) {
+    return RUNTIME_OUTPUT_FIELDS.some((field) => {
+        const value = payload[field];
+        if (typeof value === "string")
+            return value.trim().length > 0;
+        if (value && typeof value === "object")
+            return true;
+        return false;
+    });
+}
+
 export class UnifiedAgentAdapter {
     registryPath;
     agents = new Map();
@@ -674,19 +687,10 @@ export class UnifiedAgentAdapter {
             throw new RuntimeOutputVerificationError("payload must be a non-empty object");
         }
         const output = result;
-        const keys = Object.keys(output);
-        if (keys.length === 0) {
+        if (Object.keys(output).length === 0) {
             throw new RuntimeOutputVerificationError("payload object is empty");
         }
-        const hasValidOutputField = ["output", "message", "result", "data"].some((field) => {
-            const value = output[field];
-            if (typeof value === "string")
-                return value.trim().length > 0;
-            if (value && typeof value === "object")
-                return true;
-            return false;
-        });
-        if (!hasValidOutputField) {
+        if (!hasValidRuntimeOutputShape(output)) {
             throw new RuntimeOutputVerificationError("required runtime output field is missing or malformed");
         }
         return result;
@@ -701,15 +705,7 @@ export class UnifiedAgentAdapter {
             });
         }
         const payload = result;
-        const valid = ["output", "message", "result", "data"].some((field) => {
-            const value = payload[field];
-            if (typeof value === "string")
-                return value.trim().length > 0;
-            if (value && typeof value === "object")
-                return true;
-            return false;
-        });
-        if (!valid) {
+        if (!hasValidRuntimeOutputShape(payload)) {
             throw createPythonRuntimeError({
                 code: "RUNTIME_FAILURE",
                 status: 502,
