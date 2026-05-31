@@ -1,3 +1,80 @@
+#!/usr/bin/env tsx
+import assert from "node:assert/strict";
+import {
+  evaluateRuntimePolicy,
+  RuntimePolicyError,
+  type ProviderId,
+} from "../src/policy/runtime-policy.ts";
+import { selectRuntimeProviders } from "../src/runtimePolicy.ts";
+
+function providerSet(providers: readonly ProviderId[]): ReadonlySet<ProviderId> {
+  return new Set(providers);
+}
+
+function assertNoExternalProviders(providers: readonly ProviderId[]): void {
+  const selected = providerSet(providers);
+  assert.equal(selected.has("vertex-llama4"), false, "Vertex must not be selected without explicit approval");
+  assert.equal(selected.has("cursor-cloud"), false, "Cursor cloud must not be selected without explicit approval");
+}
+
+function assertThrowsNoAllowedProvider(fn: () => unknown): void {
+  assert.throws(
+    fn,
+    (error: unknown) =>
+      error instanceof RuntimePolicyError && error.code === "NO_ALLOWED_PROVIDER",
+    "runtime policy must fail closed with NO_ALLOWED_PROVIDER",
+  );
+}
+
+const restricted = evaluateRuntimePolicy({
+  classification: "RESTRICTED",
+  requiresCodeGeneration: true,
+});
+assert.equal(restricted.allowed, true);
+assert.deepEqual(restricted.providerOrder, ["ollama-qwen-local", "ollama-deepseek-local"]);
+assertNoExternalProviders(restricted.providerOrder);
+
+assertThrowsNoAllowedProvider(() =>
+  evaluateRuntimePolicy({
+    classification: "PUBLIC",
+    requiresVision: true,
+  }),
+);
+
+const publicVisionApproved = evaluateRuntimePolicy({
+  classification: "PUBLIC",
+  requiresVision: true,
+  humanApprovedCloudEgress: true,
+});
+assert.deepEqual(publicVisionApproved.providerOrder, ["vertex-llama4"]);
+
+assertThrowsNoAllowedProvider(() =>
+  evaluateRuntimePolicy({
+    classification: "SECRET",
+    requiresVision: true,
+    humanApprovedCloudEgress: true,
+  }),
+);
+
+const blockedLegacy = selectRuntimeProviders({
+  dataClassification: "PUBLIC",
+  mode: "LEGACY_OPEN_CLOUD",
+  allowExternalProvider: true,
+});
+assert.equal(blockedLegacy.allowed, false);
+assert.deepEqual(blockedLegacy.providers, []);
+
+const restrictedLegacyAdapter = selectRuntimeProviders({
+  dataClassification: "RESTRICTED",
+  mode: "BURST",
+  allowExternalProvider: true,
+  allowModalProvider: true,
+  allowNotebookRuntime: true,
+});
+assert.equal(restrictedLegacyAdapter.allowed, true);
+assert.deepEqual(restrictedLegacyAdapter.providers, ["local_llama_cpp"]);
+
+console.log("Runtime policy check passed.");
 import assert from "node:assert/strict";
 
 import {
