@@ -44,10 +44,17 @@ AllowAgentForwarding no
 PermitTunnel no
 ```
 
-Apply:
+Apply safely (do **not** close your current SSH session):
 
 ```bash
+# 1) Validate syntax before reload/restart
 sudo sshd -t
+
+# 2) From a SECOND terminal/session, validate key login first
+ssh -i ~/.ssh/id_ed25519_codex codexops@<server_ip_or_dns> "whoami && hostname"
+# proceed only if this returns: codexops
+
+# 3) Only after successful second-session login, restart SSH
 sudo systemctl restart ssh
 sudo systemctl status ssh --no-pager
 ```
