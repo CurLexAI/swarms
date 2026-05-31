@@ -49,7 +49,7 @@ for key, val in agents.items():
 PY
 
 echo "[INFO] Inspecting workflow gates in $WORKFLOW_FILE"
-if rg -n "needs\.bayyinah-review\.outputs\.verdict == 'REQUEST_CHANGES'" "$WORKFLOW_FILE" >/dev/null; then
+if grep -E -n "needs\.bayyinah-review\.outputs\.verdict == 'REQUEST_CHANGES'" "$WORKFLOW_FILE" >/dev/null; then
   echo "[OK] Mihwar is gated on Bayyinah REQUEST_CHANGES"
 else
   echo "[WARN] Mihwar gate condition not found"

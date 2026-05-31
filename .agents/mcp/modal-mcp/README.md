@@ -1,6 +1,6 @@
 # modal-mcp (scaffold)
 
-Read-only MCP scaffold to connect ChatGPT to Modal project surfaces over **HTTPS/SSE**.
+Read-only MCP scaffold to connect MCP-capable remote clients to Modal project surfaces over **HTTPS/SSE**. In Render, this service is the `curlexai-mcp-server` Modal MCP Gateway; it is not the BSM backend and not a public product API gateway.
 
 ## Scope
 
@@ -52,12 +52,15 @@ PORT=8787 node dist/server.js
 
 ## Deploy on Render (guide)
 
-1. Create a new **Web Service** from this repo.
+1. Use the repository Blueprint service named `curlexai-mcp-server`.
 2. Root directory: `.agents/mcp/modal-mcp`
-3. Build command: `npm install && npm run build`
+3. Build command: `npm ci --include=dev && npm run build`
 4. Start command: `node dist/server.js`
-5. Add environment variables from `.env.example` using Render dashboard secrets.
-6. Keep `ENABLE_MUTATING_TOOLS=false` unless explicitly approved.
+5. Health check path: `/healthz` (unauthenticated, returns `{ "status": "ok" }`, and must not call Modal or private agents).
+6. Add environment variables from `.env.example` using Render dashboard secrets. Keep `MIHWAR_ENDPOINT`, `BAYYINAH_ENDPOINT`, `MODAL_API_TOKEN`, and `AGENT_API_TOKEN` server-side only.
+7. Keep `ENABLE_MUTATING_TOOLS=false` unless explicitly approved.
+
+The BSM backend is intentionally external to this service. Do not add product backend routes or public API gateway behavior to `modal-mcp`.
 
 ## ChatGPT MCP connector shape
 
