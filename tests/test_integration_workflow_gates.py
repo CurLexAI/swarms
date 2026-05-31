@@ -36,6 +36,9 @@ def test_render_preflight_is_no_secrets_and_no_deploy() -> None:
     assert "curl " not in text
     assert "npm ci --include=dev" in text
 
+    render_yaml = (REPO_ROOT / "render.yaml").read_text(encoding="utf-8")
+    assert "autoDeploy: false" in render_yaml
+
 
 def test_render_deploy_is_manual_production_environment_only() -> None:
     """Ensure Render deployment is manual, production-gated, and secret-backed."""

@@ -1,0 +1,185 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
+from __future__ import annotations
+
+import ast
+import importlib.util
+import json
+import re
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def read_text(relative_path: str) -> str:
+    return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def test_render_blueprint_is_manual_gated_and_uses_secret_sync() -> None:
+    """Render must remain a manual, no-hook deployment boundary."""
+
+    render_yaml = read_text("render.yaml")
+
+    assert "autoDeploy: false" in render_yaml
+    assert "healthCheckPath: /healthz" in render_yaml
+    assert "rootDir: .agents/mcp/modal-mcp" in render_yaml
+    assert "buildCommand: npm ci --include=dev && npm run build" in render_yaml
+    assert "startCommand: node dist/server.js" in render_yaml
+    assert "api.render.com/deploy" not in render_yaml
+    assert "deploy hook" not in render_yaml.lower()
+    for secret_name in (
+        "MCP_BEARER_TOKEN",
+        "MODAL_API_TOKEN",
+        "MIHWAR_ENDPOINT",
+        "BAYYINAH_ENDPOINT",
+        "AGENT_API_TOKEN",
+    ):
+        assert re.search(rf"key: {secret_name}\n\s+sync: false", render_yaml)
+
+
+def test_render_deploy_is_separate_manual_environment_gate() -> None:
+    """Render deploy authority must live only in the manual production workflow."""
+
+    deploy = read_text(".github/workflows/render-deploy.yml")
+    fastconnect = read_text(".github/workflows/qarar-fastconnect-deploy.yml")
+
+    assert "workflow_dispatch:" in deploy
+    assert "environment: production" in deploy
+    assert "confirm_manual_gated_deploy == 'DEPLOY'" in deploy
+    assert "secrets.RENDER_DEPLOY_HOOK_URL" in deploy
+    assert "vars.RENDER_DEPLOY_HOOK_URL" not in deploy
+    assert "api.render.com/v1/services" not in fastconnect
+    assert "RENDER_API_KEY" not in fastconnect
+    assert "RENDER_SERVICE_ID" not in fastconnect
+
+
+def test_copilot_mcp_default_is_offline_no_secrets_python3() -> None:
+    """GitHub Copilot MCP must default to the offline no-secrets server."""
+
+    config = json.loads(read_text(".github/copilot/mcp.json"))
+    server = config["mcpServers"]["qarar-offline-mcp"]
+
+    assert server["type"] == "local"
+    assert server["command"] == "python3"
+    assert server["args"] == ["-u", ".agents/mcp/server_offline.py"]
+    assert "env" not in server
+    assert set(server["tools"]) == {
+        "repo_static_audit",
+        "mihwar_generate_offline",
+        "bayyinah_review_offline",
+        "qarar_agent_registry_suggest",
+    }
+
+
+def test_modal_qdrant_surface_is_snapshot_only_and_not_volume_backed_live_storage() -> None:
+    """Modal Qdrant wrapper must expose only health/snapshot and persist snapshots only."""
+
+    source = read_text("modal/qarar_rag_infra.py")
+    tree = ast.parse(source)
+    routes: set[tuple[str, str]] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        for decorator in node.decorator_list:
+            if not isinstance(decorator, ast.Call):
+                continue
+            func = decorator.func
+            if not isinstance(func, ast.Attribute):
+                continue
+            if func.attr not in {"get", "post", "put", "delete", "patch"}:
+                continue
+            if not decorator.args or not isinstance(decorator.args[0], ast.Constant):
+                continue
+            routes.add((func.attr, str(decorator.args[0].value)))
+
+    assert ("get", "/health") in routes
+    assert ("post", "/snapshot") in routes
+    assert ("post", "/ingest") not in routes
+    assert ("post", "/search") not in routes
+    assert not any(route for route in routes if "collections" in route[1])
+    assert 'volumes={"/snapshots": volume}' in source
+    assert 'volumes={"/qdrant' not in source
+    assert 'LOCAL_STORAGE = Path("/qdrant/storage")' in source
+    assert 'SNAPSHOT_DIR = Path("/snapshots")' in source
+
+
+def test_static_audit_has_no_external_tool_dependency_and_fails_on_findings(tmp_path: Path) -> None:
+    """Secret scan must be pure Python and fail closed when a pattern is found."""
+
+    source = read_text("scripts/security/static_audit.py")
+    assert "subprocess" not in source
+    assert "command -v rg" not in source
+    assert "rglob" in source
+
+    spec = importlib.util.spec_from_file_location(
+        "static_audit", REPO_ROOT / "scripts/security/static_audit.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    secret_file = tmp_path / "leak.py"
+    token = "ghp_" + "123456789012345678901234567890123456"
+    secret_file.write_text(f'TOKEN = "{token}"\n', encoding="utf-8")
+
+    original_argv = sys.argv
+    try:
+        sys.argv = ["static_audit.py", str(tmp_path)]
+        assert module.main() == 1
+    finally:
+        sys.argv = original_argv
+
+
+def test_runtime_policy_check_script_exists_for_aggregate_gate() -> None:
+    """Aggregate npm check must have a concrete canonical runtime policy script."""
+
+    script = read_text("scripts/check-runtime-policy.ts")
+    assert "evaluateRuntimePolicy" in script
+    assert "selectRuntimeProviders" not in script
+    assert "invalid classification fails closed" in script
+
+
+def test_no_secrets_preflight_workflows_do_not_require_runtime_secrets() -> None:
+    """Preflight checks must not require private runtime secrets."""
+
+    preflight_workflows = [
+        ".github/workflows/aegis-gate.yml",
+        ".github/workflows/aegis-mcp-gateway.yml",
+        ".github/workflows/secret-scan.yml",
+        ".github/workflows/constitutional-compliance.yml",
+        ".github/workflows/render-preflight.yml",
+    ]
+    for workflow in preflight_workflows:
+        content = read_text(workflow)
+        assert "secrets.BAYYINAH_ENDPOINT" not in content
+        assert "secrets.MIHWAR_ENDPOINT" not in content
+        assert "secrets.AGENT_API_TOKEN" not in content
+        assert "secrets.RENDER_DEPLOY_HOOK_URL" not in content
+
+    assert "python3 -m unittest tests.test_aegis_mcp_gateway" in read_text(
+        ".github/workflows/aegis-mcp-gateway.yml"
+    )
+    assert "python3 -m pip install --upgrade pip" in read_text(
+        ".github/workflows/constitutional-compliance.yml"
+    )
+
+
+def test_swarm_presence_no_network_json_is_preflight_safe() -> None:
+    """No-network swarm presence must serialize JSON and not fail preflight on skipped external checks."""
+
+    spec = importlib.util.spec_from_file_location(
+        "swarm_presence_monitor", REPO_ROOT / "scripts/commander/swarm-presence-monitor.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    report = module.SwarmPresenceMonitor(REPO_ROOT, "CurLexAI/swarms", no_network=True).run(strict=False)
+    payload = json.loads(report.to_json())
+
+    assert payload["exitCode"] == 0
+    assert payload["summary"]["SKIPPED_UNVERIFIED"] >= 1
+    assert all("evidence" in check for check in payload["checks"])
