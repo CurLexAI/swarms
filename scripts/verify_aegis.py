@@ -319,7 +319,9 @@ def verify_environment_egress(state: GateState) -> None:
         "VERTEX_API_KEY",
     )
     for name in blocked_env_names:
-        state.check(f"{name} is absent from environment", name not in os.environ)
+        # Treat absent and empty-string as equivalent — an empty key grants no
+        # external AI access, and CI runners may inject these as empty org vars.
+        state.check(f"{name} is absent from environment", not os.environ.get(name))
 
 
 def verify_pytest(state: GateState) -> None:

@@ -20,7 +20,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install core Python dependencies
-        run: python3 -m pip install pyyaml pytest requests httpx pydantic modal beautifulsoup4 pdfplumber minio qdrant-client
+        # Pin modal to a 0.x version matching the requirements-agent.txt constraint
+        # so the requirements step does not downgrade it (and potentially leave
+        # the environment in a partial state when FlagEmbedding fails to build).
+        run: python3 -m pip install pyyaml pytest requests httpx pydantic "modal>=0.64,<1.0" beautifulsoup4 pdfplumber minio qdrant-client
 
       - name: Install remaining dependencies (best-effort)
         # FlagEmbedding / warc3-wet-clueweb09 / cbor may fail to build wheels
@@ -39,6 +42,13 @@ jobs:
           done
 
       - name: Run Aegis final verification gate
-        run: |
-          unset OPENAI_API_KEY ANTHROPIC_API_KEY GOOGLE_API_KEY GEMINI_API_KEY VERTEX_API_KEY 2>/dev/null || true
-          python3 scripts/verify_aegis.py
+        # Nullify any org/repo-level AI API key variables so verify_aegis.py
+        # section 6 passes: the gate is not calling external AI, so having
+        # these vars set to empty in the gate's environment is correct.
+        env:
+          OPENAI_API_KEY: ""
+          ANTHROPIC_API_KEY: ""
+          GOOGLE_API_KEY: ""
+          GEMINI_API_KEY: ""
+          VERTEX_API_KEY: ""
+        run: python3 scripts/verify_aegis.py
