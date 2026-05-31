@@ -78,3 +78,6 @@ build/
 coverage/
 .cache/
 .pytest_cache/
+
+# Vercel local project metadata (contains project/org identifiers)
+.vercel/
