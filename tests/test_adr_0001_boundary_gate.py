@@ -60,6 +60,25 @@ class AdrBoundaryGateTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("BOUNDARY_DRIFT: forbidden path present: src/routes", result.stdout)
 
+    def test_src_core_fails(self) -> None:
+        # src/core is product runtime; only src/services (Modal glue) is the
+        # sanctioned src/ surface under ADR-0001.
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            (tmp / "src" / "core").mkdir(parents=True, exist_ok=True)
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("BOUNDARY_DRIFT: forbidden path present: src/core", result.stdout)
+
+    def test_src_providers_fails(self) -> None:
+        # Python provider adapters belong under .agents/providers, not src/.
+        with TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            (tmp / "src" / "providers").mkdir(parents=True, exist_ok=True)
+            result = _run_gate(tmp)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("BOUNDARY_DRIFT: forbidden path present: src/providers", result.stdout)
+
     def test_autostart_flag_fails(self) -> None:
         with TemporaryDirectory() as tmp_str:
             tmp = Path(tmp_str)
