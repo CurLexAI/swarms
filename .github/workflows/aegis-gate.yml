@@ -19,8 +19,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Python dependencies
-        run: python3 -m pip install -r requirements-agent.txt
+      - name: Install core Python dependencies
+        run: python3 -m pip install pyyaml pytest requests httpx pydantic modal
+
+      - name: Install remaining dependencies (best-effort)
+        # FlagEmbedding / warc3-wet-clueweb09 / cbor may fail to build wheels
+        # in CI — allow failure so the gate still runs with the core deps above.
+        run: python3 -m pip install -r requirements-agent.txt || true
 
       - name: Run Aegis final verification gate
         run: python3 scripts/verify_aegis.py

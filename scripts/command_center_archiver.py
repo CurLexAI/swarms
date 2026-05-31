@@ -11,12 +11,11 @@ resulting ``.tar.gz`` manually after review.
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import shutil
 import tarfile
 import tempfile
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path

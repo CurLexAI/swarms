@@ -47,7 +47,7 @@ class GatewayStubContract(unittest.TestCase):
 
     def test_refuses_to_start_without_ack(self) -> None:
         try:
-            import fastapi  # type: ignore[import-not-found]  # noqa: F401
+            import fastapi  # noqa: F401
         except ImportError:
             self.skipTest("fastapi not installed in this environment")
         module = importlib.import_module("mcp_server")
@@ -83,7 +83,7 @@ class GatewayStubContract(unittest.TestCase):
             from fastapi.testclient import TestClient
         except (ImportError, RuntimeError) as exc:
             self.skipTest(f"fastapi/starlette test client not available: {exc}")
-            from fastapi.testclient import TestClient  # type: ignore[import-not-found]
+            from fastapi.testclient import TestClient
         except ImportError:
             self.skipTest("fastapi/starlette not installed")
         os.environ["SWARMS_GATEWAY_STUB_ACK"] = "1"
