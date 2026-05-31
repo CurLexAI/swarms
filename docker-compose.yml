@@ -91,7 +91,7 @@ services:
     restart: unless-stopped
 
   # Sovereign local model runtime — internal only, no published host ports.
-  # Reached by the Python providers (src/providers/local_ollama.py) via the
+  # Reached by the Python providers (src/policy/sovereign/providers/local_ollama.py) via the
   # Docker DNS name "ollama" on the internal mihwar-sovereign network.
   ollama:
     image: ollama/ollama:latest
@@ -110,7 +110,7 @@ services:
     restart: unless-stopped
 
   # Sovereign local llama.cpp OpenAI-compatible server — internal only.
-  # Reached by src/providers/local_llama_cpp.py via the DNS name "llama-server".
+  # Reached by src/policy/sovereign/providers/local_llama_cpp.py via the DNS name "llama-server".
   # Model files are bind-mounted read-only from ${QARAR_MODEL_STORE:-./models}.
   llama-server:
     image: ghcr.io/ggerganov/llama.cpp:server

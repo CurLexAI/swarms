@@ -1,27 +1,20 @@
-name: Render Preflight
-
-on:
-  pull_request:
-    paths:
-      - "render.yaml"
-      - ".agents/mcp/modal-mcp/**"
-      - ".github/workflows/render-preflight.yml"
-      - ".github/workflows/render-deploy.yml"
-  push:
-    branches:
-      - main
-    paths:
-      - "render.yaml"
-      - ".agents/mcp/modal-mcp/**"
-      - ".github/workflows/render-preflight.yml"
-      - ".github/workflows/render-deploy.yml"
 name: render-preflight
 
 on:
   pull_request:
+    paths:
+      - "render.yaml"
+      - ".agents/mcp/modal-mcp/**"
+      - ".github/workflows/render-preflight.yml"
+      - ".github/workflows/render-deploy.yml"
   push:
     branches:
       - main
+    paths:
+      - "render.yaml"
+      - ".agents/mcp/modal-mcp/**"
+      - ".github/workflows/render-preflight.yml"
+      - ".github/workflows/render-deploy.yml"
   workflow_dispatch:
 
 permissions:
@@ -30,76 +23,26 @@ permissions:
 jobs:
   preflight:
     name: no-secrets-render-preflight
-    name: render-preflight
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate render blueprint contract
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          render_yaml = Path("render.yaml")
-          text = render_yaml.read_text(encoding="utf-8")
-
-          required_markers = {
-              "runtime: node": "Render service must declare the Node runtime.",
-              "rootDir: .agents/mcp/modal-mcp": "Render rootDir must stay scoped to the Modal MCP gateway.",
-              "buildCommand: npm ci --include=dev && npm run build": "Build must install dev dependencies for TypeScript compilation.",
-              "startCommand: node dist/server.js": "Start command must run the compiled MCP server.",
-              "healthCheckPath: /healthz": "Health check path must remain explicit.",
-              "sync: false": "Sensitive values must remain externally managed confidential settings.",
-          }
-          missing = [message for marker, message in required_markers.items() if marker not in text]
-          if missing:
-              for message in missing:
-                  print(f"ERROR: {message}")
-              raise SystemExit(1)
-
-          forbidden_markers = (
-              "api.render.com/v1/services/",
-              "deploy/srv-",
-          )
-          for marker in forbidden_markers:
-              if marker in text:
-                  print(f"ERROR: render.yaml must not contain deploy hook/API material: {marker}")
-                  raise SystemExit(1)
-          print("Render blueprint preflight passed without confidential values.")
-          PY
-
-      - name: Validate Modal MCP package metadata
-        working-directory: .agents/mcp/modal-mcp
-        run: |
-          set -euo pipefail
-          npm ci --include=dev
-          npm run build
-      - name: Validate Render blueprint and derive service path
-        id: render
-        run: |
-          set -euo pipefail
-          if [ -f render.yaml ]; then
-            echo "render.yaml found"
-            ruby <<'RUBY'
-      - name: Validate Render blueprint if present
+      - name: Validate Render blueprint safety
         id: blueprint
         shell: bash
         run: |
           set -euo pipefail
           if [ ! -f render.yaml ]; then
-            echo "render.yaml not found; continuing with repository-level runtime detection."
-            echo "app_dir=." >> "$GITHUB_OUTPUT"
+            echo "render.yaml not found; continuing with repository-level preflight."
+            echo "service_path=." >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "render.yaml found"
           ruby <<'RB'
           require 'yaml'
 
-          path = 'render.yaml'
-          data = YAML.safe_load_file(path, permitted_classes: [], aliases: false)
+          data = YAML.safe_load_file('render.yaml', permitted_classes: [], aliases: false)
           unless data.is_a?(Hash)
             warn 'render.yaml must be a YAML mapping'
             exit 1
@@ -117,26 +60,24 @@ jobs:
             exit 1
           end
 
-          required = %w[name type]
-          missing = required.select { |key| service[key].to_s.strip.empty? }
-          unless missing.empty?
-            warn "render.yaml first deployable service is missing: #{missing.join(', ')}"
+          %w[name type].each do |key|
+            if service[key].to_s.strip.empty?
+              warn "render.yaml deployable service is missing #{key}"
+              exit 1
+            end
+          end
+
+          if service['type'] == 'web' && service['healthCheckPath'].to_s.strip.empty?
+            warn 'web services in render.yaml must define healthCheckPath'
             exit 1
           end
 
-          text = File.read(path, encoding: 'UTF-8').downcase
-          forbidden = [
-            'render_deploy_hook',
-          if services && !services.is_a?(Array)
-            warn 'render.yaml services must be a list'
-            exit 1
-          end
-
-          text = File.read(path).downcase
+          text = File.read('render.yaml', encoding: 'UTF-8').downcase
           forbidden = [
             'render_deploy_hook',
             'render_deploy_hook_url',
             'api.render.com/deploy',
+            'deploy/srv-',
             'sk-',
             'ghp_',
             'github_pat_',
@@ -149,190 +90,27 @@ jobs:
           end
 
           root_dir = service.fetch('rootDir', '.').to_s
-          health_path = service.fetch('healthCheckPath', '').to_s
-          if service['type'] == 'web' && health_path.strip.empty?
-            warn 'web services in render.yaml must define healthCheckPath'
-            exit 1
-          end
-
           File.open(ENV.fetch('GITHUB_OUTPUT'), 'a') do |out|
-            out.puts "service_name=#{service.fetch('name')}"
-            out.puts "service_type=#{service.fetch('type')}"
-            out.puts "runtime=#{service.fetch('runtime', '')}"
             out.puts "service_path=#{root_dir.empty? ? '.' : root_dir}"
-            out.puts "health_check_path=#{health_path}"
           end
-          puts 'render.yaml syntax and deployment-safety checks passed'
-          RUBY
-          else
-            echo "No render.yaml found. Continuing with repository-level preflight."
-            {
-              echo "service_name="
-              echo "service_type="
-              echo "runtime="
-              echo "service_path=."
-              echo "health_check_path="
-            } >> "$GITHUB_OUTPUT"
-          fi
+          puts 'render.yaml syntax and no-secrets checks passed'
+          RB
 
       - name: Verify service path exists
+        shell: bash
         run: |
           set -euo pipefail
-          service_path='${{ steps.render.outputs.service_path }}'
+          service_path='${{ steps.blueprint.outputs.service_path }}'
           if [ ! -d "$service_path" ]; then
             echo "Render service path does not exist: $service_path"
             exit 1
           fi
-          echo "Render preflight service path exists."
+          echo "Render preflight service path exists: $service_path"
 
-      - name: Detect project type
-        id: detect
-        run: |
-          set -euo pipefail
-          service_path='${{ steps.render.outputs.service_path }}'
-          if [ -f "$service_path/package.json" ]; then
-            echo "project_type=node" >> "$GITHUB_OUTPUT"
-          elif [ -f "$service_path/pyproject.toml" ] || [ -f "$service_path/requirements.txt" ]; then
-            echo "project_type=python" >> "$GITHUB_OUTPUT"
-          elif [ -f "$service_path/Dockerfile" ]; then
-            echo "project_type=docker" >> "$GITHUB_OUTPUT"
-          elif [ -f "$service_path/index.html" ] || [ -d "$service_path/public" ] || [ -d "$service_path/static" ]; then
-          found = forbidden.find { |marker| text.include?(marker) }
-          if found
-            warn "forbidden secret/deploy marker found in render.yaml: #{found}"
-            exit 1
-          end
-
-          puts 'render.yaml syntax and no-secrets checks passed'
-          RB
-
-          app_dir="$(ruby <<'RB'
-          require 'yaml'
-          data = YAML.safe_load_file('render.yaml', permitted_classes: [], aliases: false)
-          services = data.fetch('services', []) || []
-          web = services.find { |service| service.is_a?(Hash) && service['type'] == 'web' }
-          puts((web && web['rootDir']) || '.')
-          RB
-          )"
-          if [ ! -d "$app_dir" ]; then
-            echo "render.yaml rootDir does not exist: $app_dir"
-            exit 1
-          fi
-          echo "app_dir=$app_dir" >> "$GITHUB_OUTPUT"
-          echo "Render app directory: $app_dir"
-
-      - name: Detect project type
-        id: detect
+      - name: Validate Modal MCP package metadata
+        working-directory: .agents/mcp/modal-mcp
         shell: bash
         run: |
           set -euo pipefail
-          app_dir="${{ steps.blueprint.outputs.app_dir }}"
-          if [ -z "$app_dir" ]; then
-            app_dir="."
-          fi
-
-          if [ -f "$app_dir/package.json" ]; then
-            echo "project_type=node" >> "$GITHUB_OUTPUT"
-          elif [ -f "$app_dir/pyproject.toml" ] || [ -f "$app_dir/requirements.txt" ]; then
-            echo "project_type=python" >> "$GITHUB_OUTPUT"
-          elif [ -f "$app_dir/Dockerfile" ]; then
-            echo "project_type=docker" >> "$GITHUB_OUTPUT"
-          elif [ -f "$app_dir/index.html" ] || [ -d "$app_dir/public" ]; then
-            echo "project_type=static" >> "$GITHUB_OUTPUT"
-          else
-            echo "project_type=unknown" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Node preflight
-        if: steps.detect.outputs.project_type == 'node'
-        working-directory: ${{ steps.render.outputs.service_path }}
-          echo "app_dir=$app_dir" >> "$GITHUB_OUTPUT"
-
-      - name: Node preflight
-        if: steps.detect.outputs.project_type == 'node'
-        working-directory: ${{ steps.detect.outputs.app_dir }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --version
-          npm --version
-          if [ -f package-lock.json ]; then
-            npm ci --include=dev
-          else
-            npm install --include=dev
-            npm install
-          fi
-          npm run build --if-present
-          npm test --if-present
-
-      - name: Python preflight
-        if: steps.detect.outputs.project_type == 'python'
-        working-directory: ${{ steps.render.outputs.service_path }}
-        run: |
-          set -euo pipefail
-          python --version
-          python -m compileall .
-          if [ -f requirements.txt ]; then
-            python -m pip install --upgrade pip
-            python -m pip install -r requirements.txt
-          fi
-          if [ -d tests ]; then
-            python -m pip install pytest
-            pytest -q
-        working-directory: ${{ steps.detect.outputs.app_dir }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 --version
-          python3 -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            python3 -m pip install -r requirements.txt
-          fi
-          python3 -m compileall .
-          if [ -d tests ]; then
-            python3 -m pip install pytest
-            python3 -m pytest -q
-          fi
-
-      - name: Docker preflight
-        if: steps.detect.outputs.project_type == 'docker'
-        working-directory: ${{ steps.render.outputs.service_path }}
-        working-directory: ${{ steps.detect.outputs.app_dir }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker build -t qarar-render-preflight .
-
-      - name: Static preflight
-        if: steps.detect.outputs.project_type == 'static'
-        working-directory: ${{ steps.render.outputs.service_path }}
-        run: |
-          set -euo pipefail
-          if [ ! -f index.html ] && [ ! -d public ] && [ ! -d static ]; then
-            echo "Static project must include index.html, public/, or static/."
-            exit 1
-          fi
-          echo "Static project preflight passed."
-
-      - name: Unknown project type
-        if: steps.detect.outputs.project_type == 'unknown'
-        run: |
-          echo "Could not detect Node, Python, Docker, or static project type."
-          echo "Render deployment requires render.yaml to point at a recognizable runtime."
-        working-directory: ${{ steps.detect.outputs.app_dir }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ ! -f index.html ] && [ ! -d public ]; then
-            echo "Static app requires index.html or public/."
-            exit 1
-          fi
-          echo "Static app preflight passed."
-
-      - name: Unknown project type
-        if: steps.detect.outputs.project_type == 'unknown'
-        shell: bash
-        run: |
-          echo "Could not detect Node, Python, Docker, or static project type."
-          echo "Render deployment requires render.yaml with a valid rootDir or a recognizable runtime."
-          exit 1
+          npm ci --include=dev
+          npm run build

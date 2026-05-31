@@ -16,7 +16,7 @@ import httpx
 from pydantic import BaseModel, Field
 
 from sama_ingestion_swarm import record_audit_event
-from src.core.audited_router import QalaAuditAdapter
+from src.policy.sovereign.audited_router import QalaAuditAdapter
 
 DEFAULT_FETCH_INTERVAL_SECONDS = 6 * 60 * 60
 

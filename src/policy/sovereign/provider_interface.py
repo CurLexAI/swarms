@@ -3,7 +3,7 @@
 """Ports for sovereign local model providers.
 
 The router depends on this abstract port instead of concrete HTTP adapters.
-Concrete adapters live under ``src.providers`` and are injected into routing
+Concrete adapters live under ``src.policy.sovereign.providers`` and are injected into routing
 functions for tests and runtime composition.
 """
 

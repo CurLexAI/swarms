@@ -9,10 +9,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REQUIRED_PROFILES = (
-    "bayyinah.md",
-    "mihwar.md",
-    "qarar-platform-supervisor.md",
-    "free-birds.md",
+    "bayyinah.agent.md",
+    "mihwar.agent.md",
+    "qarar-platform-supervisor.agent.md",
+    "free-birds.agent.md",
 )
 
 FORBIDDEN_PATTERNS = (

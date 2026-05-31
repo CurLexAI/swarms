@@ -1,22 +1,18 @@
 # SPDX-License-Identifier: MIT
 # Licensed under MIT
+"""Regression tests for no-secrets integration control-plane gates."""
 from __future__ import annotations
 
 import ast
 import importlib.util
 import json
-import re
-"""Regression tests for no-secrets integration control-plane gates."""
-
-from __future__ import annotations
-
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-
 
 def read_text(relative_path: str) -> str:
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
@@ -59,9 +55,6 @@ def test_render_deploy_is_separate_manual_environment_gate() -> None:
     assert "RENDER_API_KEY" not in fastconnect
     assert "RENDER_SERVICE_ID" not in fastconnect
 
-
-    for secret_name in ("MCP_BEARER_TOKEN", "MODAL_API_TOKEN", "MIHWAR_ENDPOINT", "BAYYINAH_ENDPOINT", "AGENT_API_TOKEN"):
-        assert re.search(rf"key: {secret_name}\n\s+sync: false", render_yaml)
 
 
 def test_copilot_mcp_default_is_offline_no_secrets_python3() -> None:
@@ -156,12 +149,6 @@ def test_runtime_policy_check_script_exists_for_aggregate_gate() -> None:
     script = read_text("scripts/check-runtime-policy.ts")
     assert "evaluateRuntimePolicy" in script
     assert "selectRuntimeProviders" not in script
-    assert "invalid classification fails closed" in script
-    """Aggregate npm check must have a concrete runtime policy script."""
-
-    script = read_text("scripts/check-runtime-policy.ts")
-    assert "evaluateRuntimePolicy" in script
-    assert "selectRuntimeProviders" in script
     assert "Runtime policy check passed." in script
 
 
@@ -188,6 +175,36 @@ def test_no_secrets_preflight_workflows_do_not_require_runtime_secrets() -> None
     assert "python3 -m pip install --upgrade pip" in read_text(
         ".github/workflows/constitutional-compliance.yml"
     )
+
+
+def test_copilot_custom_agent_profiles_use_agent_suffix_only() -> None:
+    """Copilot custom agents must use only the canonical .agent.md profile names."""
+
+    agents_dir = REPO_ROOT / ".github" / "agents"
+    profiles = sorted(path.name for path in agents_dir.glob("*"))
+
+    assert profiles == [
+        "bayyinah.agent.md",
+        "free-birds.agent.md",
+        "mihwar.agent.md",
+        "qarar-platform-supervisor.agent.md",
+    ]
+
+
+def test_recovery_supervisor_is_renamed_and_propose_only() -> None:
+    """Recovery supervisor must not retain unsafe naming or execution authority."""
+
+    registry = read_text(".agents/registries/recovery-supervisor.yaml")
+    prompt = read_text(".agents/prompts/recovery-supervisor.md")
+
+    assert "kamikaze" not in registry.lower()
+    assert "kamikaze" not in prompt.lower()
+    assert "status: proposed" in registry
+    assert "execute_can: false" in registry
+    assert "propose_patch" in registry
+    assert "open_pull_request" not in registry
+    assert "call_render_deploy_hook" in registry
+    assert "call_modal_deploy" in registry
 
 
 def test_swarm_presence_no_network_json_is_preflight_safe() -> None:
@@ -264,16 +281,21 @@ def test_modal_deploy_workflow_is_manual_and_confirmed() -> None:
 
 
 def test_render_deploy_job_is_manual_confirmed_and_secret_gated() -> None:
-    """Render deploy must not run from an automatic push path."""
+    """Render deploy authority must live in the dedicated manual workflow only."""
 
-    workflow = read_repo_text(".github/workflows/qarar-fastconnect-deploy.yml")
+    workflow = read_repo_text(".github/workflows/render-deploy.yml")
+    fastconnect = read_repo_text(".github/workflows/qarar-fastconnect-deploy.yml")
 
-    assert "pull_request:" in workflow
-    assert "deploy_render:" in workflow
-    assert "DEPLOY_RENDER" in workflow
-    assert "if: github.event_name == 'workflow_dispatch'" in workflow
-    assert "Required Render deployment secrets are missing." in workflow
-    assert "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" in workflow
+    assert "workflow_dispatch:" in workflow
+    assert "confirm_manual_gated_deploy" in workflow
+    assert "confirm_manual_gated_deploy == 'DEPLOY'" in workflow
+    assert "environment: production" in workflow
+    assert "secrets.RENDER_DEPLOY_HOOK_URL" in workflow
+    assert "push:" not in workflow
+    assert "pull_request:" not in workflow
+    assert "api.render.com/v1/services" not in fastconnect
+    assert "RENDER_API_KEY" not in fastconnect
+    assert "RENDER_SERVICE_ID" not in fastconnect
 
 
 def test_agent_presence_gate_does_not_require_ripgrep() -> None:

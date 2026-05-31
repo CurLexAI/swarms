@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from src.core.audited_router import AuditChainBrokenError, QalaAuditAdapter
+from src.policy.sovereign.audited_router import AuditChainBrokenError, QalaAuditAdapter
 
 
 def record_audit_event(

@@ -12,8 +12,8 @@ from typing import Any, Literal, Protocol, cast
 from pathlib import Path
 from pydantic import BaseModel, Field
 
-from src.core.classification import DataClassification
-from src.core.model_router import ProviderMap, RouteDecision, route
+from src.policy.sovereign.classification import DataClassification
+from src.policy.sovereign.model_router import ProviderMap, RouteDecision, route
 
 AuditAction = Literal["classification_decision", "route_decision", "route_blocked"]
 
@@ -88,7 +88,7 @@ class QalaAuditAdapter:
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    return Path(__file__).resolve().parents[3]
 
 
 def _load_qala_audit_sink_class() -> type[Any]:

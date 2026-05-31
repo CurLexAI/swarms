@@ -8,10 +8,10 @@ Copilot custom agents are repository-level operating profiles. They are not mode
 
 | Profile | Role | May edit files? | Runtime dependency |
 | --- | --- | --- | --- |
-| `.github/agents/bayyinah.md` | Review and validation | No by default | Optional MCP `bayyinah_review` |
-| `.github/agents/mihwar.md` | Safe implementation | Yes when assigned | Optional MCP `mihwar_generate` |
-| `.github/agents/qarar-platform-supervisor.md` | Surface governance | No by default | None |
-| `.github/agents/free-birds.md` | Multi-angle review/design | No by default | Optional MCP `free_birds_*` |
+| `.github/agents/bayyinah.agent.md` | Review and validation | No by default | Optional MCP `bayyinah_review` |
+| `.github/agents/mihwar.agent.md` | Safe implementation | Yes when assigned | Optional MCP `mihwar_generate` |
+| `.github/agents/qarar-platform-supervisor.agent.md` | Surface governance | No by default | None |
+| `.github/agents/free-birds.agent.md` | Multi-angle review/design | No by default | Optional MCP `free_birds_*` |
 
 ## Required live runtime evidence
 

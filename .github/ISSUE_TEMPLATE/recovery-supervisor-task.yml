@@ -1,5 +1,5 @@
-name: Kamikaze Recovery Task
-description: Task for the Kamikaze Recovery Supervisor to fix CI/CD, PR, deploy, or security-gate failures.
+name: Recovery Supervisor Task
+description: Task for the Recovery Supervisor to fix CI/CD, PR, deploy, or security-gate failures.
 title: "[Recovery]: "
 labels:
   - recovery

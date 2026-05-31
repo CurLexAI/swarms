@@ -5,7 +5,7 @@ import {
   type RuntimePolicyDecision,
   RuntimePolicyError,
   type RuntimePolicyRequest,
-} from "./runtime-policy.js";
+} from "../../src/policy/runtime-policy.js";
 
 export interface RouteRequest {
   readonly prompt: string;

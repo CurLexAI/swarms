@@ -15,7 +15,7 @@ from sama_ingestion_swarm import record_audit_event
 from sama_ingestion_swarm.agent_auditor import AuditDecision, SamaAuditor
 from sama_ingestion_swarm.agent_fetcher import FetchResult, SamaFetcher
 from sama_ingestion_swarm.agent_parser import ParseResult, SamaParser
-from src.core.audited_router import QalaAuditAdapter
+from src.policy.sovereign.audited_router import QalaAuditAdapter
 
 DEFAULT_PIPELINE_INTERVAL_SECONDS = 6 * 60 * 60
 

@@ -16,12 +16,12 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from src.core.audited_router import build_audited_execution_plan
-from src.core.classification import DataClassification, classify_content
-from src.core.model_router import route
-from src.core.provider_interface import LLMProvider, ProviderError, is_sovereign_local_url
-from src.providers.local_llama_cpp import LocalLlamaCppProvider
-from src.providers.local_ollama import LocalOllamaProvider
+from src.policy.sovereign.audited_router import build_audited_execution_plan
+from src.policy.sovereign.classification import DataClassification, classify_content
+from src.policy.sovereign.model_router import route
+from src.policy.sovereign.provider_interface import LLMProvider, ProviderError, is_sovereign_local_url
+from src.policy.sovereign.providers.local_llama_cpp import LocalLlamaCppProvider
+from src.policy.sovereign.providers.local_ollama import LocalOllamaProvider
 
 
 class MockLocalProvider(LLMProvider):
