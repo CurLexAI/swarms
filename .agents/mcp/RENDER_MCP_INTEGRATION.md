@@ -1,26 +1,37 @@
 # Render MCP Integration
 
-This document explains how to connect the local MCP server configuration with a remote Render-hosted MCP endpoint, enabling remote clients (ChatGPT, Claude web, etc.) to access the CurLexAI agents (Mihwar and Bayyinah) through the MCP protocol.
+This document defines the Render deployment contract for this repository. It separates the Render-hosted MCP/agent-control runtime from the BSM product backend so that operators do not confuse infrastructure tooling with an application origin service.
+
+---
+
+## Render Service Contract
+
+| Concern | Render service in this repo | Status | Notes |
+|---|---|---|---|
+| MCP / agent-control gateway | `curlexai-mcp-server` | Defined in `render.yaml` | Node.js HTTPS/SSE service rooted at `.agents/mcp/modal-mcp`. It exposes MCP tool transport and performs server-side calls to Modal APIs and private agent endpoints. |
+| BSM backend | None | Intentionally external | The BSM application/backend source is not present in `CurLexAI/swarms`; this repository is the agent operations layer. Do not add BSM routes or product backend source here. |
+| API gateway for public product traffic | None | Intentionally external | Product/browser API traffic must be owned by the BSM or product-origin repository, not by the MCP service. |
+| Other origin service | None | Not defined | Add a distinct `render.yaml` service only when the owning source tree exists in this repository and passes ADR-0001 boundary review. |
+
+`curlexai-mcp-server` is therefore a **Modal MCP Gateway**, not the BSM backend and not a general public API gateway.
 
 ---
 
 ## Architecture
 
-```
-ChatGPT / Claude Web / Remote Client
-  ↓
-https://mcp.render.com/mcp
-  ↓
-Render Web Service (Node.js MCP Server)
-  ├── Modal API (deployment info, logs)
-  └── CurLexAI Agents (Mihwar, Bayyinah)
-      ├── MIHWAR_ENDPOINT → DeepSeek-Coder-V2-Instruct
-      └── BAYYINAH_ENDPOINT → Qwen2.5-Coder-32B-Instruct
+```text
+MCP-capable remote client
+  ↓ HTTPS/SSE with Bearer auth
+Render Web Service: curlexai-mcp-server
+  ├── /healthz        public unauthenticated Render health probe
+  └── /sse            authenticated MCP tool transport
+       ├── Modal API  server-side deployment/log read tools
+       └── CurLexAI private agents server-side only
+           ├── MIHWAR_ENDPOINT  configured as a Render secret/env var
+           └── BAYYINAH_ENDPOINT configured as a Render secret/env var
 ```
 
-The remote MCP server bridges ChatGPT/Claude with both:
-1. **Modal deployment APIs** — read-only tools for deployment status, logs, and safe inference
-2. **CurLexAI agent endpoints** — Mihwar (code generation) and Bayyinah (code review)
+Private agent endpoints stay behind the Render service. Browser, iPhone, frontend code, and public product clients must never receive Modal URLs, Modal tokens, or `AGENT_API_TOKEN` values.
 
 ---
 
@@ -28,238 +39,207 @@ The remote MCP server bridges ChatGPT/Claude with both:
 
 ### Prerequisites
 
-- GitHub repository connected to Render
-- Modal API token with read-only scope
-- CurLexAI agent endpoints (Mihwar, Bayyinah) active in Modal
-- CurLexAI agent API token (if required)
+- GitHub repository connected to Render.
+- Modal API token with the minimum scope needed for the read-only Modal tools.
+- CurLexAI private agent endpoints active server-side when agent tools are enabled.
+- CurLexAI agent API token only in Render secret/environment storage when the private agent endpoints require it.
 
-### Step 1: Create a New Web Service on Render
+### Blueprint-backed service
 
-1. Go to https://dashboard.render.com/
-2. Click **"New +"** → **"Web Service"**
-3. Connect your GitHub repository
-4. Fill in the configuration:
+`render.yaml` is the source of truth for this repository's Render service:
 
 | Field | Value |
-|-------|-------|
-| **Name** | `curlexai-mcp-server` |
-| **Root Directory** | `.agents/mcp/modal-mcp` |
-| **Runtime** | `Node` |
-| **Build Command** | `npm install && npm run build` |
-| **Start Command** | `node dist/server.js` |
-| **Plan** | Free or Starter (whichever fits) |
+|---|---|
+| Service name | `curlexai-mcp-server` |
+| Service role | Modal MCP Gateway / agent-control gateway |
+| Root directory | `.agents/mcp/modal-mcp` |
+| Runtime | Node |
+| Build command | `npm ci --include=dev && npm run build` |
+| Start command | `node dist/server.js` |
+| Port | `8787` |
+| Health check path | `/healthz` |
 
-### Step 2: Configure Environment Variables
+Do not rename the service in documentation without updating `render.yaml`, `MCP_BASE_URL`, and any MCP client configuration in the same change.
 
-Set the following secrets in Render dashboard (**Environment** tab):
+### Environment variables
 
-| Variable | Value | Required |
-|----------|-------|----------|
-| `MCP_BASE_URL` | `https://curlexai-mcp-server.onrender.com` | ✓ |
-| `MCP_BEARER_TOKEN` | Generate a strong token | ✓ |
-| `MODAL_API_TOKEN` | Your Modal API token | ✓ |
-| `MODAL_API_BASE_URL` | `https://api.modal.com` | ✓ |
-| `MIHWAR_ENDPOINT` | `https://curlexai--mihwar-generate.modal.run` | |
-| `BAYYINAH_ENDPOINT` | `https://curlexai--bayyinah-review.modal.run` | |
-| `AGENT_API_TOKEN` | Your CurLexAI agent API token (if required) | |
-| `ENABLE_MUTATING_TOOLS` | `false` | |
-| `NODE_ENV` | `production` | |
+Set secret values in the Render dashboard or approved secret manager. Do not print them in logs, PR comments, tickets, or screenshots.
 
-### Step 3: Deploy
+| Variable | Purpose | Required | Exposure boundary |
+|---|---|---:|---|
+| `MCP_BASE_URL` | Public HTTPS base URL for the MCP gateway itself | Yes | May be visible to MCP clients. |
+| `MCP_BEARER_TOKEN` | Bearer token required for `/sse` | Yes | Secret; never log or return. |
+| `MODAL_API_TOKEN` | Server-side Modal API access for read-only Modal tools | Yes | Secret; Render server-side only. |
+| `MODAL_API_BASE_URL` | Modal API origin, normally `https://api.modal.com` | Yes | Not a secret, but keep server-side. |
+| `MIHWAR_ENDPOINT` | Private Mihwar endpoint URL | No | Secret-like private endpoint; Render server-side only. |
+| `BAYYINAH_ENDPOINT` | Private Bayyinah endpoint URL | No | Secret-like private endpoint; Render server-side only. |
+| `AGENT_API_TOKEN` | Token used by private agent endpoints | No | Secret; Render server-side only. |
+| `ENABLE_MUTATING_TOOLS` | Controls disabled mutating tool stubs | No | Keep `false` unless a separate approved change enables writes. |
+| `MODAL_DEPLOYMENT_ALLOWLIST` | Optional comma-separated deployment ID allow-list | No | Treat deployment identifiers as operational metadata. |
+| `MAX_LOG_LINES` | Maximum log lines returned by log tool | No | Use bounded values only. |
+| `NODE_ENV` | Runtime mode | Yes | `production`. |
 
-Click **"Create Web Service"**. Render will:
-- Clone the repo
-- Run `npm install && npm run build`
-- Start the Node server
-- Assign a URL: `https://curlexai-mcp-server.onrender.com`
+Use placeholders such as `<server-side-mihwar-endpoint>` in documentation and examples. Do not paste real `*.modal.run` URLs or tokens into deployment logs or documentation.
 
-Monitor logs in the Render dashboard to confirm deployment succeeded.
+---
 
-### Step 4: Verify the Server
+## Health-check Expectations
+
+| Render service | Path | Authentication boundary | Expected response shape | Purpose |
+|---|---|---|---|---|
+| `curlexai-mcp-server` | `GET /healthz` | Unauthenticated. It must not call Modal, private agents, or any external API. | HTTP `200` with JSON object `{"status":"ok"}`. | Render liveness/readiness probe for the Node process only. |
+| `curlexai-mcp-server` | `GET /sse` | Requires `Authorization: Bearer <MCP_BEARER_TOKEN>`. | HTTP `200`, `Content-Type: text/event-stream`, an initial ready event containing `{"status":"ok"}`. | Authenticated MCP transport check; validates the bearer boundary without exposing private endpoints. |
+| BSM backend | Not defined in this repo | Owned by the external BSM/product-origin service. | Must be documented in the BSM repository or deployment blueprint. | This repository cannot verify or define BSM backend health until the BSM source/Render blueprint is supplied. |
+| Public product API gateway | Not defined in this repo | Owned by the product-origin/API-gateway service. | Must be documented with the owning service. | Prevents accidental use of the MCP service as a public product API gateway. |
+
+A passing `/healthz` only proves that the Render MCP process started. It does **not** prove Modal reachability, private agent runtime health, BSM backend health, or end-to-end product readiness.
+
+---
+
+## Verification Commands
+
+Use sanitized commands only. Replace tokens locally from your secret manager; never paste token values into command history shared with others.
 
 ```bash
-# Test the /healthz endpoint
+# Render process health; no auth, no Modal call expected.
 curl https://curlexai-mcp-server.onrender.com/healthz
 
-# Test the /sse endpoint with auth
-curl -H "Authorization: Bearer <MCP_BEARER_TOKEN>" \
+# MCP transport boundary; requires bearer auth.
+curl -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \
   https://curlexai-mcp-server.onrender.com/sse
 ```
 
-You should receive a 200 response with `{"status":"ok"}`.
+Expected `/healthz` body:
+
+```json
+{"status":"ok"}
+```
+
+Expected unauthenticated `/sse` behavior: HTTP `401` with no private endpoint details.
 
 ---
 
 ## Using the Remote MCP Server
 
-### ChatGPT Configuration
+### ChatGPT / remote MCP client configuration
 
-1. In ChatGPT, open **Settings** → **MCP Servers**
-2. Click **"Add MCP Server"**
-3. Fill in:
-   - **Name**: `CurLexAI Agents`
-   - **URL**: `https://curlexai-mcp-server.onrender.com/sse`
-   - **Auth Header**: `Bearer <MCP_BEARER_TOKEN>`
-4. Click **"Save"**
+Configure only the Render MCP gateway URL and the MCP bearer token:
 
-ChatGPT will now have access to:
-- `mihwar_generate` — Ask Mihwar to generate code for a task
-- `bayyinah_review` — Ask Bayyinah to review code
-- `modal_list_deployments` — Check Modal deployment status
-- `modal_get_recent_logs` — View deployment logs
-- Other read-only Modal tools
+- **Name**: `CurLexAI Modal MCP Gateway`
+- **URL**: `https://curlexai-mcp-server.onrender.com/sse`
+- **Auth header**: `Bearer <MCP_BEARER_TOKEN>`
 
-### Claude Web Configuration
-
-1. In claude.ai settings (if MCP support is available), add:
-   ```json
-   {
-     "mcpServers": {
-       "curlexai-agents": {
-         "url": "https://curlexai-mcp-server.onrender.com/sse",
-         "auth": "Bearer <MCP_BEARER_TOKEN>"
-       }
-     }
-   }
-   ```
+The client may see tool names such as `mihwar_generate`, `bayyinah_review`, `modal_list_deployments`, and `modal_get_recent_logs`. The client must not see `MIHWAR_ENDPOINT`, `BAYYINAH_ENDPOINT`, `MODAL_API_TOKEN`, or `AGENT_API_TOKEN` values.
 
 ---
 
 ## Tool Reference
 
-### Agent Tools
+### Agent tools
 
 #### `mihwar_generate`
-Generate code using the Mihwar model.
 
-**Parameters:**
-- `task` (string, required): The task description
-- `code` (string, optional): Existing code to modify
-- `context` (string, optional): Additional context
+Generate implementation guidance using the server-side Mihwar endpoint.
 
-**Example:**
-```json
-{
-  "tool": "mihwar_generate",
-  "args": {
-    "task": "Add error handling to this function",
-    "code": "function process(data) { return data.map(x => x * 2); }",
-    "context": "This is a data processing pipeline"
-  }
-}
-```
+Parameters:
+
+- `task` (string, required): The task description.
+- `code` (string, optional): Existing code to modify.
+- `context` (string, optional): Additional context.
 
 #### `bayyinah_review`
-Review code using the Bayyinah model.
 
-**Parameters:**
-- `code` (string, required): Code to review
-- `context` (string, optional): Review criteria or context
+Review code using the server-side Bayyinah endpoint.
 
-**Example:**
-```json
-{
-  "tool": "bayyinah_review",
-  "args": {
-    "code": "function add(a, b) { return a + b; }",
-    "context": "Check for security issues and test coverage"
-  }
-}
-```
+Parameters:
 
-### Modal Tools
+- `code` (string, required): Code to review.
+- `context` (string, optional): Review criteria or context.
 
-- `modal_list_apps` — List Modal applications
-- `modal_list_deployments` — List all deployments
-- `modal_get_deployment_status` — Check specific deployment status
-- `modal_list_model_endpoints` — List model serving endpoints
-- `modal_get_recent_logs` — Fetch deployment logs
-- `modal_run_safe_inference` — Run safe inference on a model endpoint
+### Modal tools
+
+- `modal_list_apps` — list Modal applications.
+- `modal_list_deployments` — list deployments.
+- `modal_get_deployment_status` — check a deployment status.
+- `modal_list_model_endpoints` — list model-serving endpoints.
+- `modal_get_recent_logs` — fetch bounded deployment logs.
+- `modal_run_safe_inference` — run policy-filtered safe inference on a model endpoint.
+
+Mutating tool names are scaffolded but disabled by default. Enabling them requires a separate approved change, explicit operator approval, and a rollback plan.
 
 ---
 
 ## Troubleshooting
 
 ### 502 Bad Gateway
-- Check Render logs: `Status` → `Logs`
-- Verify environment variables are set correctly
-- Ensure `node dist/server.js` runs without errors locally:
-  ```bash
-  cd .agents/mcp/modal-mcp
-  npm install && npm run build
-  PORT=8787 node dist/server.js
-  ```
 
-### 401 Unauthorized (ChatGPT)
-- Confirm `MCP_BEARER_TOKEN` is set in Render environment
-- Make sure the Bearer token matches exactly in ChatGPT settings
-- Check that the auth header format is: `Authorization: Bearer <token>`
+- Check Render service logs for startup errors without printing env values.
+- Verify required environment variables are configured, but do not echo values.
+- Rebuild locally from `.agents/mcp/modal-mcp` with `npm ci --include=dev && npm run build`.
 
-### Agent Tools Return Errors
-- Verify `MIHWAR_ENDPOINT` and `BAYYINAH_ENDPOINT` are active in Modal
-- Check `AGENT_API_TOKEN` is correct (if required)
-- Review Render logs for HTTP error details from the agent endpoints
+### 401 Unauthorized
 
-### Deployment Failed (Build Error)
-- Confirm `.agents/mcp/modal-mcp/package.json` exists
-- Check that TypeScript compiles: `npm run check` in the modal-mcp directory
-- Ensure `tsconfig.json` is properly configured
+- Confirm `MCP_BEARER_TOKEN` exists in Render secret/environment storage.
+- Confirm the client sends `Authorization: Bearer <token>`.
+- Do not paste the token into issue comments, PR text, screenshots, or logs.
+
+### Agent tools return errors
+
+- Verify private agent endpoints from a trusted backend shell only.
+- Confirm `AGENT_API_TOKEN` is configured when required.
+- Review Render logs only for sanitized status/error codes; do not log endpoint URLs, request bodies, or tokens.
+
+### BSM health is requested
+
+- Treat it as `UNVERIFIED` in this repository unless the external BSM service contract or source tree is supplied.
+- Do not add BSM backend routes to `CurLexAI/swarms`; this repository remains the agent operations layer.
 
 ---
 
 ## Local Development
 
-To test the server locally before deploying:
-
 ```bash
 cd .agents/mcp/modal-mcp
-
-# Install dependencies
-npm install
-
-# Type-check
+npm ci --include=dev
 npm run check
-
-# Build
 npm run build
 
-# Run locally on port 8787
 export MCP_BASE_URL=http://localhost:8787
 export MCP_BEARER_TOKEN=test-token-123
-export MODAL_API_TOKEN=<your-token>
+export MODAL_API_TOKEN=placeholder-modal-token
 export MODAL_API_BASE_URL=https://api.modal.com
-export MIHWAR_ENDPOINT=https://curlexai--mihwar-generate.modal.run
-export BAYYINAH_ENDPOINT=https://curlexai--bayyinah-review.modal.run
+# Optional private endpoints stay local/server-side only:
+# export MIHWAR_ENDPOINT=<server-side-mihwar-endpoint>
+# export BAYYINAH_ENDPOINT=<server-side-bayyinah-endpoint>
+# export AGENT_API_TOKEN=<server-side-agent-token>
 
 PORT=8787 node dist/server.js
-
-# In another terminal, test the server
-curl -H "Authorization: Bearer test-token-123" \
-  http://localhost:8787/healthz
 ```
 
 ---
 
 ## Security Notes
 
-- **Bearer tokens** are never logged or exposed in error messages
-- **Modal endpoints** remain backend-only; client models see only tool names
-- **Agent tokens** are validated on every request; never passed to the client
-- **Mutating tools are disabled** by default and require `ENABLE_MUTATING_TOOLS=true` + explicit approval
-- All communication with Modal and agent endpoints uses HTTPS
+- Bearer tokens are never logged or exposed in error messages.
+- Modal and private agent endpoints remain server-side only; client models see tool names, not endpoint URLs.
+- Agent tokens are never passed to clients.
+- `/healthz` must remain dependency-free and unauthenticated so it cannot leak private runtime state.
+- Mutating tools remain disabled by default and require both `ENABLE_MUTATING_TOOLS=true` and request-level explicit approval before any future implementation.
+- All Modal and agent calls use HTTPS from the Render service only.
 
 ---
 
 ## Integration with Local MCP Server
 
-This remote server **complements** the local MCP server (`.agents/mcp/server.py`):
+This remote service complements the local MCP server (`.agents/mcp/server.py`):
 
-| Server | Clients | Setup | Use Case |
-|--------|---------|-------|----------|
-| **Local** (server.py) | GitHub Copilot, Claude Desktop, Cursor | Local Python process + Copilot MCP config | Integrated development, private setup |
-| **Remote** (Render) | ChatGPT, Claude web, remote tools | Render Web Service + HTTPS endpoint | Public APIs, shared team access, ChatGPT integration |
+| Server | Clients | Setup | Use case |
+|---|---|---|---|
+| Local stdio MCP (`server.py`) | GitHub Copilot, Claude Desktop, Cursor | Local Python process + env from a trusted shell | Integrated development and private workstation use. |
+| Remote Render MCP (`curlexai-mcp-server`) | ChatGPT, Claude web, remote tools | Render Web Service + HTTPS/SSE endpoint | Remote MCP access through a server-side Modal MCP Gateway. |
+| BSM backend | Product/browser clients | External BSM/product-origin deployment | Product application APIs; not defined by this repo. |
 
-Both servers expose the same `mihwar_generate` and `bayyinah_review` tools but use different transports.
+Both MCP servers can expose `mihwar_generate` and `bayyinah_review`, but they use different transports and must keep private agent endpoints out of client-visible configuration.
 
 ---
 
