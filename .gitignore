@@ -37,3 +37,44 @@ windows-agent/publish/
 
 # Go build output
 mihwar-core/mihwar-core
+
+# Qarar / Swarms security ignores
+.env
+.env.*
+!.env.example
+# Secrets and credentials
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+service_account.json
+google-credentials.json
+firebase-adminsdk*.json
+# Modal / cloud tokens
+modal-token*
+.modal.toml
+.render/*
+render.yaml.local
+# Apple / MDM / eSIM sensitive profiles
+*.mobileconfig
+*.provisionprofile
+*.cer
+# WireGuard / VPN
+wg0.conf
+*.conf.key
+# Local databases and audit artifacts
+*.sqlite
+*.sqlite3
+*.db
+audit.log
+audit-*.jsonl
+# Notebook checkpoints and outputs
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+# Build and cache
+dist/
+build/
+coverage/
+.cache/
+.pytest_cache/
