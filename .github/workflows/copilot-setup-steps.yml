@@ -1,11 +1,28 @@
+name: Copilot Setup Steps
 name: Copilot setup steps
 
 on:
   workflow_dispatch:
   pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+      - tsconfig.json
+      - "src/**/*.ts"
+      - "scripts/**/*.ts"
+      - "tests/**/*.ts"
+      - .github/workflows/copilot-setup-steps.yml
   push:
     branches:
       - main
+    paths:
+      - package.json
+      - package-lock.json
+      - tsconfig.json
+      - "src/**/*.ts"
+      - "scripts/**/*.ts"
+      - "tests/**/*.ts"
+      - .github/workflows/copilot-setup-steps.yml
 
 permissions:
   contents: read
@@ -23,11 +40,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
           cache: "npm"
 
       - name: Install dependencies
         run: npm ci --include=dev
 
+      - name: Build
+        run: npm run build --if-present
+
+      - name: Check runtime policy
+        run: npm run check:runtime-policy --if-present
+
+      - name: Test runtime policy
+        run: npm run test:runtime-policy --if-present
+
+      - name: Test
       - name: Run TypeScript typecheck
         run: npm run typecheck --if-present
 
