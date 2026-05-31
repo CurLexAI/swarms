@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Licensed under MIT
 
-export type DataClassification = "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED" | "SECRET";
 export type DataClassification =
   | "PUBLIC"
   | "INTERNAL"
@@ -32,6 +31,7 @@ export type ProviderId =
   | "cursor-cloud";
 
 export type LocalProviderId = "ollama-qwen-local" | "ollama-deepseek-local";
+
 export type RuntimeArchitecture =
   | "node_express_primary"
   | "fastapi_primary_gateway"
@@ -45,7 +45,6 @@ export interface CopilotCiPolicy {
   readonly allowedPurpose: "prepare_offline_mcp_environment";
 }
 
-export interface RuntimePolicy {
 export interface RuntimePolicyConfig {
   readonly primaryArchitecture: RuntimeArchitecture;
   readonly blockedLegacyArchitectures: readonly RuntimeArchitecture[];
@@ -108,9 +107,16 @@ const DATA_CLASSIFICATIONS: ReadonlySet<DataClassification> = new Set([
   "SECRET",
 ]);
 
-const LOCAL_PROVIDER_IDS: readonly LocalProviderId[] = ["ollama-qwen-local", "ollama-deepseek-local"];
+export const LOCAL_PROVIDER_IDS = [
+  "ollama-qwen-local",
+  "ollama-deepseek-local",
+] as const satisfies readonly ProviderId[];
 
-export const runtimePolicy: RuntimePolicy = {
+export const EXTERNAL_PROVIDER_IDS = [
+  "vertex-llama4",
+  "cursor-cloud",
+] as const satisfies readonly ProviderId[];
+
 export const runtimePolicy: RuntimePolicyConfig = {
   primaryArchitecture: "node_express_primary",
   blockedLegacyArchitectures: [
@@ -125,16 +131,6 @@ export const runtimePolicy: RuntimePolicyConfig = {
     allowedPurpose: "prepare_offline_mcp_environment",
   },
 } as const;
-
-export const LOCAL_PROVIDER_IDS = [
-  "ollama-qwen-local",
-  "ollama-deepseek-local",
-] as const satisfies readonly ProviderId[];
-
-export const EXTERNAL_PROVIDER_IDS = [
-  "vertex-llama4",
-  "cursor-cloud",
-] as const satisfies readonly ProviderId[];
 
 export const providerRegistry: Readonly<Record<ProviderId, ProviderRegistryEntry>> = {
   "ollama-qwen-local": {
@@ -198,7 +194,6 @@ export const currentProviderOrder: readonly ProviderId[] = [
 
 export function isLegacyArchitectureBlocked(
   architecture: RuntimeArchitecture,
-  policy: RuntimePolicy = runtimePolicy,
   policy: RuntimePolicyConfig = runtimePolicy,
 ): boolean {
   return policy.blockedLegacyArchitectures.includes(architecture);
@@ -212,15 +207,7 @@ export function isRestrictedRouteLocalOnly(decision?: RuntimePolicyDecision): bo
   if (decision !== undefined) {
     return decision.classification === "RESTRICTED" && decision.providerOrder.every(isLocalProvider);
   }
-  return true;
-}
 
-export function isCopilotCiSetupOnly(policy: RuntimePolicy = runtimePolicy): boolean {
-export function isLocalProvider(providerId: ProviderId): boolean {
-  return (LOCAL_PROVIDER_IDS as readonly string[]).includes(providerId);
-}
-
-export function isRestrictedRouteLocalOnly(): boolean {
   return currentProviderOrder
     .filter((providerId) => providerRegistry[providerId].allowedClassifications.includes("RESTRICTED"))
     .every(isLocalProvider);
