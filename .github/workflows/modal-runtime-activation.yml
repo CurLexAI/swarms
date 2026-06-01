@@ -35,10 +35,11 @@ jobs:
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
           BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
           MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
-          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}
+          MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}
         run: |
           set -euo pipefail
-          for v in MODAL_TOKEN_ID MODAL_TOKEN_SECRET BAYYINAH_ENDPOINT MIHWAR_ENDPOINT AGENT_API_TOKEN; do
+          for v in MODAL_TOKEN_ID MODAL_TOKEN_SECRET BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN; do
             if [[ -n "${!v:-}" ]]; then
               echo "::add-mask::${!v}"
             fi
@@ -93,15 +94,16 @@ jobs:
         env:
           BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
           MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
-          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}
+          MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}
         run: |
           set -euo pipefail
-          if [[ -z "${BAYYINAH_ENDPOINT:-}" || -z "${MIHWAR_ENDPOINT:-}" || -z "${AGENT_API_TOKEN:-}" ]]; then
+          if [[ -z "${BAYYINAH_ENDPOINT:-}" || -z "${MIHWAR_ENDPOINT:-}" || -z "${BAYYINAH_API_TOKEN:-}" || -z "${MIHWAR_API_TOKEN:-}" ]]; then
             echo "FINAL_STATUS=UNVERIFIED_SECRET_MISSING" >> "$GITHUB_ENV"
             exit 0
           fi
-          bayyinah_status="$(curl -sS --max-time 240 -o /tmp/bayyinah.json -w '%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer ${AGENT_API_TOKEN}" -X POST -d '{"code":"def add(a,b):return a+b","context":"smoke"}' "$BAYYINAH_ENDPOINT" || echo 000)"
-          mihwar_status="$(curl -sS --max-time 420 -o /tmp/mihwar.json -w '%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer ${AGENT_API_TOKEN}" -X POST -d '{"task":"return integer 1","context_files":{}}' "$MIHWAR_ENDPOINT" || echo 000)"
+          bayyinah_status="$(curl -sS --max-time 240 -o /tmp/bayyinah.json -w '%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer ${BAYYINAH_API_TOKEN}" -X POST -d '{"code":"def add(a,b):return a+b","context":"smoke"}' "$BAYYINAH_ENDPOINT" || echo 000)"
+          mihwar_status="$(curl -sS --max-time 420 -o /tmp/mihwar.json -w '%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer ${MIHWAR_API_TOKEN}" -X POST -d '{"task":"return integer 1","context_files":{}}' "$MIHWAR_ENDPOINT" || echo 000)"
           rm -f /tmp/bayyinah.json /tmp/mihwar.json
           if [[ "$bayyinah_status" == "200" && "$mihwar_status" == "200" ]]; then
             echo "FINAL_STATUS=VERIFIED_ENDPOINT_SMOKE" >> "$GITHUB_ENV"

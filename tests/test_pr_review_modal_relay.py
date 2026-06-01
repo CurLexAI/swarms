@@ -12,7 +12,7 @@ Covers:
 2. Endpoint 5xx errors are sanitized: raw upstream text never reaches
    the GitHub comment body.
 3. Network errors are sanitized — the secret endpoint URL is not leaked.
-4. Missing `BAYYINAH_ENDPOINT` / `AGENT_API_TOKEN` causes a clean exit(1)
+4. Missing `BAYYINAH_ENDPOINT` / `BAYYINAH_API_TOKEN` causes a clean exit(1)
    with no HTTP call attempted.
 
 Run:
@@ -85,7 +85,7 @@ class BayyinahRelayContractTests(unittest.TestCase):
             "os.environ",
             {
                 "BAYYINAH_ENDPOINT": "https://bayyinah.modal.example/api",
-                "AGENT_API_TOKEN": "secret-token-xyz",
+                "BAYYINAH_API_TOKEN": "secret-token-xyz",
                 "GITHUB_TOKEN": "test-github-token",
             },
             clear=False,
@@ -183,7 +183,7 @@ class MissingSecretsTests(unittest.TestCase):
     """_require_env must hard-fail before any HTTP call when secrets are missing."""
 
     def test_missing_bayyinah_endpoint_exits_before_http(self) -> None:
-        with patch.dict("os.environ", {"BAYYINAH_ENDPOINT": "", "AGENT_API_TOKEN": "t"}, clear=False):
+        with patch.dict("os.environ", {"BAYYINAH_ENDPOINT": "", "BAYYINAH_API_TOKEN": "t"}, clear=False):
             with patch.object(pr_review.requests, "post") as mock_post:
                 with self.assertRaises(SystemExit) as ctx:
                     pr_review._run_bayyinah("diff", _make_args(agent="bayyinah"))
@@ -191,7 +191,7 @@ class MissingSecretsTests(unittest.TestCase):
             mock_post.assert_not_called()
 
     def test_missing_mihwar_endpoint_exits_before_http(self) -> None:
-        with patch.dict("os.environ", {"MIHWAR_ENDPOINT": "", "AGENT_API_TOKEN": "t"}, clear=False):
+        with patch.dict("os.environ", {"MIHWAR_ENDPOINT": "", "MIHWAR_API_TOKEN": "t"}, clear=False):
             with patch.object(pr_review.requests, "post") as mock_post:
                 with self.assertRaises(SystemExit) as ctx:
                     pr_review._run_mihwar("diff", _make_args(agent="mihwar"))

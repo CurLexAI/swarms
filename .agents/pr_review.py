@@ -25,7 +25,8 @@ Usage (from GitHub Actions):
 
 Required environment variables:
     GITHUB_TOKEN        — provided automatically by GitHub Actions
-    AGENT_API_TOKEN     — shared secret for Modal endpoint auth
+    BAYYINAH_API_TOKEN  — endpoint-specific Bearer token for Bayyinah
+    MIHWAR_API_TOKEN    — endpoint-specific Bearer token for Mihwar
     BAYYINAH_ENDPOINT   — deployed Modal web URL for Bayyinah
     MIHWAR_ENDPOINT     — deployed Modal web URL for Mihwar (optional)
 """
@@ -69,7 +70,7 @@ def main() -> None:
 
 def _run_bayyinah(diff: str, args: argparse.Namespace) -> None:
     endpoint = _require_env("BAYYINAH_ENDPOINT")
-    token = _require_env("AGENT_API_TOKEN")
+    token = _require_env("BAYYINAH_API_TOKEN")
 
     print("Calling Bayyinah at endpoint...")
 
@@ -110,7 +111,7 @@ def _run_bayyinah(diff: str, args: argparse.Namespace) -> None:
 
 def _run_mihwar(diff: str, args: argparse.Namespace) -> None:
     endpoint = _require_env("MIHWAR_ENDPOINT")
-    token = _require_env("AGENT_API_TOKEN")
+    token = _require_env("MIHWAR_API_TOKEN")
     bayyinah_report = args.bayyinah_report or os.environ.get("BAYYINAH_REPORT", "")
 
     print("Calling Mihwar at endpoint...")
