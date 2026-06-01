@@ -47,6 +47,7 @@ jobs:
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           import os
+          import sys
           from pathlib import Path
 
           event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
@@ -55,6 +56,12 @@ jobs:
           body = str(comment.get("body") or "")
           lines = body.splitlines()
           focus = "\n".join(lines[1:]).strip() if lines else ""
+
+          # Sanitize focus: reject if >2000 chars or contains template patterns
+          if len(focus) > 2000:
+              print("is_pr=false")
+              sys.exit(1)
+          focus = focus.replace("${", "").replace("}", "")
 
           if event_name == "issue_comment":
               issue = event.get("issue") or {}
@@ -156,13 +163,23 @@ jobs:
           Path("/tmp/bayyinah-payload.json").write_text(json.dumps(payload), encoding="utf-8")
           PY
 
-          RESPONSE=$(curl -sS --fail-with-body --max-time 120 \
+          if ! RESPONSE=$(curl -sS --fail-with-body --max-time 120 \
             -X POST "${BAYYINAH_ENDPOINT}" \
             -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
             -H "Content-Type: application/json" \
-            --data-binary @/tmp/bayyinah-payload.json)
+            --data-binary @/tmp/bayyinah-payload.json); then
+            echo "::error::Bayyinah endpoint request failed. Response: $RESPONSE"
+            exit 1
+          fi
 
           printf '%s' "${RESPONSE}" > /tmp/bayyinah-response.json
+          
+          # Validate response is valid JSON with required fields
+          if ! jq -e '.review // .output // .result' /tmp/bayyinah-response.json > /dev/null 2>&1; then
+            echo "::error::Bayyinah returned malformed response (missing review/output/result): $(cat /tmp/bayyinah-response.json)"
+            exit 1
+          fi
+          
           jq -r '.review // .output // .result // "No review returned."' /tmp/bayyinah-response.json > /tmp/bayyinah-review.txt
           VERDICT=$(jq -r '.verdict // "UNVERIFIED"' /tmp/bayyinah-response.json)
           echo "verdict=${VERDICT}" >> "$GITHUB_OUTPUT"
@@ -205,12 +222,14 @@ jobs:
           PY
           gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/bayyinah-comment.md
 
-      - name: Fail job if verdict is BLOCK
+      - name: Fail job if verdict blocks or requires changes
         if: |
           steps.secrets-check.outputs.status == 'READY' &&
-          steps.bayyinah-invoke.outputs.verdict == 'BLOCK'
+          (steps.bayyinah-invoke.outputs.verdict == 'BLOCK' ||
+           steps.bayyinah-invoke.outputs.verdict == 'REQUEST_CHANGES')
         run: |
-          echo "::error::Bayyinah returned BLOCK verdict. Resolve all CRITICAL and HIGH findings before merge."
+          VERDICT="${{ steps.bayyinah-invoke.outputs.verdict }}"
+          echo "::error::Bayyinah returned ${VERDICT} verdict. Resolve all findings before pushing."
           exit 1
 
       - name: Post SKIPPED_UNVERIFIED notice
