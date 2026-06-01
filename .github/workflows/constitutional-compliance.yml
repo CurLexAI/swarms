@@ -3,6 +3,9 @@ name: Constitutional Compliance
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   compliance:
     runs-on: ubuntu-latest
