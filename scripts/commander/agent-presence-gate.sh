@@ -15,23 +15,15 @@ if [[ ! -f "$WORKFLOW_FILE" ]]; then
 fi
 
 echo "[INFO] Parsing configured agents from $CONFIG_FILE"
-if command -v python3 >/dev/null 2>&1; then
+if [[ -n "${PYTHON_BIN:-}" ]]; then
+  :
+elif command -v python3 >/dev/null 2>&1; then
   PYTHON_BIN=python3
 elif command -v python >/dev/null 2>&1; then
   PYTHON_BIN=python
 else
   echo "[FAIL] PYTHON_NOT_FOUND: python3 or python is required"
   exit 1
-PYTHON_BIN="${PYTHON_BIN:-}"
-if [[ -z "$PYTHON_BIN" ]]; then
-  if command -v python3 >/dev/null 2>&1; then
-    PYTHON_BIN="python3"
-  elif command -v python >/dev/null 2>&1; then
-    PYTHON_BIN="python"
-  else
-    echo "[FAIL] PYTHON_NOT_FOUND: python3 or python is required"
-    exit 1
-  fi
 fi
 
 "$PYTHON_BIN" - <<'PY'

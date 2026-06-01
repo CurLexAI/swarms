@@ -1,0 +1,16 @@
+.git
+.github
+node_modules
+npm-debug.log*
+.gitleaks-report.json
+gitleaks-report.json
+trufflehog-report.json
+*.sarif
+.pytest_cache
+.mypy_cache
+.ruff_cache
+**/__pycache__
+**/*.pyc
+.env
+.env.*
+!.env.example

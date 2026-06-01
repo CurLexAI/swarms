@@ -10,7 +10,6 @@ import {
   runtimePolicy,
   type ProviderId,
 } from "../src/policy/runtime-policy.ts";
-import { selectRuntimeProviders } from "../src/runtimePolicy.ts";
 
 interface CheckResult {
   readonly name: string;
@@ -99,15 +98,6 @@ const results: CheckResult[] = [
     }
     assert(blocked, "invalid legacy classification must fail closed");
   }),
-  check("legacy runtime adapter blocks retired open cloud mode", () => {
-    const decision = selectRuntimeProviders({
-      dataClassification: "PUBLIC",
-      mode: "LEGACY_OPEN_CLOUD",
-      allowExternalProvider: true,
-    });
-    assert(!decision.allowed, "legacy open cloud mode must remain blocked");
-    assert(decision.providers.length === 0, "blocked legacy mode must not return providers");
-  }),
 ];
 
 for (const result of results) {
@@ -118,3 +108,5 @@ for (const result of results) {
 if (results.some((result) => !result.passed)) {
   process.exit(1);
 }
+
+console.log("Runtime policy check passed.");

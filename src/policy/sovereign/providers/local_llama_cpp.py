@@ -90,7 +90,7 @@ class LocalLlamaCppProvider(LLMProvider):
         try:
             async with httpx.AsyncClient(base_url=self._base_url, timeout=5.0) as client:
                 response = await client.get("/health")
-            return response.status_code == 200
+            return bool(response.status_code == 200)
         except httpx.HTTPError:
             return False
 
