@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
+# Licensed under MIT
 """
 LexPrim ↔ swarms Bridge (ADR-0001 Compliant)
 ============================================

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Tests for the Qarar sovereign workspace API helpers and handlers."""
 
 from __future__ import annotations

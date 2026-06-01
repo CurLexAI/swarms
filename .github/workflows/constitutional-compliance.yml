@@ -37,8 +37,10 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           # Typed runtime deps so `mypy --strict` resolves real types instead
-          # of failing with import-not-found. Untyped/heavyweight deps are
-          # handled via per-module ignores in mypy.ini.
-          pip install ruff mypy pydantic httpx
+          # of failing with import-not-found. pytest and types-requests ship
+          # py.typed/stubs so test modules and `requests` callers type-check
+          # under --strict instead of tripping untyped-decorator/import errors.
+          # Untyped/heavyweight deps are handled via per-module ignores in mypy.ini.
+          pip install ruff mypy pydantic httpx pytest types-requests
           ruff check .
           mypy --strict .

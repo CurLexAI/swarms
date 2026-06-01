@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Security regression tests for the Qarar workspace gateway."""
 
 from __future__ import annotations
