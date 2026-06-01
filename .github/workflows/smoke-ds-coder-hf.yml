@@ -1,0 +1,36 @@
+name: DeepSeek-Coder HF Smoke Public Only
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/smoke-ds-coder-hf.yml"
+      - ".github/smoke_allowlist.yml"
+      - "scripts/hf_public_coding_smoke.py"
+      - "tests/fixtures/synthetic_public_task.json"
+      - "docs/operations/hf-public-coding-smoke.md"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    environment: HF_SMOKE
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install pyyaml
+
+      - name: Run public-only Hugging Face smoke
+        env:
+          HF_READ_TOKEN: ${{ secrets.HF_READ_TOKEN }}
+          HF_MODEL: ${{ vars.HF_MODEL || 'deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct:fastest' }}
+        run: python scripts/hf_public_coding_smoke.py
