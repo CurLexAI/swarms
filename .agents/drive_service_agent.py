@@ -309,7 +309,8 @@ def _load_config_from_env() -> DriveAgentConfig:
     max_raw = os.environ.get("QARAR_MAX_UPLOAD_BYTES", "").strip()
     audit_raw = os.environ.get("QARAR_AUDIT_LOG_PATH", "").strip()
     allowlist_raw = os.environ.get("QARAR_UPLOAD_ALLOWLIST_DIRS", "").strip()
-    if not max_raw or not audit_raw or not allowlist_raw:
+    allowlist_root_raw = os.environ.get("QARAR_UPLOAD_ALLOWLIST_ROOT", "").strip()
+    if not max_raw or not audit_raw or not allowlist_raw or not allowlist_root_raw:
         raise DriveAgentError(
             DriveAgentErrorCode.CONFIG_NOT_FOUND,
             "Missing required Drive agent environment configuration",
@@ -320,6 +321,20 @@ def _load_config_from_env() -> DriveAgentConfig:
         raise DriveAgentError(DriveAgentErrorCode.CONFIG_NOT_FOUND, "Invalid QARAR_MAX_UPLOAD_BYTES") from exc
     if max_upload_bytes <= 0:
         raise DriveAgentError(DriveAgentErrorCode.CONFIG_NOT_FOUND, "QARAR_MAX_UPLOAD_BYTES must be positive")
+
+    allowlist_root = Path(allowlist_root_raw).expanduser()
+    if not allowlist_root.is_absolute():
+        raise DriveAgentError(
+            DriveAgentErrorCode.CONFIG_NOT_FOUND,
+            "QARAR_UPLOAD_ALLOWLIST_ROOT must be an absolute path",
+        )
+    try:
+        allowlist_root = allowlist_root.resolve(strict=True)
+    except OSError as exc:
+        raise DriveAgentError(
+            DriveAgentErrorCode.CONFIG_NOT_FOUND,
+            "Invalid QARAR_UPLOAD_ALLOWLIST_ROOT",
+        ) from exc
 
     validated_allowlist_dirs: list[Path] = []
     for part in allowlist_raw.split(os.pathsep):
@@ -339,16 +354,41 @@ def _load_config_from_env() -> DriveAgentConfig:
                 DriveAgentErrorCode.CONFIG_NOT_FOUND,
                 "Invalid QARAR_UPLOAD_ALLOWLIST_DIRS entry",
             ) from exc
+        try:
+            resolved.relative_to(allowlist_root)
+        except ValueError as exc:
+            raise DriveAgentError(
+                DriveAgentErrorCode.CONFIG_NOT_FOUND,
+                "QARAR_UPLOAD_ALLOWLIST_DIRS entries must be within QARAR_UPLOAD_ALLOWLIST_ROOT",
+            ) from exc
         validated_allowlist_dirs.append(resolved)
 
     allowlist_dirs = tuple(validated_allowlist_dirs)
     if not allowlist_dirs:
         raise DriveAgentError(DriveAgentErrorCode.CONFIG_NOT_FOUND, "Upload allowlist is empty")
 
+    audit_log_path = Path(audit_raw).expanduser()
+    if not audit_log_path.is_absolute():
+        raise DriveAgentError(
+            DriveAgentErrorCode.CONFIG_NOT_FOUND,
+            "QARAR_AUDIT_LOG_PATH must be an absolute path",
+        )
+    try:
+        audit_log_path = audit_log_path.resolve(strict=False)
+    except OSError as exc:
+        raise DriveAgentError(DriveAgentErrorCode.CONFIG_NOT_FOUND, "Invalid QARAR_AUDIT_LOG_PATH") from exc
+    try:
+        audit_log_path.relative_to(allowlist_root)
+    except ValueError as exc:
+        raise DriveAgentError(
+            DriveAgentErrorCode.CONFIG_NOT_FOUND,
+            "QARAR_AUDIT_LOG_PATH must be within QARAR_UPLOAD_ALLOWLIST_ROOT",
+        ) from exc
+
     return DriveAgentConfig(
         classification=classification,
         max_upload_bytes=max_upload_bytes,
-        audit_log_path=Path(audit_raw).expanduser(),
+        audit_log_path=audit_log_path,
         allowlist_dirs=allowlist_dirs,
     )
 
