@@ -65,6 +65,105 @@ def qarar_module(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     return module
 
 
+def test_gateway_file_contract_exposes_workspace_and_short_aliases(
+    qarar_module: ModuleType,
+) -> None:
+    """Gateway file routes must expose workspace-prefixed and short aliases."""
+
+    routes_by_path = {route.path: route for route in qarar_module.app.routes}
+
+    assert "/api/workspace/files" in routes_by_path
+    assert "/api/workspace/file/read" in routes_by_path
+    assert "/api/workspace/file/write" in routes_by_path
+    assert "/api/files" in routes_by_path
+    assert "/api/file/read" in routes_by_path
+    assert "/api/file/write" in routes_by_path
+    assert routes_by_path["/api/files"].endpoint is qarar_module.list_files
+    assert routes_by_path["/api/file/read"].endpoint is qarar_module.read_file
+    assert routes_by_path["/api/file/write"].endpoint is qarar_module.write_file
+
+
+def test_short_files_alias_uses_list_files_handler(qarar_module: ModuleType) -> None:
+    """Short file-list alias must share the list_files handler logic."""
+
+    safe = qarar_module.WORKSPACE_DIR / "safe.md"
+    forbidden = qarar_module.WORKSPACE_DIR / ".env"
+    safe.write_text("Safe listing", encoding="utf-8")
+    forbidden.write_text("SAFE=value", encoding="utf-8")
+
+    response = anyio.run(qarar_module.list_files)
+
+    assert response == {"files": [{"path": "safe.md", "size": 12}]}
+
+
+def test_short_read_alias_uses_safe_file_reader(
+    qarar_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Short read alias must route all reads through read_text_file_safely."""
+
+    target = qarar_module.WORKSPACE_DIR / "safe.md"
+    target.write_text("Original content", encoding="utf-8")
+    observed_paths: list[Path] = []
+
+    def spy_read_text_file_safely(path: Path) -> str:
+        observed_paths.append(path)
+        return "guarded content"
+
+    monkeypatch.setattr(
+        qarar_module,
+        "read_text_file_safely",
+        spy_read_text_file_safely,
+    )
+    response = anyio.run(
+        qarar_module.read_file,
+        qarar_module.FileOperationRequest(file_path="safe.md"),
+    )
+
+    assert response == {"file_path": "safe.md", "content": "guarded content"}
+    assert observed_paths == [target]
+
+
+def test_short_write_alias_checks_write_enablement(qarar_module: ModuleType) -> None:
+    """Short write alias must share the write_file fail-closed handler logic."""
+
+    with pytest.raises(HTTPException) as exc_info:
+        anyio.run(
+            qarar_module.write_file,
+            qarar_module.FileOperationRequest(file_path="draft.md", content="draft"),
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "Workspace write API is disabled"
+    assert not (qarar_module.WORKSPACE_DIR / "draft.md").exists()
+
+
+def test_short_write_alias_uses_atomic_writer_when_enabled(
+    qarar_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Short write alias must persist through write_text_file_atomically."""
+
+    observed_writes: list[tuple[Path, str]] = []
+
+    def spy_write_text_file_atomically(path: Path, content: str) -> None:
+        observed_writes.append((path, content))
+
+    monkeypatch.setenv("QARAR_ENABLE_WORKSPACE_WRITE", "true")
+    monkeypatch.setattr(
+        qarar_module,
+        "write_text_file_atomically",
+        spy_write_text_file_atomically,
+    )
+    response = anyio.run(
+        qarar_module.write_file,
+        qarar_module.FileOperationRequest(file_path="draft.md", content="draft"),
+    )
+
+    assert response == {"status": "success", "message": "Updated draft.md"}
+    assert observed_writes == [(qarar_module.WORKSPACE_DIR / "draft.md", "draft")]
+
+
 def test_resolve_workspace_path_blocks_traversal(qarar_module: ModuleType) -> None:
     """Path resolution must reject traversal outside the workspace."""
 
