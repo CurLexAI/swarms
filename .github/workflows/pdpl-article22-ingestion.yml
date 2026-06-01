@@ -3,6 +3,9 @@ name: PDPL Article 22 Ingestion
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
