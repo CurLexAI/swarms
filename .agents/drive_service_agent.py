@@ -322,6 +322,17 @@ def _load_config_from_env() -> DriveAgentConfig:
     if max_upload_bytes <= 0:
         raise DriveAgentError(DriveAgentErrorCode.CONFIG_NOT_FOUND, "QARAR_MAX_UPLOAD_BYTES must be positive")
 
+    if "\x00" in allowlist_root_raw or re.search(r"[\r\n\t]", allowlist_root_raw):
+        raise DriveAgentError(
+            DriveAgentErrorCode.CONFIG_NOT_FOUND,
+            "Invalid QARAR_UPLOAD_ALLOWLIST_ROOT",
+        )
+    if os.path.normpath(allowlist_root_raw) != allowlist_root_raw:
+        raise DriveAgentError(
+            DriveAgentErrorCode.CONFIG_NOT_FOUND,
+            "QARAR_UPLOAD_ALLOWLIST_ROOT must be normalized",
+        )
+
     allowlist_root = Path(allowlist_root_raw).expanduser()
     if not allowlist_root.is_absolute():
         raise DriveAgentError(
