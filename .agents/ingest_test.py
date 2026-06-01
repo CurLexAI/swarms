@@ -23,7 +23,8 @@ Endpoints (after deploy — copy URLs into secrets, never commit them):
 Required Modal secrets:
     huggingface-secret   → HF_TOKEN             (bge-m3 model download)
     qdrant-infra-secret  → QDRANT_INTERNAL_URL   (Modal-sovereign Qdrant URL)
-                           QDRANT_API_KEY         (optional; set if infra auth is enabled)
+                           QDRANT_API_KEY         (required unless break-glass
+                                                   ALLOW_UNAUTHENTICATED_QDRANT=true)
     agent-api-secret     → AGENT_API_TOKEN        (shared Bearer auth, same as curlexai-agents)
 
 Smoke test (requires Modal auth):
@@ -35,10 +36,21 @@ from __future__ import annotations
 import hmac
 import os
 import re
+import sys as _sys
+from pathlib import Path as _Path
 from typing import Optional
 
 import modal
 from fastapi import Body, Header, HTTPException
+
+# `.agents` is not an importable package (leading dot), so resolve the sibling
+# runtime_security module by absolute path. Modal automounts locally-imported
+# modules, so this also ships runtime_security.py into the containers.
+_AGENTS_DIR = str(_Path(__file__).resolve().parent)
+if _AGENTS_DIR not in _sys.path:
+    _sys.path.insert(0, _AGENTS_DIR)
+
+from runtime_security import require_qdrant_auth  # noqa: E402
 
 # ── Modal app (separate from curlexai-agents) ────────────────────────────────
 
@@ -107,6 +119,7 @@ def _chunk_point_id(chunk_index: int) -> int:
 def _qdrant_client():  # type: ignore[return]  # qdrant_client not available at import time
     from qdrant_client import QdrantClient
 
+    require_qdrant_auth()
     url = os.environ["QDRANT_INTERNAL_URL"]
     api_key: Optional[str] = os.environ.get("QDRANT_API_KEY") or None
     return QdrantClient(url=url, api_key=api_key)

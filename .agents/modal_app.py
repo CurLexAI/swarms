@@ -18,19 +18,45 @@ Web endpoints (after deploy):
 
 Environment secrets required in Modal dashboard:
     huggingface-secret  →  HF_TOKEN
-    agent-api-secret    →  AGENT_API_TOKEN   (shared token for GitHub Actions auth)
+    agent-api-secret    →  MIHWAR_API_TOKEN    (Mihwar endpoint Bearer auth)
+                           BAYYINAH_API_TOKEN  (Bayyinah endpoint Bearer auth)
+    model-pinning       →  MIHWAR_MODEL_REVISION    (full 40-char HF commit SHA)
+                           BAYYINAH_MODEL_REVISION  (full 40-char HF commit SHA)
+
+Endpoint auth is per-endpoint by default. The legacy single AGENT_API_TOKEN is
+only honoured when an endpoint explicitly opts in via verify_bearer_token(
+allow_legacy_shared_token=True) together with ALLOW_LEGACY_SHARED_AGENT_TOKEN;
+the endpoints below do not opt in.
+
+Model loading is fail-closed: each model requires a pinned revision, and
+trust_remote_code stays off unless <AGENT>_REMOTE_CODE_ACK explicitly
+acknowledges reviewed, pinned remote code (see runtime_security.py).
 """
 
 from __future__ import annotations
 
-import hmac
 import json
-import os
+import sys as _sys
 import uuid
+from pathlib import Path as _Path
 from typing import Optional
 
 import modal
 from fastapi import Header, HTTPException
+
+# `.agents` is not an importable package (leading dot), so resolve the sibling
+# runtime_security module by absolute path. Modal automounts locally-imported
+# modules, so this also ships runtime_security.py into the containers.
+_AGENTS_DIR = str(_Path(__file__).resolve().parent)
+if _AGENTS_DIR not in _sys.path:
+    _sys.path.insert(0, _AGENTS_DIR)
+
+from runtime_security import (  # noqa: E402
+    ModelPolicy,
+    require_pinned_revision,
+    trust_remote_code_for,
+    verify_bearer_token,
+)
 
 # ── Shared base image ──────────────────────────────────────────────────────
 
@@ -89,9 +115,17 @@ class MihwarAgent:
 
         self.llm = LLM(
             model=self.model_id,
+            revision=require_pinned_revision("MIHWAR_MODEL_REVISION"),
+            tokenizer_revision=require_pinned_revision("MIHWAR_MODEL_REVISION"),
             tensor_parallel_size=2,
             max_model_len=32768,
-            trust_remote_code=True,
+            trust_remote_code=trust_remote_code_for(
+                ModelPolicy(
+                    model_id=self.model_id,
+                    revision_env="MIHWAR_MODEL_REVISION",
+                    remote_code_ack_env="MIHWAR_REMOTE_CODE_ACK",
+                )
+            ),
             gpu_memory_utilization=0.92,
         )
         self.default_params = SamplingParams(
@@ -183,9 +217,17 @@ class BayyinahAgent:
 
         self.llm = LLM(
             model=self.model_id,
+            revision=require_pinned_revision("BAYYINAH_MODEL_REVISION"),
+            tokenizer_revision=require_pinned_revision("BAYYINAH_MODEL_REVISION"),
             tensor_parallel_size=1,
             max_model_len=32768,
-            trust_remote_code=True,
+            trust_remote_code=trust_remote_code_for(
+                ModelPolicy(
+                    model_id=self.model_id,
+                    revision_env="BAYYINAH_MODEL_REVISION",
+                    remote_code_ack_env="BAYYINAH_REMOTE_CODE_ACK",
+                )
+            ),
             gpu_memory_utilization=0.90,
         )
 
@@ -264,22 +306,6 @@ def _make_request_id(header_value: str | None) -> str:
     return str(uuid.uuid4())
 
 
-def _verify_bearer_token(authorization: str | None) -> None:
-    expected_token = os.environ.get("AGENT_API_TOKEN", "")
-    if not expected_token:
-        raise HTTPException(status_code=503, detail="agent_api_token_missing")
-
-    if not authorization:
-        raise HTTPException(status_code=401, detail="missing_authorization")
-
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(status_code=401, detail="invalid_authorization_scheme")
-
-    if not hmac.compare_digest(token, expected_token):
-        raise HTTPException(status_code=401, detail="invalid_token")
-
-
 def _limit_payload_bytes(payload: dict, max_bytes: int) -> None:
     raw = json.dumps(payload, ensure_ascii=False)
     if len(raw.encode("utf-8")) > max_bytes:
@@ -298,9 +324,10 @@ def _trimmed_text(value: object, max_bytes: int) -> str:
 #
 # After `modal deploy .agents/modal_app.py`, Modal provides stable HTTPS URLs.
 # Copy those URLs into GitHub repository secrets:
-#   BAYYINAH_ENDPOINT  →  the URL for bayyinah-review
-#   MIHWAR_ENDPOINT    →  the URL for mihwar-generate
-#   AGENT_API_TOKEN    →  any strong random string (openssl rand -hex 32)
+#   BAYYINAH_ENDPOINT   →  the URL for bayyinah-review
+#   MIHWAR_ENDPOINT     →  the URL for mihwar-generate
+#   BAYYINAH_API_TOKEN  →  strong random string (openssl rand -hex 32)
+#   MIHWAR_API_TOKEN    →  strong random string (openssl rand -hex 32)
 
 api_secret = modal.Secret.from_name("agent-api-secret")
 
@@ -322,7 +349,11 @@ def bayyinah_review_web(
     Called by GitHub Actions on every PR using Authorization: Bearer.
     """
     request_id = _make_request_id(x_request_id)
-    _verify_bearer_token(authorization)
+    verify_bearer_token(
+        authorization,
+        token_env="BAYYINAH_API_TOKEN",
+        allow_legacy_shared_token=False,
+    )
     _limit_payload_bytes(payload, MAX_REVIEW_PAYLOAD_BYTES)
 
     result = BayyinahAgent().review.remote(
@@ -350,7 +381,11 @@ def mihwar_generate_web(
     Called by GitHub Actions using Authorization: Bearer.
     """
     request_id = _make_request_id(x_request_id)
-    _verify_bearer_token(authorization)
+    verify_bearer_token(
+        authorization,
+        token_env="MIHWAR_API_TOKEN",
+        allow_legacy_shared_token=False,
+    )
     _limit_payload_bytes(payload, MAX_GENERATE_PAYLOAD_BYTES)
 
     context_files = payload.get("context_files")
