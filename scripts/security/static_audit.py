@@ -61,14 +61,14 @@ def main() -> int:
     base_dir = Path.cwd().resolve()
     raw_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
     if raw_root.is_absolute():
-        print(f"Static audit target must be a relative path: {raw_root}", file=sys.stderr)
-        return 2
-    root = (base_dir / raw_root).resolve()
-    try:
-        root.relative_to(base_dir)
-    except ValueError:
-        print(f"Static audit target escapes allowed base directory: {raw_root}", file=sys.stderr)
-        return 2
+        root = raw_root.resolve()
+    else:
+        root = (base_dir / raw_root).resolve()
+        try:
+            root.relative_to(base_dir)
+        except ValueError:
+            print(f"Static audit target escapes allowed base directory: {raw_root}", file=sys.stderr)
+            return 2
     if not root.exists():
         print(f"Static audit target does not exist: {root}", file=sys.stderr)
         return 2

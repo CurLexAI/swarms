@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch, MagicMock
 
-import requests  # type: ignore[import-untyped]
+import requests
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
