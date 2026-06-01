@@ -10,8 +10,11 @@ boundaries only — no secret values are stored here.**
 |-----------------------|--------------------------------------------------------|------------------------------------------------------|--------------|
 | `BAYYINAH_ENDPOINT`   | Organization (LexPrime) — Selected repos: `CurLexAI/swarms`, `LexPrim/Qarar` | `.github/workflows/agent-review.yml` → bayyinah step | Bayyinah review run |
 | `MIHWAR_ENDPOINT`     | Organization (LexPrime) — Selected repos: `CurLexAI/swarms`, `LexPrim/Qarar` | `.github/workflows/agent-review.yml` → mihwar step   | Mihwar fix-suggest run |
-| `AGENT_API_TOKEN`     | Organization (LexPrime) — Selected repos: `CurLexAI/swarms`, `LexPrim/Qarar` | Both workflow steps; `.agents/pr_review.py`          | Authenticating to Modal endpoints |
+| `BAYYINAH_API_TOKEN` | Organization (LexPrime) — Selected repos: `CurLexAI/swarms`, `LexPrim/Qarar` | Bayyinah workflow step; `.agents/pr_review.py`       | Authenticating to Bayyinah Modal endpoint |
+| `MIHWAR_API_TOKEN`    | Organization (LexPrime) — Selected repos: `CurLexAI/swarms`, `LexPrim/Qarar` | Mihwar workflow step; `.agents/pr_review.py`         | Authenticating to Mihwar Modal endpoint |
 | `GITHUB_TOKEN`        | GitHub-managed                                         | `.agents/pr_review.py` (post review comments)        | Provided automatically by Actions |
+
+`AGENT_API_TOKEN` is deprecated for the Modal endpoint contract. Do not use it for Bayyinah or Mihwar endpoint authorization unless a separate legacy-only runtime has been explicitly approved and documented; the hardened Modal app uses endpoint-specific tokens by default.
 
 The following secrets are referenced in deployment plans but MUST NOT be
 introduced into this repository until the corresponding deploy PR is
@@ -94,7 +97,8 @@ is reachable.
 
 | Secret              | Rotation cadence | Owner    |
 |---------------------|------------------|----------|
-| `AGENT_API_TOKEN`   | 90 days          | PENDING  |
+| `BAYYINAH_API_TOKEN` | 90 days          | PENDING  |
+| `MIHWAR_API_TOKEN`    | 90 days          | PENDING  |
 | `BAYYINAH_ENDPOINT` | On endpoint move | PENDING  |
 | `MIHWAR_ENDPOINT`   | On endpoint move | PENDING  |
 | `MODAL_TOKEN`       | 90 days          | PENDING  |
