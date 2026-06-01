@@ -278,3 +278,24 @@ The community `@modelcontextprotocol/server-fetch` is generic and would require 
 - Hides Modal endpoints from the client model entirely.
 - Returns JSON-RPC errors mapped from network failures without leaking endpoint details.
 - Adds Aegis role filtering, prompt-injection inspection, and Qal'a audit records at the MCP boundary.
+
+---
+
+## Qarar workspace gateway local run note
+
+The Qarar workspace gateway is a backend candidate only; this note does not
+activate Modal, Render, or any live private agent runtime. The workspace root is
+fixed to `./workspace` under the process working directory; arbitrary
+environment-provided workspace paths are intentionally not supported.
+
+Use a real import path for Uvicorn. Do not use `.agents...` as an import path
+because Python module names cannot start with a dot.
+
+```bash
+PYTHONPATH=.agents/mcp uvicorn qarar_api_server:app --host 127.0.0.1 --port 8000
+```
+
+If a local experiment CLI client is added later, it must set a request timeout,
+omit `X-Qarar-API-Key` when `QARAR_API_TOKEN` is empty, avoid claiming localhost
+HTTP is encrypted, handle invalid JSON responses, and verify `status` before
+displaying model output.
