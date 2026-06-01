@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -48,14 +49,9 @@ def qarar_module(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     """
 
     module_name = "qarar_api_server_under_test"
-    module_path = (
-        Path(__file__).resolve().parents[1]
-        / ".agents"
-        / "mcp"
-        / "qarar_api_server.py"
-    )
+    module_path = os.path.abspath(".agents/mcp/qarar_api_server.py")
     monkeypatch.setenv("ENVIRONMENT", "development")
-    monkeypatch.setenv("QARAR_WORKSPACE_DIR", str(tmp_path / "workspace"))
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("ALLOW_ORIGINS", "http://localhost:3000")
     monkeypatch.delenv("QARAR_API_TOKEN", raising=False)
     monkeypatch.delenv("QARAR_ENABLE_WORKSPACE_WRITE", raising=False)

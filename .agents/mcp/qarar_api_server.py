@@ -27,7 +27,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
-WORKSPACE_DIR = Path(os.getenv("QARAR_WORKSPACE_DIR", "./workspace")).resolve()
+DEFAULT_WORKSPACE_NAME = "workspace"
+WORKSPACE_DIR = (Path.cwd() / DEFAULT_WORKSPACE_NAME).resolve()
 MODAL_APP_NAME = os.getenv("QARAR_MODAL_APP_NAME", "qarar-sovereign-vllm-backend")
 MODAL_FUNCTION_NAME = os.getenv("QARAR_MODAL_FUNCTION_NAME", "protected_vllm_inference")
 ALLOW_ORIGINS = [
@@ -95,6 +96,8 @@ FORBIDDEN_FILE_NAMES = {
     "id_ed25519",
     "known_hosts",
 }
+SAFE_PATH_PART_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
 SECRET_LIKE_PATTERN = re.compile(
     r"""(?ix)
     (
@@ -275,6 +278,45 @@ async def require_optional_api_token(
         )
 
 
+def split_safe_relative_path(user_path: str) -> tuple[str, ...]:
+    """Validate and split a caller-provided relative workspace path.
+
+    Args:
+        user_path: Caller-supplied path text.
+
+    Returns:
+        Tuple of safe path components that can be joined below ``WORKSPACE_DIR``.
+
+    Raises:
+        HTTPException: If the path is absolute, empty, traverses, or contains
+            non-allow-listed path component characters.
+    """
+
+    normalized = user_path.replace("\\", "/")
+    if normalized.startswith("/"):
+        raise HTTPException(status_code=403, detail="Absolute paths are not allowed")
+
+    safe_parts: list[str] = []
+    for raw_part in normalized.split("/"):
+        if raw_part in {"", "."}:
+            continue
+        if raw_part == "..":
+            raise HTTPException(
+                status_code=403,
+                detail="Path traversal outside workspace is forbidden",
+            )
+        if not SAFE_PATH_PART_PATTERN.fullmatch(raw_part):
+            raise HTTPException(
+                status_code=403,
+                detail="Path contains unsupported characters",
+            )
+        safe_parts.append(raw_part)
+
+    if not safe_parts:
+        raise HTTPException(status_code=403, detail="Path must reference a file")
+    return tuple(safe_parts)
+
+
 def resolve_workspace_path(user_path: str) -> Path:
     """Resolve a relative workspace path and enforce path boundaries.
 
@@ -289,11 +331,8 @@ def resolve_workspace_path(user_path: str) -> Path:
             or targets a forbidden name or path component.
     """
 
-    raw_path = Path(user_path)
-    if raw_path.is_absolute():
-        raise HTTPException(status_code=403, detail="Absolute paths are not allowed")
-
-    candidate = (WORKSPACE_DIR / raw_path).resolve()
+    safe_parts = split_safe_relative_path(user_path)
+    candidate = WORKSPACE_DIR.joinpath(*safe_parts).resolve()
     try:
         relative = candidate.relative_to(WORKSPACE_DIR)
     except ValueError as exc:

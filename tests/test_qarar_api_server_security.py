@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -13,9 +14,7 @@ import pytest
 from fastapi import HTTPException
 
 
-MODULE_PATH = (
-    Path(__file__).resolve().parents[1] / ".agents" / "mcp" / "qarar_api_server.py"
-)
+MODULE_PATH = os.path.abspath(".agents/mcp/qarar_api_server.py")
 
 
 class StubInferencePort:
@@ -72,7 +71,7 @@ def load_module(
 
     module_name = f"qarar_api_server_security_{len(sys.modules)}"
     monkeypatch.setenv("ENVIRONMENT", environment)
-    monkeypatch.setenv("QARAR_WORKSPACE_DIR", str(tmp_path / "workspace"))
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("ALLOW_ORIGINS", allow_origins)
     monkeypatch.delenv("QARAR_ENABLE_WORKSPACE_WRITE", raising=False)
     if token is None:
@@ -109,6 +108,25 @@ def test_traversal_blocked(qarar_module: ModuleType) -> None:
 
     with pytest.raises(HTTPException) as exc_info:
         qarar_module.resolve_workspace_path("../outside.txt")
+
+    assert exc_info.value.status_code == 403
+
+
+
+def test_backslash_traversal_blocked(qarar_module: ModuleType) -> None:
+    """Windows-style traversal separators must also be rejected."""
+
+    with pytest.raises(HTTPException) as exc_info:
+        qarar_module.resolve_workspace_path("..\\outside.txt")
+
+    assert exc_info.value.status_code == 403
+
+
+def test_unsupported_path_characters_blocked(qarar_module: ModuleType) -> None:
+    """Path components must stay inside the explicit character allow-list."""
+
+    with pytest.raises(HTTPException) as exc_info:
+        qarar_module.resolve_workspace_path("bad:name.txt")
 
     assert exc_info.value.status_code == 403
 

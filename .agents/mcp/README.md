@@ -284,7 +284,9 @@ The community `@modelcontextprotocol/server-fetch` is generic and would require 
 ## Qarar workspace gateway local run note
 
 The Qarar workspace gateway is a backend candidate only; this note does not
-activate Modal, Render, or any live private agent runtime.
+activate Modal, Render, or any live private agent runtime. The workspace root is
+fixed to `./workspace` under the process working directory; arbitrary
+environment-provided workspace paths are intentionally not supported.
 
 Use a real import path for Uvicorn. Do not use `.agents...` as an import path
 because Python module names cannot start with a dot.
