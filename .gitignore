@@ -81,3 +81,7 @@ coverage/
 
 # Vercel local project metadata (contains project/org identifiers)
 .vercel/
+# Secret scanner raw reports (may include raw match payloads even when redacted elsewhere)
+gitleaks-report.json
+trufflehog-report.json
+
