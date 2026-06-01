@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """
 LexPrim Bridge Integration Test
 ===============================
@@ -23,18 +25,17 @@ from pathlib import Path
 AGENTS_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(AGENTS_DIR))
 
-from adapters.lexprim_bridge import (
+from adapters.lexprim_bridge import (  # noqa: E402
     LexPrimBridge,
     BridgeRequest,
     SourceAgent,
-    TargetAgent,
 )
 
 
 async def test_cao_claude_to_mihwar():
     """
     Test 1: CAO-Claude (Architecture) → Mihwar (Code Generation)
-    
+
     Scenario: LexPrim asks for architecture of a regulatory document retrieval system.
     Expected: Mihwar generates design and code skeleton.
     """
@@ -76,7 +77,7 @@ async def test_cao_claude_to_mihwar():
 async def test_cgsa_gemini_to_bayyinah():
     """
     Test 2: CGSA-Gemini (Security Audit) → Bayyinah (Code Review)
-    
+
     Scenario: LexPrim asks for security review of authentication module.
     Expected: Bayyinah reviews for vulnerabilities, compliance issues.
     """
@@ -89,24 +90,24 @@ async def test_cgsa_gemini_to_bayyinah():
     import jwt
     from datetime import datetime, timedelta
     from fastapi import FastAPI, Header, HTTPException
-    
+
     app = FastAPI()
     SECRET_KEY = "hardcoded-secret-key-12345"  # VULNERABILITY!
-    
+
     @app.post("/auth/login")
     def login(username: str, password: str):
         # Direct SQL query - VULNERABILITY!
         user = db.execute(f"SELECT * FROM users WHERE username='{username}'")
         if not user or user.password != password:  # Plaintext comparison!
             raise HTTPException(status_code=401)
-        
+
         token = jwt.encode(
             {"user": username, "exp": datetime.utcnow() + timedelta(hours=24)},
             SECRET_KEY,
             algorithm="HS256"
         )
         return {"access_token": token}
-    
+
     @app.get("/documents")
     def get_documents(token: str = Header()):
         # No rate limiting
@@ -140,7 +141,7 @@ async def test_cgsa_gemini_to_bayyinah():
 async def verify_audit_log():
     """
     Test 3: Verify Audit Log (bridge_audit.jsonl)
-    
+
     Scenario: Check that both requests were logged for SAMA CSF / PDPL compliance.
     Expected: Two JSONL lines, one per request, with full traceability.
     """
