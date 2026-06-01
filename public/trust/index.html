@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LexPrim Trust Center</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background:#020617; color:#e2e8f0; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 34px 20px 60px; }
+    h1,h2,h3 { color:#f8fafc; }
+    .card { background:#0f172a; border:1px solid #1e293b; border-radius:14px; padding:18px 20px; margin-top:14px; }
+    ul { margin: 8px 0 0; padding-inline-start: 20px; }
+    li { margin: 6px 0; }
+    .tag { display:inline-block; font-size:.82rem; border-radius:999px; padding:4px 10px; margin-inline-end:6px; }
+    .verified { background:#14532d; color:#dcfce7; }
+    .unverified { background:#7f1d1d; color:#fee2e2; }
+    a { color:#93c5fd; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Trust Center</h1>
+    <p>هذه الصفحة توضح ضوابط الثقة التشغيلية الحالية بشكل منضبط، مع فصل صريح بين ما هو <strong>VERIFIED</strong> داخليًا وما هو <strong>UNVERIFIED</strong>.</p>
+
+    <div class="card">
+      <h2>1) Data Residency</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> المستودع الحالي هو طبقة تشغيل وكلاء ولا يحتوي أرشيف المنتج السابق داخل <code>main</code>.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا توجد في هذا المستودع أدلة تشغيل إنتاجي تثبت منطقة استضافة بيانات نهائية لكل عميل.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>2) Encryption</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> يوجد فصل سياسات أمنيّة وتشغيلية في <code>.agents/policies</code> كمصدر حوكمة للممارسات.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا يوجد في هذا المستودع إثبات مباشر لتفعيل تشفير at-rest/in-transit في بيئة إنتاج محددة.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>3) Access Control</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> توجد طبقة تحقق صلاحيات في مسار التنفيذ عبر <code>required_scope</code> وتسجيل انتهاكات الوصول في خدمة التدقيق.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا يوجد هنا إثبات تكامل IAM مؤسسي خارجي أو SSO مفعل إنتاجيًا.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>4) Model Governance</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> تعريف أدوار الوكلاء ونماذجهم موثق داخل ملفات الإعداد والتشغيل.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا تتوفر في هذا المستودع شهادات طرف ثالث أو اعتماد تنظيمي رسمي للنماذج.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>5) Audit Logging</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> مسار التنفيذ يرسل أحداثًا إلى <code>AuditService</code> لتتبع الأفعال وتحديث حالة المهام.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا يوجد دليل retention policy إنتاجية أو SIEM binding موثق داخل هذا المستودع.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>6) Incident Response</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> توجد قوالب وتقارير تشغيلية للـ execution verdict ضمن <code>docs/operations</code>.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا يوجد runbook حادثة إنتاجية متكامل بزمن استجابة/SLA معتمد في هذا المستودع.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Regulatory Alignment (Scoped)</h2>
+      <h3>PDPL alignment (مختصر)</h3>
+      <ul>
+        <li>النطاق: مواءمة تشغيلية داخلية للسياسات ومسارات الوكلاء.</li>
+        <li>خارج النطاق: لا يُعد هذا المستند شهادة امتثال قانوني نهائي.</li>
+      </ul>
+      <h3>SAMA CSF mapping (مختصر)</h3>
+      <ul>
+        <li>النطاق: ربط ضوابط الحوكمة/الوصول/التدقيق على مستوى تصميم النظام.</li>
+        <li>خارج النطاق: لا يوجد هنا تقرير تدقيق خارجي أو اعتماد SAMA رسمي.</li>
+      </ul>
+      <h3>NCA ECC mapping (مختصر)</h3>
+      <ul>
+        <li>النطاق: مواءمة مبدئية لمجالات الحوكمة والأمن التشغيلي وإدارة السجلات.</li>
+        <li>خارج النطاق: غير مغطى إثبات امتثال ECC كامل أو نتائج تقييم جهة مقيمة.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <a href="/">العودة إلى الصفحة الرئيسية</a>
+    </div>
+  </main>
+  <script src="https://cdn.example.com/trust/fallback-lib.js" integrity="sha384-ywpyLD6gBwdOofJewvXSuEH8UZHNwBs2e2G8hO9WlWAMz51QaJs2uheKtBJncro2" crossorigin="anonymous"></script>
+</body>
+</html>

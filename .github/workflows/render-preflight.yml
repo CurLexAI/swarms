@@ -1,0 +1,116 @@
+name: render-preflight
+
+on:
+  pull_request:
+    paths:
+      - "render.yaml"
+      - ".agents/mcp/modal-mcp/**"
+      - ".github/workflows/render-preflight.yml"
+      - ".github/workflows/render-deploy.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "render.yaml"
+      - ".agents/mcp/modal-mcp/**"
+      - ".github/workflows/render-preflight.yml"
+      - ".github/workflows/render-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: no-secrets-render-preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Render blueprint safety
+        id: blueprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f render.yaml ]; then
+            echo "render.yaml not found; continuing with repository-level preflight."
+            echo "service_path=." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          ruby <<'RB'
+          require 'yaml'
+
+          data = YAML.safe_load_file('render.yaml', permitted_classes: [], aliases: false)
+          unless data.is_a?(Hash)
+            warn 'render.yaml must be a YAML mapping'
+            exit 1
+          end
+
+          services = data['services']
+          unless services.is_a?(Array) && !services.empty?
+            warn 'render.yaml services must be a non-empty list'
+            exit 1
+          end
+
+          service = services.find { |item| item.is_a?(Hash) && item['type'] == 'web' } || services.first
+          unless service.is_a?(Hash)
+            warn 'render.yaml service entries must be mappings'
+            exit 1
+          end
+
+          %w[name type].each do |key|
+            if service[key].to_s.strip.empty?
+              warn "render.yaml deployable service is missing #{key}"
+              exit 1
+            end
+          end
+
+          if service['type'] == 'web' && service['healthCheckPath'].to_s.strip.empty?
+            warn 'web services in render.yaml must define healthCheckPath'
+            exit 1
+          end
+
+          text = File.read('render.yaml', encoding: 'UTF-8').downcase
+          forbidden = [
+            'render_deploy_hook',
+            'render_deploy_hook_url',
+            'api.render.com/deploy',
+            'deploy/srv-',
+            'sk-',
+            'ghp_',
+            'github_pat_',
+            'telegram_bot_token'
+          ]
+          marker = forbidden.find { |value| text.include?(value) }
+          if marker
+            warn "forbidden secret/deploy marker found in render.yaml: #{marker}"
+            exit 1
+          end
+
+          root_dir = service.fetch('rootDir', '.').to_s
+          File.open(ENV.fetch('GITHUB_OUTPUT'), 'a') do |out|
+            out.puts "service_path=#{root_dir.empty? ? '.' : root_dir}"
+          end
+          puts 'render.yaml syntax and no-secrets checks passed'
+          RB
+
+      - name: Verify service path exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          service_path='${{ steps.blueprint.outputs.service_path }}'
+          if [ ! -d "$service_path" ]; then
+            echo "Render service path does not exist: $service_path"
+            exit 1
+          fi
+          echo "Render preflight service path exists: $service_path"
+
+      - name: Validate Modal MCP package metadata
+        working-directory: .agents/mcp/modal-mcp
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --include=dev
+          npm run build

@@ -1,0 +1,33 @@
+{
+  "name": "qarar-sovereign-models",
+  "version": "0.1.0",
+  "description": "MCP-facing manifest for exposing Qarar sovereign model routes to agent frameworks through Bayyinah controls.",
+  "jurisdiction": "KSA",
+  "tools": [
+    {
+      "name": "qarar_legal_reasoning",
+      "modelId": "deepseek-r1-32b",
+      "taskType": "LEGAL_REASONING",
+      "dataPolicy": "production regulated data must remain on sovereign provider path"
+    },
+    {
+      "name": "qarar_local_context",
+      "modelId": "allam-7b",
+      "taskType": "LOCAL_CONTEXT",
+      "dataPolicy": "Saudi local context and regulatory lookup path"
+    },
+    {
+      "name": "qarar_arabic_drafting",
+      "modelId": "qwen-72b-arabic",
+      "taskType": "ARABIC_DRAFTING",
+      "dataPolicy": "Arabic drafting path after verification and source binding"
+    }
+  ],
+  "requiredControls": [
+    "traceId",
+    "BayyinahDataContext",
+    "append-only audit",
+    "sovereign egress decision",
+    "source references"
+  ]
+}

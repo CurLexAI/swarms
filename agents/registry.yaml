@@ -68,6 +68,450 @@ agents:
     provider:
       kind: "router"
 
+  # ── Direct model bindings ────────────────────────────────────────────────
+  # Lightweight aliases that expose the underlying models used by Mihwar /
+  # Bayyinah (and external providers) as first-class picker entries. They do
+  # NOT replace Mihwar/Bayyinah; use those for orchestrated work.
+
+  - id: deepseek-coder
+    name: "DeepSeek Coder V2 — ديب سيك كود"
+    role: "raw_code_generation"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.generate"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
+      endpoint_env: "MIHWAR_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: qwen-coder
+    name: "Qwen2.5 Coder 32B — كيونق كود"
+    role: "raw_code_review"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.review"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: pr-fix-conflict
+    name: "PR Fix Conflict"
+    role: "merge_conflict_resolver"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.merge"
+        - "scope:code.review"
+    capabilities:
+      - "reasoning"
+      - "merge_resolution"
+      - "conflict_analysis"
+      - "code_review"
+    enable_reasoning: true
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  # ── External provider agents (UNVERIFIED until env is configured) ────────
+  # Gated by ALLOW_EXTERNAL_AI=true. Transports for these providers are NOT
+  # implemented in this operations repo; see .agents/providers/ for the gate.
+
+  - id: azure-gpt
+    name: "Azure OpenAI — أزور"
+    role: "general_assistant"
+    type: "hybrid"
+    execution:
+      runtime: "external_ai"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+    enable_reasoning: false
+    provider:
+      kind: "azure_openai"
+      endpoint_env: "AZURE_OPENAI_ENDPOINT"
+      token_env: "AZURE_OPENAI_API_KEY"
+      deployment_env: "AZURE_OPENAI_DEPLOYMENT"
+      api_version_env: "AZURE_OPENAI_API_VERSION"
+    status: "UNVERIFIED"
+
+  - id: gpt-o1
+    name: "OpenAI o1 — جي بي تي o1"
+    role: "deep_reasoning"
+    type: "hybrid"
+    execution:
+      runtime: "external_ai"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:reasoning.deep"
+    enable_reasoning: true
+    provider:
+      kind: "openai"
+      model: "o1"
+      endpoint_env: "OPENAI_API_KEY"
+      token_env: "OPENAI_API_KEY"
+    status: "UNVERIFIED"
+
+  # ── Free Birds Pool — الطيور الحرة ────────────────────────────────────────
+  # Code-named alias agents that route to existing sovereign Modal endpoints
+  # without exposing the underlying reviewer/architect identities. Naming the
+  # endpoint via `endpoint_env` is the only required coupling; the operator-
+  # facing identity is the bird name and its capability list.
+  #
+  # Programming birds (8) → Qwen2.5-Coder-32B over the sovereign code-review
+  # endpoint (`BAYYINAH_ENDPOINT`).
+  # Reasoning birds  (4) → DeepSeek-Coder-V2-Instruct over the sovereign
+  # architect endpoint (`MIHWAR_ENDPOINT`).
+  #
+  # Invoke as a group via the `free-birds` swarm. Individual bird ids exist
+  # so an operator can pick a single bird by capability when needed.
+
+  # — Programming birds (Qwen2.5-Coder-32B, sovereign) —
+
+  - id: falcon
+    name: "Falcon — الصقر"
+    role: "code_review"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.review"
+    capabilities:
+      - "code_review"
+      - "security_review"
+      - "tenant_validation"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: hawk
+    name: "Hawk — الباز"
+    role: "code_review"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.review"
+    capabilities:
+      - "code_review"
+      - "type_safety"
+      - "contract_validation"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: shaheen
+    name: "Shaheen — الشاهين"
+    role: "code_review"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.review"
+    capabilities:
+      - "code_review"
+      - "prompt_injection_surface"
+      - "secrets_leakage_scan"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: kestrel
+    name: "Kestrel — اليؤيؤ"
+    role: "code_review"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.review"
+    capabilities:
+      - "code_review"
+      - "regression_check"
+      - "test_coverage_gap_detection"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: osprey
+    name: "Osprey — العقاب النهري"
+    role: "code_review"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.review"
+    capabilities:
+      - "code_review"
+      - "dependency_risk_assessment"
+      - "supply_chain_check"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: harrier
+    name: "Harrier — المرزة"
+    role: "code_review"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.review"
+    capabilities:
+      - "code_review"
+      - "modal_boundary_check"
+      - "public_surface_audit"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: merlin
+    name: "Merlin — الحرّ"
+    role: "code_review"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.review"
+        - "scope:code.merge"
+    capabilities:
+      - "code_review"
+      - "merge_safety"
+      - "conflict_analysis"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: saker
+    name: "Saker — الصقر الحرّ"
+    role: "code_review"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.review"
+    capabilities:
+      - "code_review"
+      - "citation_validation"
+      - "legal_risk_review"
+    enable_reasoning: false
+    provider:
+      kind: "modal_vllm"
+      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
+      endpoint_env: "BAYYINAH_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  # — Reasoning birds (DeepSeek-Coder-V2, sovereign architect) —
+
+  - id: owl
+    name: "Owl — البومة"
+    role: "architecture_design"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.generate"
+        - "scope:architecture"
+    capabilities:
+      - "reasoning"
+      - "architecture"
+      - "multi_file_planning"
+    enable_reasoning: true
+    provider:
+      kind: "modal_vllm"
+      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
+      endpoint_env: "MIHWAR_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: raven
+    name: "Raven — الغراب"
+    role: "architecture_design"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.generate"
+        - "scope:architecture"
+    capabilities:
+      - "reasoning"
+      - "task_decomposition"
+      - "api_contract_design"
+    enable_reasoning: true
+    provider:
+      kind: "modal_vllm"
+      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
+      endpoint_env: "MIHWAR_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: eagle
+    name: "Eagle — النسر"
+    role: "architecture_design"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.generate"
+        - "scope:architecture"
+    capabilities:
+      - "reasoning"
+      - "refactoring_with_behavioral_preservation"
+      - "performance_critical_implementation"
+    enable_reasoning: true
+    provider:
+      kind: "modal_vllm"
+      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
+      endpoint_env: "MIHWAR_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+  - id: phoenix
+    name: "Phoenix — العنقاء"
+    role: "architecture_design"
+    type: "hybrid"
+    execution:
+      runtime: "modal_vllm"
+    contexts:
+      allowed:
+        - "scope:agent.execute"
+        - "scope:code.generate"
+        - "scope:architecture"
+    capabilities:
+      - "reasoning"
+      - "complex_multi_file_feature_development"
+      - "system_design"
+    enable_reasoning: true
+    provider:
+      kind: "modal_vllm"
+      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
+      endpoint_env: "MIHWAR_ENDPOINT"
+      token_env: "AGENT_API_TOKEN"
+
+# ── Swarms ──────────────────────────────────────────────────────────────────
+# A swarm is a named, ordered group of agents that operate in coordination on
+# a task class. Members MUST exist in the agents block above.
+
+swarms:
+  - id: coding-swarm
+    name: "سرب البرمجة — Coding Swarm"
+    description: "Architect-then-validate flow for production code changes."
+    members: [mihwar, bayyinah]
+    pipeline:
+      - mihwar.review_and_generate
+      - bayyinah.review
+    revision_policy:
+      max_cycles: 3
+      blocker_on: ["CRITICAL", "HIGH"]
+
+  - id: routing-swarm
+    name: "سرب التوجيه — Routing Swarm"
+    description: "Policy-driven routing with mandatory validation gate."
+    members: [qarar-router, bayyinah]
+    pipeline:
+      - qarar-router.classify
+      - qarar-router.choose_route
+      - bayyinah.review
+
+  - id: free-birds
+    name: "Free Birds — الطيور الحرة"
+    description: >-
+      Sovereign coded-named engineering swarm. Twelve aliased birds split into
+      a code-review pool (8, Qwen2.5-Coder-32B) and an architecture/reasoning
+      pool (4, DeepSeek-Coder-V2-Instruct). Operator-facing identity is the
+      bird name; underlying endpoints stay private. Invoke when a multi-angle
+      engineering pass is desired rather than a single reviewer.
+    members:
+      - falcon
+      - hawk
+      - shaheen
+      - kestrel
+      - osprey
+      - harrier
+      - merlin
+      - saker
+      - owl
+      - raven
+      - eagle
+      - phoenix
+    pipeline:
+      - owl.architecture
+      - raven.task_decomposition
+      - eagle.refactor_or_implement
+      - phoenix.system_design
+      - falcon.code_review
+      - hawk.type_safety
+      - shaheen.prompt_injection_scan
+      - kestrel.test_coverage_check
+      - osprey.dependency_risk
+      - harrier.modal_boundary_check
+      - merlin.merge_safety
+      - saker.citation_validation
+    revision_policy:
+      max_cycles: 3
+      blocker_on: ["CRITICAL", "HIGH"]
+    notes: >-
+      Reasoning birds run first to plan and decompose; review birds run after
+      to inspect the resulting plan or diff. Any review bird returning
+      CRITICAL or HIGH blocks the swarm verdict regardless of consensus.
+
 providers:
   openai:
     kind: "external_ai"
@@ -75,6 +519,17 @@ providers:
     allowed_when:
       - "fast_draft"
       - "multimodal"
+      - "deep_reasoning"
+  azure_openai:
+    kind: "external_ai"
+    endpoint_env: "AZURE_OPENAI_ENDPOINT"
+    token_env: "AZURE_OPENAI_API_KEY"
+    deployment_env: "AZURE_OPENAI_DEPLOYMENT"
+    api_version_env: "AZURE_OPENAI_API_VERSION"
+    allowed_when:
+      - "fast_draft"
+      - "multimodal"
+      - "general_assistant"
   anthropic:
     kind: "external_ai"
     endpoint_env: "ANTHROPIC_API_KEY"

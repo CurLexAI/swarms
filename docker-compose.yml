@@ -1,0 +1,142 @@
+version: "3.8"
+
+services:
+
+  mihwar-core:
+    build:
+      context: ./mihwar-core
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+      - "443:443/udp"
+    environment:
+      MIHWAR_ENV: production
+      MIHWAR_REGION: SA
+      DATABASE_URL: "postgresql://mihwar:sovereign@postgres:5432/mihwar?sslmode=disable"
+      HTTP_ADDR: ":8080"
+      QUIC_ADDR: ":443"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mihwar-sovereign
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mihwar
+      POSTGRES_PASSWORD: sovereign
+      POSTGRES_DB: mihwar
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mihwar-sovereign
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mihwar -d mihwar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass sovereign --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - mihwar-sovereign
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "sovereign", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  wireguard:
+    image: linuxserver/wireguard:latest
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      SERVERURL: "mihwar.qarar.sa"
+      SERVERPORT: "51820"
+      PEERS: "windows-agent,ios-companion"
+      PEERDNS: "10.200.200.1"
+      INTERNAL_SUBNET: "10.200.200.0"
+    volumes:
+      - wireguard_config:/config
+    ports:
+      - "51820:51820/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    networks:
+      - mihwar-sovereign
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"
+      - "443:443/tcp"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/certs:ro
+    depends_on:
+      - mihwar-core
+    networks:
+      - mihwar-sovereign
+    restart: unless-stopped
+
+  # Sovereign local model runtime — internal only, no published host ports.
+  # Reached by the Python providers (src/policy/sovereign/providers/local_ollama.py) via the
+  # Docker DNS name "ollama" on the internal mihwar-sovereign network.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: lexprim-ollama
+    expose:
+      - "11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mihwar-sovereign
+    restart: unless-stopped
+
+  # Sovereign local llama.cpp OpenAI-compatible server — internal only.
+  # Reached by src/policy/sovereign/providers/local_llama_cpp.py via the DNS name "llama-server".
+  # Model files are bind-mounted read-only from ${QARAR_MODEL_STORE:-./models}.
+  llama-server:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: lexprim-llama-server
+    command: -m /models/model.gguf --host 0.0.0.0 --port 8080 -c 8192
+    expose:
+      - "8080"
+    volumes:
+      - ${QARAR_MODEL_STORE:-./models}:/models:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mihwar-sovereign
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  wireguard_config:
+  ollama_data:
+
+networks:
+  mihwar-sovereign:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.200.200.0/24

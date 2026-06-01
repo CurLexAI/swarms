@@ -1,0 +1,20 @@
+{
+  "name": "curlexai-swarms",
+  "interface": {
+    "displayName": "CurLexAI Swarms Marketplace"
+  },
+  "plugins": [
+    {
+      "name": "unified-agent-adapter",
+      "source": {
+        "source": "local",
+        "path": "./plugins/unified-agent-adapter"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+agents:
+  - id: bayyinah-pr-reviewer
+    name: Bayyinah PR Reviewer
+    category: repository-operations
+    purpose: Review pull requests and emit evidence-bound verdicts.
+    permissions:
+      github:
+        pull_requests: read_write_comments
+        contents: read
+      secrets: none
+    allowed_actions:
+      - read_diff
+      - post_review_comment
+      - emit_verdict
+    forbidden_actions:
+      - push_commits
+      - merge_pull_requests
+      - call_external_ai_without_authorization
+      - read_or_print_secrets
+    verification:
+      required:
+        - workflow_run_url
+        - verdict
+        - evidence_summary
+    status: PARTIALLY_APPLIED
+
+  - id: mihwar-patch-planner
+    name: Mihwar Patch Planner
+    category: code-remediation
+    purpose: Propose minimal patches after reviewer findings.
+    permissions:
+      github:
+        contents: read
+        pull_requests: comment
+      secrets: none
+    allowed_actions:
+      - propose_patch
+      - explain_risk
+    forbidden_actions:
+      - direct_merge
+      - direct_push_to_main
+      - read_or_print_secrets
+    verification:
+      required:
+        - linked_review_finding
+        - patch_scope
+        - risk_summary
+    status: PARTIALLY_APPLIED
+
+  - id: opencode-workflow-guard
+    name: OpenCode Workflow Guard
+    category: ci-cd-security
+    purpose: Inspect workflow trigger and permission risk on hot surfaces.
+    permissions:
+      github:
+        workflows: read
+        contents: read
+      secrets: none
+    allowed_actions:
+      - inspect_workflow
+      - report_hot_surface_risk
+    forbidden_actions:
+      - run_untrusted_comment_trigger
+      - expose_api_keys
+      - change_workflow_permissions
+    verification:
+      required:
+        - workflow_file_paths
+        - trigger_risk_summary
+        - permission_summary
+    status: UNVERIFIED

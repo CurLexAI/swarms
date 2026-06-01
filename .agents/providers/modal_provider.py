@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Modal/vLLM provider adapter for Mihwar and Bayyinah endpoints."""
 
 from __future__ import annotations
@@ -23,7 +25,6 @@ class ModalProvider:
 
         metadata = request.metadata or {}
         payload = {
-            "token": token,
             "task": request.task,
             "code": metadata.get("code", ""),
             "context": json.dumps(metadata, ensure_ascii=False),
@@ -33,7 +34,10 @@ class ModalProvider:
         req = urllib.request.Request(
             endpoint,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
             method="POST",
         )
         try:

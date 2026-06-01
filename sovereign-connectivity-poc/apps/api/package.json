@@ -1,0 +1,13 @@
+{
+  "name": "@poc/api",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {"dev":"tsx src/server.ts"},
+  "dependencies": {
+    "@poc/policy": "workspace:*",
+    "@poc/shared": "workspace:*",
+    "fastify": "^5.1.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {"tsx":"^4.19.2"}
+}

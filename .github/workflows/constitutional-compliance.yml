@@ -1,0 +1,44 @@
+name: Constitutional Compliance
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check Python license headers
+        shell: bash
+        run: |
+          missing=""
+          while IFS= read -r file; do
+            if ! grep -q "Licensed under MIT" "$file"; then
+              missing+="$file"$'\n'
+            fi
+          done < <(git ls-files '*.py')
+
+          if [[ -n "$missing" ]]; then
+            echo "Files missing license header:" >&2
+            printf "%s" "$missing" >&2
+            exit 1
+          fi
+
+      - name: Run Ruff and mypy
+        shell: bash
+        run: |
+          python3 -m pip install --upgrade pip
+          # Typed runtime deps so `mypy --strict` resolves real types instead
+          # of failing with import-not-found. Untyped/heavyweight deps are
+          # handled via per-module ignores in mypy.ini.
+          pip install ruff mypy pydantic httpx
+          ruff check .
+          mypy --strict .

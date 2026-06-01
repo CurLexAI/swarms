@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """
 CurLexAI Coding Agents — Modal Deployment
 ==========================================
@@ -19,21 +21,39 @@ Environment secrets required in Modal dashboard:
     agent-api-secret    →  AGENT_API_TOKEN   (shared token for GitHub Actions auth)
 """
 
+from __future__ import annotations
+
+import hmac
+import json
+import os
+import uuid
+from typing import Optional
+
 import modal
+from fastapi import Header, HTTPException
 
 # ── Shared base image ──────────────────────────────────────────────────────
 
 vllm_image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
-        "vllm==0.5.5",
+        "vllm>=0.6.0,<1.0.0",
         "transformers>=4.44.0",
         "accelerate>=0.33.0",
         "huggingface_hub>=0.24.0",
+        "scipy>=1.11.0",
     )
 )
 
+# Lightweight image for web endpoint routing (no GPU/vLLM needed)
+gateway_image = modal.Image.debian_slim(python_version="3.11").pip_install(
+    "fastapi>=0.110.0",
+)
+
 hf_secret = modal.Secret.from_name("huggingface-secret")
+MAX_REVIEW_PAYLOAD_BYTES = 40000
+MAX_GENERATE_PAYLOAD_BYTES = 120000
+MAX_CONTEXT_BYTES = 8000
 
 # ── Agent 1: MIHWAR ───────────────────────────────────────────────────────
 # DeepSeek-Coder-V2-Instruct — strongest open-source coding model
@@ -53,12 +73,12 @@ app = modal.App("curlexai-agents")
 
 
 @app.cls(
-    gpu=modal.gpu.A100(count=2, size="80GB"),
+    gpu="A100-80GB:2",
     image=vllm_image,
     secrets=[hf_secret],
     timeout=300,
-    concurrency_limit=1,
-    keep_warm=1,
+    max_containers=1,
+    min_containers=0,
 )
 class MihwarAgent:
     model_id: str = MIHWAR_MODEL
@@ -113,7 +133,7 @@ class MihwarAgent:
 
     @modal.method()
     def review_and_generate(
-        self, task: str, context_files: dict[str, str] | None = None
+        self, task: str, context_files=None
     ) -> dict:
         """
         Full coding task: receive task description + optional file context,
@@ -147,12 +167,12 @@ BAYYINAH_SYSTEM = (
 )
 
 @app.cls(
-    gpu=modal.gpu.A100(count=1, size="80GB"),
+    gpu="A100-80GB",
     image=vllm_image,
     secrets=[hf_secret],
     timeout=120,
-    concurrency_limit=4,
-    keep_warm=1,
+    max_containers=4,
+    min_containers=0,
 )
 class BayyinahAgent:
     model_id: str = BAYYINAH_MODEL
@@ -184,8 +204,8 @@ class BayyinahAgent:
         )
 
         review_prompt = (
-            f"Review the following code for bugs, security issues, "
-            f"and correctness.\n\n"
+            "Review the following code for bugs, security issues, "
+            "and correctness.\n\n"
         )
         if context:
             review_prompt += f"CONTEXT:\n{context}\n\n"
@@ -236,6 +256,44 @@ def _build_chat_prompt(system: str, user: str, model_family: str) -> str:
         return f"### System:\n{system}\n\n### User:\n{user}\n\n### Assistant:\n"
 
 
+def _make_request_id(header_value: str | None) -> str:
+    if header_value:
+        trimmed = header_value.strip()[:128]
+        if trimmed:
+            return trimmed
+    return str(uuid.uuid4())
+
+
+def _verify_bearer_token(authorization: str | None) -> None:
+    expected_token = os.environ.get("AGENT_API_TOKEN", "")
+    if not expected_token:
+        raise HTTPException(status_code=503, detail="agent_api_token_missing")
+
+    if not authorization:
+        raise HTTPException(status_code=401, detail="missing_authorization")
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="invalid_authorization_scheme")
+
+    if not hmac.compare_digest(token, expected_token):
+        raise HTTPException(status_code=401, detail="invalid_token")
+
+
+def _limit_payload_bytes(payload: dict, max_bytes: int) -> None:
+    raw = json.dumps(payload, ensure_ascii=False)
+    if len(raw.encode("utf-8")) > max_bytes:
+        raise HTTPException(status_code=413, detail="payload_too_large")
+
+
+def _trimmed_text(value: object, max_bytes: int) -> str:
+    text = str(value or "")
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+    return encoded[:max_bytes].decode("utf-8", errors="ignore")
+
+
 # ── Web endpoints (called by GitHub Actions) ───────────────────────────────
 #
 # After `modal deploy .agents/modal_app.py`, Modal provides stable HTTPS URLs.
@@ -248,55 +306,68 @@ api_secret = modal.Secret.from_name("agent-api-secret")
 
 
 @app.function(
-    image=vllm_image,
+    image=gateway_image,
     secrets=[hf_secret, api_secret],
     timeout=180,
-    keep_warm=1,
+    min_containers=0,
 )
-@modal.web_endpoint(method="POST", label="bayyinah-review")
-def bayyinah_review_web(payload: dict) -> dict:
+@modal.fastapi_endpoint(method="POST", label="bayyinah-review")
+def bayyinah_review_web(
+    payload: dict,
+    authorization: Optional[str] = Header(default=None),
+    x_request_id: Optional[str] = Header(default=None),
+) -> dict:
     """
     HTTP POST endpoint for Bayyinah.
-    Body: { "token": "...", "code": "...", "context": "..." }
-    Called by GitHub Actions on every PR.
+    Called by GitHub Actions on every PR using Authorization: Bearer.
     """
-    import os
+    request_id = _make_request_id(x_request_id)
+    _verify_bearer_token(authorization)
+    _limit_payload_bytes(payload, MAX_REVIEW_PAYLOAD_BYTES)
 
-    expected_token = os.environ.get("AGENT_API_TOKEN", "")
-    if not expected_token or payload.get("token") != expected_token:
-        return {"error": "unauthorized", "verdict": "BLOCKED", "report": ""}
-
-    agent = BayyinahAgent()
-    return agent.review.remote(
-        payload.get("code", ""),
-        payload.get("context", ""),
+    result = BayyinahAgent().review.remote(
+        _trimmed_text(payload.get("code"), MAX_REVIEW_PAYLOAD_BYTES),
+        _trimmed_text(payload.get("context"), MAX_CONTEXT_BYTES),
     )
+    result["request_id"] = request_id
+    return result
 
 
 @app.function(
-    image=vllm_image,
+    image=gateway_image,
     secrets=[hf_secret, api_secret],
     timeout=360,
-    keep_warm=1,
+    min_containers=0,
 )
-@modal.web_endpoint(method="POST", label="mihwar-generate")
-def mihwar_generate_web(payload: dict) -> dict:
+@modal.fastapi_endpoint(method="POST", label="mihwar-generate")
+def mihwar_generate_web(
+    payload: dict,
+    authorization: Optional[str] = Header(default=None),
+    x_request_id: Optional[str] = Header(default=None),
+) -> dict:
     """
     HTTP POST endpoint for Mihwar.
-    Body: { "token": "...", "task": "...", "context_files": {} }
-    Called by GitHub Actions when Bayyinah requests changes.
+    Called by GitHub Actions using Authorization: Bearer.
     """
-    import os
+    request_id = _make_request_id(x_request_id)
+    _verify_bearer_token(authorization)
+    _limit_payload_bytes(payload, MAX_GENERATE_PAYLOAD_BYTES)
 
-    expected_token = os.environ.get("AGENT_API_TOKEN", "")
-    if not expected_token or payload.get("token") != expected_token:
-        return {"error": "unauthorized", "response": ""}
+    context_files = payload.get("context_files")
+    if not isinstance(context_files, dict):
+        context_files = {}
 
-    agent = MihwarAgent()
-    return agent.review_and_generate.remote(
-        payload.get("task", ""),
-        payload.get("context_files", {}),
+    sanitized_context_files = {
+        str(path): _trimmed_text(content, MAX_CONTEXT_BYTES)
+        for path, content in context_files.items()
+    }
+
+    result = MihwarAgent().review_and_generate.remote(
+        _trimmed_text(payload.get("task"), MAX_GENERATE_PAYLOAD_BYTES),
+        sanitized_context_files,
     )
+    result["request_id"] = request_id
+    return result
 
 
 # ── Smoke test ─────────────────────────────────────────────────────────────
@@ -336,3 +407,12 @@ def is_valid_arabic_name(name: str) -> bool:
     print(f"Agent:   {review['agent']}")
     print(f"Verdict: {review['verdict']}")
     print(f"Report:\n{review['report'][:500]}")
+
+
+@app.local_entrypoint()
+def test_mihwar():
+    """
+    Alias smoke test for Mihwar.
+    Usage: modal run .agents/modal_app.py::test_mihwar
+    """
+    test()

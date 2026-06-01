@@ -1,6 +1,8 @@
 const DEFAULT_MAX_ERROR_TEXT_LENGTH = 512;
 const AUDIT_MAX_ERROR_TEXT_LENGTH = 160;
 
+export const PYTHON_ENGINE_TRANSPORT_BLOCKER = "UNVERIFIED_RUNTIME";
+
 const REDACTION_PATTERNS = [
   /(authorization["']?\s*[:=]\s*["']?bearer\s+)[^"'\s,}]+/gi,
   /((?:api[_-]?key|token|secret|password)["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi

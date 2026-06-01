@@ -1,0 +1,22 @@
+name: frontend-sri
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  sri-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - run: npm ci --ignore-scripts
+      - run: npm run integrity:frontend
+      - run: npm run check:cdn-sri
+      - run: npm run test:cdn-sri

@@ -24,13 +24,21 @@ jobs:
     steps:
       # 1. Checkout with enough history to produce a clean diff
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
+      # 1b. Source-only boundary gate. Runs before any secret is read so
+      # boundary violations fail fast and never observe secret material.
+      - name: Modal boundary gate
+        run: bash scripts/commander/modal-boundary-gate.sh .
+
+      - name: Public surface boundary gate
+        run: bash scripts/commander/public-surface-boundary-gate.sh .
+
       # 2. Python + dependencies
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -95,12 +103,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 

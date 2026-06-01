@@ -1,0 +1,14 @@
+{
+  "name": "@poc/windows-agent",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "demo": "tsx src/cli.ts --demo"
+  },
+  "dependencies": {
+    "@poc/shared": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {"tsx":"^4.19.2"}
+}

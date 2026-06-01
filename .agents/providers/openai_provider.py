@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """OpenAI provider adapter.
 
 The adapter is intentionally disabled unless explicitly configured by env. This

@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: curlexai-mcp-server
+    runtime: node
+    rootDir: .agents/mcp/modal-mcp
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: node dist/server.js
+    port: 8787
+    healthCheckPath: /healthz
+    autoDeploy: false
+    healthCheckPath: /health
+    # This service is the Modal MCP Gateway only; BSM backend and public product API origins are external.
+    envVars:
+      - key: MCP_BASE_URL
+        value: https://curlexai-mcp-server.onrender.com
+      - key: MCP_BEARER_TOKEN
+        sync: false
+      - key: MODAL_API_TOKEN
+        sync: false
+      - key: MODAL_API_BASE_URL
+        value: https://api.modal.com
+      - key: ENABLE_MUTATING_TOOLS
+        value: "false"
+      - key: MODAL_DEPLOYMENT_ALLOWLIST
+        value: ""
+      - key: MAX_LOG_LINES
+        value: "200"
+      - key: MIHWAR_ENDPOINT
+        sync: false
+      - key: BAYYINAH_ENDPOINT
+        sync: false
+      - key: AGENT_API_TOKEN
+        sync: false
+      - key: NODE_ENV
+        value: production

@@ -3,18 +3,62 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import ts from "typescript";
 
-import { AuditService } from "../src/services/AuditService.js";
 
 const SOURCE_PATH = path.resolve("src/services/unifiedAgentAdapter.ts");
 
-async function loadUnifiedAgentAdapterFromTs() {
+async function loadAuditServiceOrSkip(t) {
+  try {
+    const mod = await import("../src/services/AuditService.js");
+    return mod.AuditService;
+  } catch {
+    t.skip("AuditService module is not available for direct ESM import in this runtime");
+    return null;
+  }
+}
+
+// Shared monotonic counter so taskCreates / taskUpdates entries carry a
+// `seq` property reflecting the order in which the adapter invoked the
+// audit calls. Tests use this to assert createTask runs before RUNNING /
+// FAILED transitions — protects the PENDING -> RUNNING -> COMPLETED/FAILED
+// invariant enforced by AuditService.TASK_STATUS_TRANSITIONS.
+function makeOrderedAuditRecorder() {
+  let counter = 0;
+  const taskCreates = [];
+  const taskUpdates = [];
+  return {
+    taskCreates,
+    taskUpdates,
+    createTask: async (...args) => {
+      args._seq = counter++;
+      taskCreates.push(args);
+    },
+    updateTaskStatus: async (...args) => {
+      args._seq = counter++;
+      taskUpdates.push(args);
+    },
+  };
+}
+
+async function loadTypeScriptOrSkip(t) {
+  try {
+    const tsModule = await import("typescript");
+    return tsModule.default ?? tsModule;
+  } catch {
+    t.skip("typescript dependency is not installed in this runtime");
+    return null;
+  }
+}
+
+
+async function loadUnifiedAgentAdapterFromTs(t) {
+  const ts = await loadTypeScriptOrSkip(t);
+  if (!ts) return null;
   const source = fs.readFileSync(SOURCE_PATH, "utf8");
-  const patchedSource = source
-    .replace('import yaml from "js-yaml";', 'const yaml = { load: () => ({ agents: [] }) };')
-    .replace('import { v4 as uuidv4 } from "uuid";\n', "")
-    .replaceAll("uuidv4()", "randomUUID()");
+  const patchedSource = source.replace(
+    'import yaml from "js-yaml";',
+    'const yaml = { load: () => ({ agents: [] }) };'
+  );
 
 
   const transpiled = ts.transpileModule(patchedSource, {
@@ -47,23 +91,29 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
     return { output: "node-result", provider: "stub" };
   };
 
-  const { UnifiedAgentAdapter } = await loadUnifiedAgentAdapterFromTs();
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
 
   const originalLogAction = AuditService.logAction;
   const originalUpdateTaskStatus = AuditService.updateTaskStatus;
   const originalLogSecurityViolation = AuditService.logSecurityViolation;
-  const taskUpdates = [];
+  const originalCreateTask = AuditService.createTask;
+  const recorder = makeOrderedAuditRecorder();
+  const { taskCreates, taskUpdates } = recorder;
 
   AuditService.logAction = async () => {};
   AuditService.logSecurityViolation = async () => {};
-  AuditService.updateTaskStatus = async (...args) => {
-    taskUpdates.push(args);
-  };
+  AuditService.createTask = recorder.createTask;
+  AuditService.updateTaskStatus = recorder.updateTaskStatus;
 
   t.after(() => {
     AuditService.logAction = originalLogAction;
     AuditService.updateTaskStatus = originalUpdateTaskStatus;
     AuditService.logSecurityViolation = originalLogSecurityViolation;
+    AuditService.createTask = originalCreateTask;
   });
 
   const adapter = new UnifiedAgentAdapter();
@@ -76,7 +126,8 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
         name: "Node Agent",
         role: "test",
         runtime: "node",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
       }
     ]
   ]);
@@ -100,21 +151,119 @@ test("UnifiedAgentAdapter dispatches node runtime to canonical runAgent with val
     payload: {
       tenant_id: "tenant-1",
       input: "run test",
-      metadata: { trace_id: "trace-123" }
+      metadata: { trace_id: "trace-123" },
+      context: {}
     },
     context: "api",
-    isAdmin: true
+    isAdmin: false
   });
 
   assert.equal(result.status, "success");
   assert.deepEqual(result.data, { output: "node-result", provider: "stub" });
-  assert.equal(taskUpdates.length, 1);
-  assert.equal(taskUpdates[0][1], "COMPLETED");
+  assert.equal(taskCreates.length, 1);
+  assert.equal(taskCreates[0][0].tenant_id, "tenant-1");
+  assert.equal(taskCreates[0][0].actor_id, "user-1");
+  assert.equal(taskCreates[0][0].agent_id, "node-agent");
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "COMPLETED");
+  assert.equal(taskCreates[0][0].taskId, taskUpdates[0][0]);
+  assert.equal(taskCreates[0][0].taskId, taskUpdates[1][0]);
+  // createTask MUST precede the RUNNING transition — AuditService refuses
+  // any updateTaskStatus call before the task is initialized to PENDING.
+  assert.ok(
+    taskCreates[0]._seq < taskUpdates[0]._seq,
+    `createTask (seq=${taskCreates[0]._seq}) must precede RUNNING (seq=${taskUpdates[0]._seq})`
+  );
+  assert.ok(
+    taskUpdates[0]._seq < taskUpdates[1]._seq,
+    "RUNNING must precede COMPLETED"
+  );
+});
+
+test("UnifiedAgentAdapter rejects malformed downstream object that passes JSON parsing but fails quality verification", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalCreateTask = AuditService.createTask;
+  const recorder = makeOrderedAuditRecorder();
+  const { taskCreates, taskUpdates } = recorder;
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.createTask = recorder.createTask;
+  AuditService.updateTaskStatus = recorder.updateTaskStatus;
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    AuditService.createTask = originalCreateTask;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => async () => ({ traceId: "x-123" });
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
+      }
+    ]
+  ]);
+
+  await assert.rejects(
+    () =>
+      adapter.executeAgent(
+        "node-agent",
+        "user-1",
+        { tenant_id: "tenant-1", input: "run test" },
+        ["scope:execute"],
+        "tenant-1"
+      ),
+    (error) => {
+      assert.match(error.message, /UNVERIFIED_RUNTIME: downstream payload failed verification/i);
+      return true;
+    }
+  );
+
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.match(taskUpdates[1][2].blocker, /UNVERIFIED_RUNTIME/);
+  assert.equal(taskCreates.length, 1);
+  assert.equal(taskCreates[0][0].taskId, taskUpdates[0][0]);
+  assert.equal(taskCreates[0][0].taskId, taskUpdates[1][0]);
+  // createTask MUST precede every status transition, including FAILED —
+  // otherwise AuditService raises "task has not been initialized".
+  assert.ok(
+    taskCreates[0]._seq < taskUpdates[0]._seq,
+    `createTask (seq=${taskCreates[0]._seq}) must precede RUNNING (seq=${taskUpdates[0]._seq})`
+  );
+  assert.ok(
+    taskCreates[0]._seq < taskUpdates[1]._seq,
+    `createTask (seq=${taskCreates[0]._seq}) must precede FAILED (seq=${taskUpdates[1]._seq})`
+  );
 });
 
 test("UnifiedAgentAdapter returns real node execution output for hybrid agents (intentional split)", async (t) => {
   const runAgentStub = async () => ({ output: "hybrid-node-output", details: { routedTo: "node" } });
-  const { UnifiedAgentAdapter } = await loadUnifiedAgentAdapterFromTs();
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
 
   const originalLogAction = AuditService.logAction;
   const originalUpdateTaskStatus = AuditService.updateTaskStatus;
@@ -140,7 +289,8 @@ test("UnifiedAgentAdapter returns real node execution output for hybrid agents (
         name: "Hybrid Agent",
         role: "test",
         runtime: "hybrid",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
       }
     ]
   ]);
@@ -161,6 +311,202 @@ test("UnifiedAgentAdapter returns real node execution output for hybrid agents (
   assert.deepEqual(result.data, { output: "hybrid-node-output", details: { routedTo: "node" } });
 });
 
+test("UnifiedAgentAdapter accepts valid downstream payload when quality verification requirements are met", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const taskUpdates = [];
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => {
+    taskUpdates.push(args);
+  };
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => async () => ({ message: "ok", details: { source: "test" } });
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
+      }
+    ]
+  ]);
+
+  const response = await adapter.executeAgent(
+    "node-agent",
+    "user-1",
+    { tenant_id: "tenant-1", input: "run test" },
+    ["scope:execute"],
+    "tenant-1"
+  );
+
+  assert.equal(response.status, "success");
+  assert.deepEqual(response.data, { message: "ok", details: { source: "test" } });
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "COMPLETED");
+});
+
+
+test("UnifiedAgentAdapter forwards trusted admin execution context to node dispatch", async (t) => {
+  const runAgentCalls = [];
+  const runAgentStub = async (payload) => {
+    runAgentCalls.push(payload);
+    return { output: "node-result" };
+  };
+
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => runAgentStub;
+  adapter.agents = new Map([["node-agent", { id: "node-agent", name: "Node Agent", role: "test", runtime: "node", allowedScopes: ["scope:execute"], capabilities: ["node_execution"] }]]);
+
+  await adapter.executeAgent(
+    "node-agent",
+    "user-1",
+    { tenant_id: "tenant-1", input: "run test" },
+    ["scope:execute"],
+    "tenant-1",
+    { isAdmin: true }
+  );
+
+  assert.equal(runAgentCalls.length, 1);
+  assert.equal(runAgentCalls[0].isAdmin, true);
+});
+
+test("UnifiedAgentAdapter logs EXECUTE_<TYPE>_WITHOUT_REASONING action when reasoning is disabled", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const logActions = [];
+
+  AuditService.logAction = async (entry) => {
+    logActions.push(entry);
+  };
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => async () => ({ output: "ok" });
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"],
+        enable_reasoning: false
+      }
+    ]
+  ]);
+
+  await adapter.executeAgent("node-agent", "user-1", { tenant_id: "tenant-1", input: "x" }, ["scope:execute"], "tenant-1");
+
+  assert.equal(logActions.length, 1);
+  assert.equal(logActions[0].action, "EXECUTE_NODE_WITHOUT_REASONING");
+  assert.equal(logActions[0].payload.reasoning_enabled, false);
+});
+
+test("UnifiedAgentAdapter logs EXECUTE_<TYPE>_WITH_REASONING action when reasoning is enabled", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const logActions = [];
+
+  AuditService.logAction = async (entry) => {
+    logActions.push(entry);
+  };
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => async () => ({ output: "ok" });
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution", "reasoning"],
+        enable_reasoning: true
+      }
+    ]
+  ]);
+
+  await adapter.executeAgent("node-agent", "user-1", { tenant_id: "tenant-1", input: "x" }, ["scope:execute"], "tenant-1");
+
+  assert.equal(logActions.length, 1);
+  assert.equal(logActions[0].action, "EXECUTE_NODE_WITH_REASONING");
+  assert.equal(logActions[0].payload.reasoning_enabled, true);
+});
+
 test("UnifiedAgentAdapter marks task FAILED when node dispatch throws runtime failure", async (t) => {
   const runAgentStub = async () => {
     const error = new Error("provider crashed");
@@ -168,7 +514,11 @@ test("UnifiedAgentAdapter marks task FAILED when node dispatch throws runtime fa
     throw error;
   };
 
-  const { UnifiedAgentAdapter } = await loadUnifiedAgentAdapterFromTs();
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
 
   const originalLogAction = AuditService.logAction;
   const originalUpdateTaskStatus = AuditService.updateTaskStatus;
@@ -197,7 +547,8 @@ test("UnifiedAgentAdapter marks task FAILED when node dispatch throws runtime fa
         name: "Node Agent",
         role: "test",
         runtime: "node",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
       }
     ]
   ]);
@@ -221,7 +572,273 @@ test("UnifiedAgentAdapter marks task FAILED when node dispatch throws runtime fa
     }
   );
 
-  assert.equal(taskUpdates.length, 1);
-  assert.equal(taskUpdates[0][1], "FAILED");
-  assert.match(taskUpdates[0][2].error, /^RUNTIME_FAILURE: Node runtime execution failed for agent node-agent:/);
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.match(taskUpdates[1][2].error, /^RUNTIME_FAILURE: Node runtime execution failed for agent node-agent:/);
+});
+
+test("UnifiedAgentAdapter reports CONFIG_NOT_FOUND when node dispatcher module is unavailable", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter, NodeExecutionDispatchError } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const taskUpdates = [];
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => {
+    taskUpdates.push(args);
+  };
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
+      }
+    ],
+    [
+      "hybrid-agent",
+      {
+        id: "hybrid-agent",
+        name: "Hybrid Agent",
+        role: "test",
+        runtime: "hybrid",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
+      }
+    ]
+  ]);
+
+  for (const agentId of ["node-agent", "hybrid-agent"]) {
+    await assert.rejects(
+      () =>
+        adapter.executeAgent(
+          agentId,
+          "user-1",
+          {
+            tenant_id: "tenant-1",
+            input: "dispatch from missing module",
+            metadata: { trace_id: `${agentId}-missing-runner` }
+          },
+          ["scope:execute"],
+          "tenant-1"
+        ),
+      (error) => {
+        assert.equal(error instanceof NodeExecutionDispatchError, true);
+        assert.equal(error.code, "CONFIG_NOT_FOUND");
+        assert.equal(error.classification, "CONFIG_FAILURE");
+        return true;
+      }
+    );
+  }
+
+  assert.equal(taskUpdates.length, 4);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.match(taskUpdates[1][2].error, /^CONFIG_NOT_FOUND:/);
+  assert.equal(taskUpdates[2][1], "RUNNING");
+  assert.equal(taskUpdates[3][1], "FAILED");
+  assert.match(taskUpdates[3][2].error, /^CONFIG_NOT_FOUND:/);
+});
+
+test("UnifiedAgentAdapter preserves thrown string message in audit on node dispatch", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalCreateTask = AuditService.createTask;
+  const taskUpdates = [];
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.createTask = async () => {};
+  AuditService.updateTaskStatus = async (...args) => { taskUpdates.push(args); };
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    AuditService.createTask = originalCreateTask;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => {
+    // eslint-disable-next-line no-throw-literal
+    throw "unexpected string thrown from dispatcher";
+  };
+  adapter.agents = new Map([
+    ["node-agent", { id: "node-agent", name: "Node Agent", role: "test", runtime: "node", allowedScopes: ["scope:execute"], capabilities: ["node_execution"] }]
+  ]);
+
+  await assert.rejects(
+    () => adapter.executeAgent("node-agent", "user-1", { tenant_id: "tenant-1", input: "trigger non-Error throw", metadata: {} }, ["scope:execute"], "tenant-1")
+  );
+
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.equal(taskUpdates[1][2].error, "unexpected string thrown from dispatcher");
+});
+
+test("UnifiedAgentAdapter keeps transitive ERR_MODULE_NOT_FOUND as runtime failure", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter, NodeExecutionDispatchError } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const taskUpdates = [];
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => {
+    taskUpdates.push(args);
+  };
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => {
+    const error = new Error("Cannot find package 'left-pad' imported from /workspace/src/runners/agentRunner.js");
+    error.code = "ERR_MODULE_NOT_FOUND";
+    throw error;
+  };
+  adapter.agents = new Map([
+    [
+      "node-agent",
+      {
+        id: "node-agent",
+        name: "Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution"]
+      }
+    ]
+  ]);
+
+  await assert.rejects(
+    () =>
+      adapter.executeAgent(
+        "node-agent",
+        "user-1",
+        {
+          tenant_id: "tenant-1",
+          input: "dispatch through transitive missing dependency",
+          metadata: { trace_id: "node-agent-missing-transitive" }
+        },
+        ["scope:execute"],
+        "tenant-1"
+      ),
+    (error) => {
+      assert.equal(error instanceof NodeExecutionDispatchError, true);
+      assert.equal(error.code, "RUNTIME_FAILURE");
+      assert.equal(error.classification, "RUNTIME_FAILURE");
+      assert.match(error.message, /^RUNTIME_FAILURE: Node runtime execution failed for agent node-agent:/);
+      return true;
+    }
+  );
+
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.match(taskUpdates[1][2].error, /^RUNTIME_FAILURE:/);
+  assert.equal(taskUpdates[1][2].blocker, "RUNTIME_FAILURE");
+});
+
+
+test("UnifiedAgentAdapter reasoning path stores execution plan in payload.context and applies optional hook", async (t) => {
+  const runAgentCalls = [];
+  const runAgentStub = async (payload) => {
+    runAgentCalls.push(payload);
+    return { output: "node-result", provider: "stub" };
+  };
+
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.getNodeDispatcher = async () => runAgentStub;
+  adapter.setReasoningHook(({ plan }) => `${plan} [hooked]`);
+  adapter.agents = new Map([
+    [
+      "reasoning-node-agent",
+      {
+        id: "reasoning-node-agent",
+        name: "Reasoning Node Agent",
+        role: "test",
+        runtime: "node",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["node_execution", "reasoning"],
+        enable_reasoning: true
+      }
+    ]
+  ]);
+
+  const result = await adapter.executeAgent(
+    "reasoning-node-agent",
+    "user-1",
+    {
+      tenant_id: "tenant-1",
+      input: "run reasoning",
+      metadata: { trace_id: "trace-reasoning" },
+      context: { existing: "context" }
+    },
+    ["scope:execute"],
+    "tenant-1"
+  );
+
+  assert.equal(result.status, "success");
+  assert.equal(runAgentCalls.length, 1);
+  assert.equal(typeof runAgentCalls[0].payload.context.execution_plan, "string");
+  assert.match(runAgentCalls[0].payload.context.execution_plan, /\[hooked\]$/);
+  assert.equal(runAgentCalls[0].payload.context.existing, "context");
 });

@@ -53,6 +53,7 @@ Skills are operational playbooks. They describe *how* to perform task classes.
 | Factory Auditor | `.agents/skills/factory-auditor.md` | Use for layer readiness, launch readiness, and blocker audits. |
 | Agent Identity Map | `.agents/skills/agent-identity-map.md` | Use for agent/model/role changes. |
 | iPhone Command Center | `.agents/skills/iphone-command-center.md` | Use when operating this repository from iPhone through ChatGPT, SSH, GitHub, Codex, or remote runtimes. |
+| HF CLI | `.agents/skills/hf-cli/SKILL.md` | Use when downloading, uploading, or managing Hugging Face Hub repos, models, datasets, spaces, or jobs via the `hf` CLI. |
 
 If `00-task-scope-lock.md` is absent, apply the Scope Lock section in this file directly.
 
@@ -67,6 +68,7 @@ Policies are mandatory boundaries, not optional skills.
 | Secrets Boundary | `.agents/policies/secrets-boundary.md` | Blocks secret leaks, real credentials, and unsafe logs. |
 | Network Boundary | `.agents/policies/network-boundary.md` | Blocks unauthorized network access and exfiltration. |
 | Dependency Build Safety | `.agents/policies/dependency-build-safety.md` | Controls package installs, lockfiles, scripts, and build artifacts. |
+| Execution Discipline Maximum | `.agents/policies/execution-discipline-maximum.md` | Enforces strict runtime-truth claims, blocker taxonomy, and status/report semantics. |
 
 If a policy file is missing, apply the absolute prohibitions in this handbook and mark the policy check `UNVERIFIED`.
 
@@ -86,6 +88,22 @@ Do not treat a broad instruction as permission to delete governance files, bypas
 
 ---
 
+## Work Intake Sources
+
+This repository does not track executable work via inline `TODO`, `FIXME`, `XXX`, or `HACK` comments in source. A grep for those markers will return no real matches, and that is intentional, not an omission. Do not fabricate one to justify a change.
+
+When asked to "implement a TODO" or otherwise pick up the next unit of work, resolve the request against these sources, in order:
+
+1. Open issues in `CurLexAI/swarms` (`mcp__github__list_issues` with `state: OPEN`).
+2. Failing checks on open pull requests in `CurLexAI/swarms`.
+3. Unchecked items in the **Repository Activation Checklist** at the bottom of this file that are not yet `VERIFIED`.
+4. First failing test in `tests/` after running the suites listed under **Local Commands** plus `node --test tests/*.test.js`.
+5. Documented blockers in `docs/` reports (e.g. `docs/operations/`, `docs/public-profile/`) that explicitly request follow-up.
+
+If none of these surface a concrete unit of work, stop and report back rather than inventing one. Producing no change is a valid outcome.
+
+---
+
 ## Agent Tooling
 
 Two private coding agents are defined for Modal deployment.
@@ -98,6 +116,33 @@ Two private coding agents are defined for Modal deployment.
 Configuration lives in `.agents/config/agents.yaml`.
 Deployment lives in `.agents/modal_app.py`.
 PR orchestration lives in `.agents/pr_review.py` and `.github/workflows/agent-review.yml`.
+
+## Recovery Supervisor
+
+The repository includes one recovery supervisor agent:
+
+- ID: `recovery-supervisor`
+- Arabic name: `مشرف الاسترداد الآمن`
+- Purpose: fix CI/CD, PR, Render, Modal, MCP, Aegis, and security-gate failures.
+- Mode: no-secrets, draft-only, human-review-required.
+
+This agent must never:
+
+- add secrets
+- deploy production
+- merge PRs
+- disable gates
+- weaken tests
+- bypass Mihwar or Bayyinah
+
+It may:
+
+- inspect failures
+- propose patches
+- request fix PRs
+- propose runbook updates
+- assign follow-up issues
+- request human review
 
 ---
 
@@ -183,3 +228,92 @@ A repository activation is complete only when all applicable checks are `VERIFIE
 - Missing external secrets are documented instead of guessed.
 - Archive recovery status reflects the actual Git state.
 - iPhone command-center workflows operate only against the canonical repository and remote runtime.
+
+---
+
+## Cursor Cloud specific instructions
+
+### Environment notes
+
+- `NODE_ENV=production` is set in the Cloud VM. Use `npm ci --include=dev` (not bare `npm ci`) to ensure devDependencies (`typescript`, `tsx`, `@types/*`) are installed. Without them, `npm run check` fails at the service-divergence step and `npm test` skips the TypeScript-backed integration tests.
+- The VM does not ship `python` — only `python3`. Several shell gates (e.g. `p0-security-test-gate.sh`) call `python`. The update script creates a `/usr/bin/python` → `python3` symlink; if you see `python: command not found`, run `sudo ln -sf /usr/bin/python3 /usr/bin/python`.
+- `ruby` is required by `scripts/commander/agent-presence-gate.sh` for YAML parsing. It is installed in the base VM image; if missing, `sudo apt-get install -y ruby`.
+
+### Canonical validation commands
+
+See `CLAUDE.md` and `README.md` for the full list. The key ones:
+
+| Check | Command | Notes |
+|---|---|---|
+| Aggregate gate | `npm run check` | service-divergence + unit tests + boundary + CDN SRI |
+| Python tests | `python3 -m pytest -q tests/` | 171 tests; 2 skipped (missing secrets) |
+| Node unit tests | `npm run test:unit` | 7 tests on `unifiedAgentAdapter` |
+| Node full tests | `npm test` | Includes integration tests that need `PYTHON_BACKEND_URL` and `PYTHON_BACKEND_ALLOWED_HOSTS`; 6 integration tests will fail without those env vars — this is expected |
+| Security tests | `npm run test:security` | sovereignCyberRadar (8 tests) |
+| TypeScript check | `npx tsc --noEmit` | Currently fails with TS2345/TS18046/TS2352 in `unifiedAgentAdapter.ts`; tracked separately — `.js` companions are hand-maintained |
+| TypeScript build | `npm run build` | Emits `.js` next to `.ts` |
+| Python validate | `python3 .agents/validate.py` | Agent asset validation |
+| Agent info | `python3 .agents/invoke.py info` | Lists configured agents (no secrets needed) |
+| Policy gates | `bash scripts/commander/*.sh .` | 5 shell gates; all pass with WARN for missing runtime secrets |
+
+### Integration tests vs unit tests
+
+`npm test` runs both unit and integration tests. The integration tests (`executeAgent.non2xx`, `nodeDispatch`) require `PYTHON_BACKEND_URL` and `PYTHON_BACKEND_ALLOWED_HOSTS` env vars. Without these, they fail with `CONFIG_NOT_FOUND`. Use `npm run test:unit` for the tests that pass without any external configuration.
+
+### Workspace layout
+
+Both `/agent/repos/FRONT` and `/agent/repos/swarms` contain the same codebase (different GitHub repos: `CurLexAI/FRONT` and `CurLexAI/swarms`). The canonical repo is `swarms`.
+
+---
+
+## NO-SECRETS / OFFLINE MCP Mode
+
+The Copilot coding agent runs in **NO-SECRETS / OFFLINE MCP** mode by default. This means:
+
+- Copilot uses the local offline MCP server (`.agents/mcp/server_offline.py`) only.
+- No live Mihwar, Bayyinah, Modal, Render, or any external endpoint is called.
+- No API keys, tokens, deploy hooks, or provider credentials are required or expected.
+
+### Security rules (mandatory for all agents)
+
+- Do not add API keys, tokens, deploy hooks, passwords, private keys, or live endpoints to this repository.
+- Do not create or modify `.env` files with real values — use `.env.example` for variable names only.
+- Do not use GitHub repository variables as a substitute for secrets — variables are not a secure location for tokens.
+- Do not call external Mihwar, Bayyinah, Modal, Render, Telegram, OpenAI, Anthropic, Gemini, Groq, xAI, or Perplexity endpoints.
+- All generated outputs must be draft-only.
+- Any runtime execution must be guarded by explicit human review before activation.
+
+### MCP tools available (offline, no network calls)
+
+| Tool | Purpose |
+|------|---------|
+| `repo_static_audit` | Scan repository for secret patterns — no external calls |
+| `mihwar_generate_offline` | Return a structured implementation plan — no model call |
+| `bayyinah_review_offline` | Static risk-marker check — no model call |
+| `qarar_agent_registry_suggest` | Recommend a minimal safe agent registry |
+
+### Implementation priorities (offline mode)
+
+1. Secret scanning and `.gitignore` hardening.
+2. HMAC middleware for internal auth boundaries.
+3. Hash-chained audit ledger.
+4. MCP policy gate.
+5. Offline RAG / Evidence Core scaffolding.
+
+### Capability matrix
+
+| Capability | Offline (no secrets) |
+|---|---|
+| Repository inspection | Yes |
+| Code generation and patches | Yes |
+| Local MCP tools | Yes |
+| Live Mihwar (DeepSeek-Coder-V2) | No |
+| Live Bayyinah (Qwen2.5-Coder-32B) | No |
+| Modal deployment | No |
+| Render deploy hook | No |
+| Telegram notifications | No |
+
+To enable live agents, configure the following GitHub Copilot secrets (Settings → Copilot → Secrets) and switch `mcp.json` back to `server.py`:
+- `COPILOT_MCP_MIHWAR_ENDPOINT`
+- `COPILOT_MCP_BAYYINAH_ENDPOINT`
+- `COPILOT_MCP_AGENT_API_TOKEN`

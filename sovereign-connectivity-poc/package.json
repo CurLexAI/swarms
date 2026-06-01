@@ -1,0 +1,18 @@
+{
+  "name": "sovereign-connectivity-poc",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @poc/api --filter @poc/windows-agent dev",
+    "test": "vitest run",
+    "lint": "tsc -b --pretty false",
+    "typecheck": "tsc -b --pretty false",
+    "demo": "pnpm --filter @poc/windows-agent demo"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

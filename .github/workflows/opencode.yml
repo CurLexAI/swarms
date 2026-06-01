@@ -6,28 +6,75 @@ on:
   pull_request_review_comment:
     types: [created]
 
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
 jobs:
   opencode:
     if: |
-      contains(github.event.comment.body, ' /oc') ||
-      startsWith(github.event.comment.body, '/oc') ||
-      contains(github.event.comment.body, ' /opencode') ||
-      startsWith(github.event.comment.body, '/opencode')
+      (
+        (github.event_name == 'issue_comment' && github.event.issue.pull_request != null) ||
+        github.event_name == 'pull_request_review_comment'
+      ) &&
+      (
+        startsWith(github.event.comment.body, '/oc') ||
+        contains(github.event.comment.body, ' /oc') ||
+        startsWith(github.event.comment.body, '/opencode') ||
+        contains(github.event.comment.body, ' /opencode')
+      ) &&
+      (
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER'
+      )
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: read
-      issues: read
+    timeout-minutes: 20
 
     steps:
+      - name: Evaluate trusted context and approval gate
+        id: trust
+        env:
+          AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
+          EVENT_NAME: ${{ github.event_name }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.fork || false }}
+          HAS_MAINTAINER_LABEL: ${{ contains(github.event.comment.body, '#maintainer-approved') || contains(github.event.comment.body, '#safe-to-run-opencode') }}
+        run: |
+          set -euo pipefail
+
+          trusted_actor=false
+          if [[ "$AUTHOR_ASSOCIATION" == "OWNER" || "$AUTHOR_ASSOCIATION" == "MEMBER" ]]; then
+            trusted_actor=true
+          fi
+
+          trusted_context=true
+          if [[ "$EVENT_NAME" == "pull_request_review_comment" && "$IS_FORK" == "true" ]]; then
+            trusted_context=false
+          fi
+
+          secret_gate=false
+          if [[ "$trusted_actor" == "true" && "$trusted_context" == "true" && "$HAS_MAINTAINER_LABEL" == "true" ]]; then
+            secret_gate=true
+          fi
+
+          echo "trusted_actor=$trusted_actor" >> "$GITHUB_OUTPUT"
+          echo "trusted_context=$trusted_context" >> "$GITHUB_OUTPUT"
+          echo "secret_gate=$secret_gate" >> "$GITHUB_OUTPUT"
+
+          if [[ "$secret_gate" != "true" ]]; then
+            echo "OpenCode secret gate denied: trusted_actor=$trusted_actor trusted_context=$trusted_context maintainer_approval=$HAS_MAINTAINER_LABEL"
+            exit 1
+          fi
+
       - name: Checkout repository
+        if: steps.trust.outputs.secret_gate == 'true'
         uses: actions/checkout@v6
         with:
           persist-credentials: false
 
       - name: Run OpenCode
-        uses: anomalyco/opencode/github@latest
+        if: steps.trust.outputs.secret_gate == 'true'
+        uses: anomalyco/opencode/github@4d8ac17c263c0e58fb99c25cc636684dffb45a50
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:

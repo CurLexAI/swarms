@@ -1,0 +1,11 @@
+{
+    "recommendations": [
+        "github.remotehub",
+        "ms-azuretools.vscode-azuretools",
+        "ms-vscode.azure-account",
+        "ms-vscode.azurecli",
+        "ms-vscode.vscode-node-azure-pack",
+        "GoogleCloudTools.cloudcode",
+        "ms-azuretools.vscode-azurefunctions"
+    ]
+}

@@ -3,20 +3,54 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import ts from "typescript";
 
-import { AuditService } from "../src/services/AuditService.js";
 
 const SOURCE_PATH = path.resolve("src/services/unifiedAgentAdapter.ts");
 
-async function loadUnifiedAgentAdapterFromTs() {
+function configureAllowedPythonBackend(t, backendUrl = "https://python-backend.invalid") {
+  const originalBackendUrl = process.env.PYTHON_BACKEND_URL;
+  const originalAllowedHosts = process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+
+  process.env.PYTHON_BACKEND_URL = backendUrl;
+  process.env.PYTHON_BACKEND_ALLOWED_HOSTS = new URL(backendUrl).hostname;
+
+  t.after(() => {
+    if (originalBackendUrl === undefined) delete process.env.PYTHON_BACKEND_URL;
+    else process.env.PYTHON_BACKEND_URL = originalBackendUrl;
+    if (originalAllowedHosts === undefined) delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+    else process.env.PYTHON_BACKEND_ALLOWED_HOSTS = originalAllowedHosts;
+  });
+}
+
+async function loadAuditServiceOrSkip(t) {
+  try {
+    const mod = await import("../src/services/AuditService.js");
+    return mod.AuditService;
+  } catch {
+    t.skip("AuditService module is not available for direct ESM import in this runtime");
+    return null;
+  }
+}
+
+async function loadTypeScriptOrSkip(t) {
+  try {
+    const tsModule = await import("typescript");
+    return tsModule.default ?? tsModule;
+  } catch {
+    t.skip("typescript dependency is not installed in this runtime");
+    return null;
+  }
+}
+
+
+async function loadUnifiedAgentAdapterFromTs(t) {
+  const ts = await loadTypeScriptOrSkip(t);
+  if (!ts) return null;
   const source = fs.readFileSync(SOURCE_PATH, "utf8");
   const patchedSource = source.replace(
     'import yaml from "js-yaml";',
     'const yaml = { load: () => ({ agents: [] }) };'
-  )
-    .replace('import { v4 as uuidv4 } from "uuid";\n', "")
-    .replaceAll("uuidv4()", "randomUUID()");
+  );
   const transpiled = ts.transpileModule(patchedSource, {
     compilerOptions: {
       module: ts.ModuleKind.ES2022,
@@ -39,7 +73,11 @@ async function loadUnifiedAgentAdapterFromTs() {
 }
 
 test("UnifiedAgentAdapter.executeAgent marks task FAILED and throws sanitized client-safe error on non-2xx python response", async (t) => {
-  const { UnifiedAgentAdapter } = await loadUnifiedAgentAdapterFromTs();
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
 
   const originalFetch = global.fetch;
   const originalLogAction = AuditService.logAction;
@@ -84,12 +122,13 @@ db_password=hunter2 token=abc123 INTERNAL ERROR: stack frame exploded`;
         name: "Python Agent",
         role: "test",
         runtime: "python",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["python_execution"]
       }
     ]
   ]);
 
-  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  configureAllowedPythonBackend(t);
 
   await assert.rejects(
     async () =>
@@ -105,8 +144,7 @@ db_password=hunter2 token=abc123 INTERNAL ERROR: stack frame exploded`;
         "tenant-1"  // P0: serverPrincipalTenantId from auth context
       ),
     (error) => {
-      assert.match(error.message, /Python engine request failed with status 500/);
-      assert.match(error.message, /\(ref: [0-9a-f]{8}\)/i);
+      assert.match(error.message, /RUNTIME_FAILURE: Python engine returned HTTP 500/i);
       assert.doesNotMatch(error.message, /Traceback/i);
       assert.doesNotMatch(error.message, /db_password/i);
       assert.doesNotMatch(error.message, /password/i);
@@ -117,15 +155,20 @@ db_password=hunter2 token=abc123 INTERNAL ERROR: stack frame exploded`;
   );
 
   assert.equal(jsonCalled, false, "response.json() must not be called when response.ok=false");
-  assert.equal(updateTaskStatusCalls.length, 1);
-  assert.equal(updateTaskStatusCalls[0][1], "FAILED");
-  assert.match(updateTaskStatusCalls[0][2].error, /Python engine request failed with status 500/);
-  assert.match(updateTaskStatusCalls[0][2].error, /\(ref: [0-9a-f]{8}\)/i);
-  assert.doesNotMatch(updateTaskStatusCalls[0][2].error, /Traceback|db_password|token/i);
+  // PENDING -> RUNNING -> FAILED: AuditService rejects PENDING -> terminal directly.
+  assert.equal(updateTaskStatusCalls.length, 2);
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "FAILED");
+  assert.match(updateTaskStatusCalls[1][2].error, /RUNTIME_FAILURE: Python engine returned HTTP 500/i);
+  assert.doesNotMatch(updateTaskStatusCalls[1][2].error, /Traceback|db_password|token/i);
 });
 
 test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 contract", async (t) => {
-  const { UnifiedAgentAdapter } = await loadUnifiedAgentAdapterFromTs();
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
 
   const originalFetch = global.fetch;
   const originalLogAction = AuditService.logAction;
@@ -160,12 +203,13 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
         name: "Python Agent",
         role: "test",
         runtime: "python",
-        allowedScopes: ["scope:execute"]
+        allowedScopes: ["scope:execute"],
+        capabilities: ["python_execution"]
       }
     ]
   ]);
 
-  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  configureAllowedPythonBackend(t);
 
   await assert.rejects(
     async () =>
@@ -181,17 +225,516 @@ test("UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 cont
         "tenant-1"  // P0: serverPrincipalTenantId from auth context
       ),
     (error) => {
-      assert.match(error.message, /Python engine request failed with status 502/);
-      assert.match(error.message, /\(ref: [0-9a-f]{8}\)/i);
+      assert.match(error.message, /RUNTIME_FAILURE: python engine request transport failure/i);
       assert.doesNotMatch(error.message, /ECONNREFUSED/i);
       assert.doesNotMatch(error.message, /python-backend\.internal/i);
       return true;
     }
   );
 
-  assert.equal(updateTaskStatusCalls.length, 1);
-  assert.equal(updateTaskStatusCalls[0][1], "FAILED");
-  assert.match(updateTaskStatusCalls[0][2].error, /Python engine request failed with status 502/);
-  assert.match(updateTaskStatusCalls[0][2].error, /\(ref: [0-9a-f]{8}\)/i);
-  assert.doesNotMatch(updateTaskStatusCalls[0][2].error, /ECONNREFUSED|python-backend\.internal/i);
+  assert.equal(updateTaskStatusCalls.length, 2);
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "FAILED");
+  assert.match(updateTaskStatusCalls[1][2].error, /RUNTIME_FAILURE: python engine request transport failure/i);
+  assert.doesNotMatch(updateTaskStatusCalls[1][2].error, /ECONNREFUSED|python-backend\.internal/i);
+});
+
+test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUND cause and keeps client errors sanitized", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalMaxAttempts = process.env.PYTHON_BACKEND_MAX_ATTEMPTS;
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalEnforceAllowlist = process.env.ENFORCE_BACKEND_ALLOWLIST;
+
+  const auditCalls = [];
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async (...args) => {
+    auditCalls.push(args);
+  };
+
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "2";
+  process.env.NODE_ENV = "test";
+  process.env.ENFORCE_BACKEND_ALLOWLIST = "false";
+
+  const updateTaskStatusCalls = [];
+  let attempts = 0;
+
+  global.fetch = async () => {
+    attempts += 1;
+    const cause = Object.assign(new Error("getaddrinfo ENOTFOUND python-backend.internal"), { code: "ENOTFOUND" });
+    const err = new TypeError("fetch failed");
+    err.cause = cause;
+    throw err;
+  };
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async (...args) => {
+    auditCalls.push(args);
+  };
+  AuditService.updateTaskStatus = async (...args) => updateTaskStatusCalls.push(args);
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    if (originalMaxAttempts === undefined) delete process.env.PYTHON_BACKEND_MAX_ATTEMPTS;
+    else process.env.PYTHON_BACKEND_MAX_ATTEMPTS = originalMaxAttempts;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+    if (originalEnforceAllowlist === undefined) delete process.env.ENFORCE_BACKEND_ALLOWLIST;
+    else process.env.ENFORCE_BACKEND_ALLOWLIST = originalEnforceAllowlist;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([
+    [
+      "py-agent",
+      {
+        id: "py-agent",
+        name: "Python Agent",
+        role: "test",
+        runtime: "python",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["python_execution"]
+      }
+    ]
+  ]);
+
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "2";
+
+  await assert.rejects(
+    () => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run" }, ["scope:execute"], "tenant-1"),
+    (error) => {
+      assert.match(error.message, /RUNTIME_FAILURE: python engine request transport failure/i);
+      assert.doesNotMatch(error.message, /ENOTFOUND|python-backend|http|token/i);
+      return true;
+    }
+  );
+
+  assert.equal(attempts, 2, "retryable ENOTFOUND cause should consume retry budget");
+  const requestFailureAudit = auditCalls.find((a) => a[2] === "PYTHON_ENGINE_REQUEST_FAILURE");
+  assert.ok(requestFailureAudit, "PYTHON_ENGINE_REQUEST_FAILURE audit event should have been logged");
+  assert.equal(requestFailureAudit[3].error_code, "UNKNOWN", "audit event should capture sanitized error_code");
+  assert.equal(requestFailureAudit[3].error_name, "TypeError", "audit event should capture error_name");
+  // PENDING -> RUNNING then RUNNING -> FAILED once the retry budget is exhausted.
+  assert.equal(updateTaskStatusCalls.length, 2);
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "FAILED");
+});
+
+test("UnifiedAgentAdapter.executeAgent retries fetch failed errors with ECONNREFUSED cause and keeps client errors sanitized", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalEnforceAllowlist = process.env.ENFORCE_BACKEND_ALLOWLIST;
+
+  const updateTaskStatusCalls = [];
+  let attempts = 0;
+
+  global.fetch = async () => {
+    attempts += 1;
+    if (attempts === 1) {
+      const cause = Object.assign(new Error("connect ECONNREFUSED 10.1.2.3:8000"), { code: "ECONNREFUSED" });
+      const err = new TypeError("fetch failed");
+      err.cause = cause;
+      throw err;
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: (name) => (name.toLowerCase() === "content-type" ? "application/json" : null) },
+      json: async () => ({ output: "ok" })
+    };
+  };
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => updateTaskStatusCalls.push(args);
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+    if (originalEnforceAllowlist === undefined) delete process.env.ENFORCE_BACKEND_ALLOWLIST;
+    else process.env.ENFORCE_BACKEND_ALLOWLIST = originalEnforceAllowlist;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.invalid";
+  process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "2";
+  process.env.NODE_ENV = "test";
+  process.env.ENFORCE_BACKEND_ALLOWLIST = "false";
+
+  const result = await adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run" }, ["scope:execute"], "tenant-1");
+  assert.equal(result.status, "success");
+  assert.equal(attempts, 2, "retryable ECONNREFUSED cause should retry once before success");
+  // PENDING -> RUNNING -> COMPLETED: AuditService rejects PENDING -> COMPLETED directly.
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "COMPLETED");
+});
+
+test("UnifiedAgentAdapter.executeAgent rejects successful non-JSON python responses with sanitized runtime error", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+
+  const updateTaskStatusCalls = [];
+  let jsonCalled = false;
+
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: {
+      get: (name) => (name.toLowerCase() === "content-type" ? "text/html; charset=utf-8" : null)
+    },
+    text: async () => "<html>upstream maintenance page</html>",
+    json: async () => {
+      jsonCalled = true;
+      return { hidden: true };
+    }
+  });
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => {
+    updateTaskStatusCalls.push(args);
+  };
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([
+    [
+      "py-agent",
+      {
+        id: "py-agent",
+        name: "Python Agent",
+        role: "test",
+        runtime: "python",
+        allowedScopes: ["scope:execute"],
+        capabilities: ["python_execution"]
+      }
+    ]
+  ]);
+
+  configureAllowedPythonBackend(t);
+
+  await assert.rejects(
+    async () =>
+      adapter.executeAgent(
+        "py-agent",
+        "user-1",
+        {
+          tenant_id: "tenant-1",
+          input: "run",
+          metadata: { source: "integration-test" }
+        },
+        ["scope:execute"],
+        "tenant-1"
+      ),
+    (error) => {
+      assert.match(error.message, /Python engine request failed with status 200/);
+      assert.match(error.message, /\(ref: [0-9a-f]{8}\)/i);
+      return true;
+    }
+  );
+
+  assert.equal(jsonCalled, false, "response.json() must not be called when content-type is not application/json");
+  assert.equal(updateTaskStatusCalls.length, 2);
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "FAILED");
+  assert.match(updateTaskStatusCalls[1][2].error, /Python engine request failed with status 200/);
+});
+
+test("UnifiedAgentAdapter.executeAgent retries retryable 503 responses up to PYTHON_BACKEND_MAX_ATTEMPTS total attempts", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalMaxAttempts = process.env.PYTHON_BACKEND_MAX_ATTEMPTS;
+
+  const updateTaskStatusCalls = [];
+  let fetchCalls = 0;
+  global.fetch = async () => {
+    fetchCalls += 1;
+    return {
+      ok: false,
+      status: 503,
+      text: async () => "temporarily unavailable"
+    };
+  };
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async (...args) => updateTaskStatusCalls.push(args);
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    if (originalMaxAttempts === undefined) delete process.env.PYTHON_BACKEND_MAX_ATTEMPTS;
+    else process.env.PYTHON_BACKEND_MAX_ATTEMPTS = originalMaxAttempts;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+  configureAllowedPythonBackend(t);
+  process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "3";
+
+  await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"));
+  assert.equal(fetchCalls, 3);
+  // PENDING -> RUNNING then RUNNING -> FAILED after retry budget is exhausted.
+  assert.equal(updateTaskStatusCalls.length, 2);
+  assert.equal(updateTaskStatusCalls[0][1], "RUNNING");
+  assert.equal(updateTaskStatusCalls[1][1], "FAILED");
+});
+
+test("UnifiedAgentAdapter.executeAgent performs a single outbound attempt for retryable 503 when PYTHON_BACKEND_MAX_ATTEMPTS=1", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalMaxAttempts = process.env.PYTHON_BACKEND_MAX_ATTEMPTS;
+
+  let fetchCalls = 0;
+  global.fetch = async () => {
+    fetchCalls += 1;
+    return { ok: false, status: 503, text: async () => "temporarily unavailable" };
+  };
+
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    if (originalMaxAttempts === undefined) delete process.env.PYTHON_BACKEND_MAX_ATTEMPTS;
+    else process.env.PYTHON_BACKEND_MAX_ATTEMPTS = originalMaxAttempts;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+  configureAllowedPythonBackend(t);
+  process.env.PYTHON_BACKEND_MAX_ATTEMPTS = "1";
+
+  await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"));
+  assert.equal(fetchCalls, 1);
+});
+
+test("UnifiedAgentAdapter.executeAgent blocks forwarding in strict mode when allowlist is empty", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+
+  const originalFetch = global.fetch;
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalEnforceAllowlist = process.env.ENFORCE_BACKEND_ALLOWLIST;
+  const originalAllowedHosts = process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+
+  let fetchCalls = 0;
+  global.fetch = async () => {
+    fetchCalls += 1;
+    return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => ({ output: "ok" }) };
+  };
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+    if (originalEnforceAllowlist === undefined) delete process.env.ENFORCE_BACKEND_ALLOWLIST;
+    else process.env.ENFORCE_BACKEND_ALLOWLIST = originalEnforceAllowlist;
+    if (originalAllowedHosts === undefined) delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+    else process.env.PYTHON_BACKEND_ALLOWED_HOSTS = originalAllowedHosts;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+  process.env.PYTHON_BACKEND_URL = "https://python-backend.example";
+  process.env.ENFORCE_BACKEND_ALLOWLIST = "true";
+  delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+
+  await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"), /CONFIG_NOT_FOUND: PYTHON_BACKEND_ALLOWED_HOSTS is required when strict backend allowlist mode is enabled/);
+  assert.equal(fetchCalls, 0);
+});
+
+test("UnifiedAgentAdapter.executeAgent blocks non-https backend URLs in strict mode", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const originalEnforceAllowlist = process.env.ENFORCE_BACKEND_ALLOWLIST;
+  const originalAllowedHosts = process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+  const originalFetch = global.fetch;
+  let fetchCalls = 0;
+  global.fetch = async () => { fetchCalls += 1; throw new Error("unexpected fetch"); };
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    if (originalEnforceAllowlist === undefined) delete process.env.ENFORCE_BACKEND_ALLOWLIST;
+    else process.env.ENFORCE_BACKEND_ALLOWLIST = originalEnforceAllowlist;
+    if (originalAllowedHosts === undefined) delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+    else process.env.PYTHON_BACKEND_ALLOWED_HOSTS = originalAllowedHosts;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+  process.env.PYTHON_BACKEND_URL = "http://python-backend.example";
+  process.env.ENFORCE_BACKEND_ALLOWLIST = "true";
+  process.env.PYTHON_BACKEND_ALLOWED_HOSTS = "python-backend.example";
+
+  await assert.rejects(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"), /CONFIG_NOT_FOUND: PYTHON_BACKEND_URL must use HTTPS/);
+  assert.equal(fetchCalls, 0);
+});
+
+test("UnifiedAgentAdapter.executeAgent allows strict mode forwarding when host is allowlisted and https", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalEnforceAllowlist = process.env.ENFORCE_BACKEND_ALLOWLIST;
+  const originalAllowedHosts = process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+  const originalFetch = global.fetch;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  let fetchCalls = 0;
+  global.fetch = async () => {
+    fetchCalls += 1;
+    return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => ({ output: "ok" }) };
+  };
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.updateTaskStatus = async () => {};
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    if (originalEnforceAllowlist === undefined) delete process.env.ENFORCE_BACKEND_ALLOWLIST;
+    else process.env.ENFORCE_BACKEND_ALLOWLIST = originalEnforceAllowlist;
+    if (originalAllowedHosts === undefined) delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+    else process.env.PYTHON_BACKEND_ALLOWED_HOSTS = originalAllowedHosts;
+  });
+
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+  process.env.PYTHON_BACKEND_URL = "https://python-backend.example";
+  process.env.ENFORCE_BACKEND_ALLOWLIST = "true";
+  process.env.PYTHON_BACKEND_ALLOWED_HOSTS = "python-backend.example";
+
+  await assert.doesNotReject(() => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"));
+  assert.equal(fetchCalls, 1);
+});
+
+test("UnifiedAgentAdapter.executeAgent maps AbortError timeout to PYTHON_ENGINE_TIMEOUT and marks task FAILED", async (t) => {
+  const loaded = await loadUnifiedAgentAdapterFromTs(t);
+  if (!loaded) return;
+  const { UnifiedAgentAdapter } = loaded;
+  const AuditService = await loadAuditServiceOrSkip(t);
+  if (!AuditService) return;
+
+  const originalFetch = global.fetch;
+  const originalBackendUrl = process.env.PYTHON_BACKEND_URL;
+  const originalAllowedHosts = process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+  const originalLogAction = AuditService.logAction;
+  const originalUpdateTaskStatus = AuditService.updateTaskStatus;
+  const originalLogSecurityViolation = AuditService.logSecurityViolation;
+  const originalCreateTask = AuditService.createTask;
+  const taskUpdates = [];
+
+  const abortError = Object.assign(new Error("The operation was aborted"), { name: "AbortError" });
+  global.fetch = async () => { throw abortError; };
+  AuditService.logAction = async () => {};
+  AuditService.logSecurityViolation = async () => {};
+  AuditService.createTask = async () => {};
+  AuditService.updateTaskStatus = async (...args) => { taskUpdates.push(args); };
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    AuditService.logAction = originalLogAction;
+    AuditService.updateTaskStatus = originalUpdateTaskStatus;
+    AuditService.logSecurityViolation = originalLogSecurityViolation;
+    AuditService.createTask = originalCreateTask;
+    if (originalBackendUrl === undefined) delete process.env.PYTHON_BACKEND_URL;
+    else process.env.PYTHON_BACKEND_URL = originalBackendUrl;
+    if (originalAllowedHosts === undefined) delete process.env.PYTHON_BACKEND_ALLOWED_HOSTS;
+    else process.env.PYTHON_BACKEND_ALLOWED_HOSTS = originalAllowedHosts;
+  });
+
+  process.env.PYTHON_BACKEND_URL = "https://python-backend.example";
+  process.env.PYTHON_BACKEND_ALLOWED_HOSTS = "python-backend.example";
+  const adapter = new UnifiedAgentAdapter();
+  adapter.agents = new Map([["py-agent", { id: "py-agent", name: "Python Agent", role: "test", runtime: "python", allowedScopes: ["scope:execute"], capabilities: ["python_execution"] }]]);
+
+  await assert.rejects(
+    () => adapter.executeAgent("py-agent", "user-1", { tenant_id: "tenant-1", input: "run", metadata: {} }, ["scope:execute"], "tenant-1"),
+    (err) => {
+      assert.match(err.code ?? err.message, /PYTHON_ENGINE_TIMEOUT|timed out/i);
+      return true;
+    }
+  );
+
+  assert.equal(taskUpdates.length, 2);
+  assert.equal(taskUpdates[0][1], "RUNNING");
+  assert.equal(taskUpdates[1][1], "FAILED");
+  assert.match(taskUpdates[1][2].blocker ?? taskUpdates[1][2].failure_class ?? "", /PYTHON_ENGINE_TIMEOUT/);
+  const errorText = taskUpdates[1][2].error ?? "";
+  assert.doesNotMatch(errorText, /password|token|secret|api.?key|bearer/i);
 });

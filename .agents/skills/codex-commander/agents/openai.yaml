@@ -1,0 +1,3 @@
+interface:
+  display_name: "Codex Commander"
+  short_description: "Lead repository execution for CurLexAI/swarms with secure gates, PR plans, and Render/Cloudflare/Modal coordination."
