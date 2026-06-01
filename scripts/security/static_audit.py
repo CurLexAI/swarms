@@ -60,6 +60,9 @@ def should_scan(path: Path) -> bool:
 def main() -> int:
     base_dir = Path.cwd().resolve()
     raw_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    if raw_root.is_absolute():
+        print(f"Static audit target must be a relative path: {raw_root}", file=sys.stderr)
+        return 2
     root = (base_dir / raw_root).resolve()
     try:
         root.relative_to(base_dir)
