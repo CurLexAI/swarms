@@ -60,7 +60,7 @@ def load_json(path: Path) -> dict[str, Any]:
 def assert_public_fixture(task: dict[str, Any]) -> None:
     serialized = json.dumps(task, ensure_ascii=False).lower()
     for pattern in FORBIDDEN_PATTERNS:
-        if pattern and pattern in serialized:
+        if pattern in serialized:
             raise RuntimeError(f"Synthetic fixture contains forbidden term: {pattern}")
 
 
@@ -122,9 +122,8 @@ def _extract_content(payload: Any) -> str:
 def _forbidden_terms(allowlist: dict[str, Any]) -> list[str]:
     terms = set(FORBIDDEN_PATTERNS)
     configured = allowlist.get("smoke", {}).get("forbidden_terms", [])
-    if isinstance(configured, list):
-        terms.update(str(item).lower() for item in configured)
-    return sorted(term for term in terms if term)
+    terms.update(str(item).lower() for item in configured)
+    return sorted(filter(None, terms))
 
 
 def _assert_topic_present(lowered: str, allowlist: dict[str, Any]) -> None:
