@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Public-only Hugging Face coding model smoke test.
 
 This harness must only send synthetic/public snippets.
@@ -10,7 +11,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -41,13 +41,6 @@ FORBIDDEN_PATTERNS = (
 )
 
 
-def read_required_env(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        raise RuntimeError(f"{name} is required but not configured.")
-    return value
-
-
 def load_yaml(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
         data = yaml.safe_load(handle)
@@ -68,9 +61,7 @@ def assert_public_fixture(task: dict[str, Any]) -> None:
     serialized = json.dumps(task, ensure_ascii=False).lower()
     for pattern in FORBIDDEN_PATTERNS:
         if pattern and pattern in serialized:
-            raise RuntimeError(
-                f"Synthetic fixture contains forbidden term: {pattern}"
-            )
+            raise RuntimeError(f"Synthetic fixture contains forbidden term: {pattern}")
 
 
 def call_hf(token: str, model: str, task: dict[str, Any], max_tokens: int) -> str:
@@ -112,6 +103,10 @@ def call_hf(token: str, model: str, task: dict[str, Any], max_tokens: int) -> st
             f"Hugging Face request failed: HTTP {exc.code}: {body_text}"
         ) from exc
 
+    return _extract_content(payload)
+
+
+def _extract_content(payload: Any) -> str:
     try:
         content = payload["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
@@ -121,32 +116,42 @@ def call_hf(token: str, model: str, task: dict[str, Any], max_tokens: int) -> st
 
     if not isinstance(content, str) or not content.strip():
         raise RuntimeError("Empty model response.")
-
     return content.strip()
 
 
-def check_response(text: str, allowlist: dict[str, Any]) -> None:
-    lowered = text.lower()
+def _forbidden_terms(allowlist: dict[str, Any]) -> list[str]:
+    terms = set(FORBIDDEN_PATTERNS)
+    configured = allowlist.get("smoke", {}).get("forbidden_terms", [])
+    if isinstance(configured, list):
+        terms.update(str(item).lower() for item in configured)
+    return sorted(term for term in terms if term)
 
-    configured_forbidden = allowlist.get("smoke", {}).get("forbidden_terms", [])
-    forbidden_terms = set(FORBIDDEN_PATTERNS)
-    if isinstance(configured_forbidden, list):
-        forbidden_terms.update(str(item).lower() for item in configured_forbidden)
 
-    for pattern in forbidden_terms:
-        if pattern and pattern in lowered:
-            raise RuntimeError(f"Forbidden response pattern detected: {pattern}")
-
+def _assert_topic_present(lowered: str, allowlist: dict[str, Any]) -> None:
     allowed_topics = allowlist.get("smoke", {}).get("allowed_topics", [])
     if not isinstance(allowed_topics, list) or not allowed_topics:
         raise RuntimeError("Allowlist must define smoke.allowed_topics.")
-
     if not any(str(topic).lower() in lowered for topic in allowed_topics):
         raise RuntimeError("Response did not mention any allowed topic.")
 
 
+def check_response(text: str, allowlist: dict[str, Any]) -> None:
+    lowered = text.lower()
+    for term in _forbidden_terms(allowlist):
+        if term in lowered:
+            raise RuntimeError(f"Forbidden response pattern detected: {term}")
+    _assert_topic_present(lowered, allowlist)
+
+
 def main() -> int:
-    token = read_required_env("HF_READ_TOKEN")
+    token = os.environ.get("HF_READ_TOKEN", "").strip()
+    if not token:
+        # Missing secret is not a code defect: degrade to SKIPPED, never to a
+        # false pass. Matches agent-review.yml's SKIPPED_UNVERIFIED convention.
+        print("HF_READ_TOKEN is not configured — skipping live call.")
+        print("SKIPPED_UNVERIFIED")
+        return 0
+
     model = os.environ.get("HF_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
 
     allowlist = load_yaml(Path(".github/smoke_allowlist.yml"))
