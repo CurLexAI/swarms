@@ -1,0 +1,21 @@
+version: 1
+smoke:
+  allowed_topics:
+    - style
+    - type
+    - correctness
+    - security
+  forbidden_terms:
+    - customer
+    - client
+    - contract
+    - confidential
+    - secret
+    - api_key
+    - password
+    - legal
+    - lawyer
+    - عميل
+    - سري
+    - قانون
+  max_tokens: 150

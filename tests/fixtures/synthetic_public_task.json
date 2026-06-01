@@ -1,0 +1,6 @@
+{
+  "task": "review",
+  "language": "python",
+  "snippet": "def greet(name: str) -> str:\n    return \"Hello, \" + name\n",
+  "instruction": "Identify one style, type, correctness, or basic security observation. Answer in one short sentence."
+}
