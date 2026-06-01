@@ -669,6 +669,7 @@ async def chat(
     return response
 
 
+@app.get("/api/files", dependencies=[Depends(require_optional_api_token)])
 @app.get("/api/workspace/files", dependencies=[Depends(require_optional_api_token)])
 async def list_files() -> dict[str, list[dict[str, int | str]]]:
     """List allowed workspace files without reading their contents.
@@ -691,6 +692,7 @@ async def list_files() -> dict[str, list[dict[str, int | str]]]:
     return {"files": sorted(files, key=lambda file_info: str(file_info["path"]))}
 
 
+@app.post("/api/file/read", dependencies=[Depends(require_optional_api_token)])
 @app.post("/api/workspace/file/read", dependencies=[Depends(require_optional_api_token)])
 async def read_file(req: FileOperationRequest) -> dict[str, str]:
     """Read one allowed workspace file.
@@ -707,6 +709,7 @@ async def read_file(req: FileOperationRequest) -> dict[str, str]:
     return {"file_path": req.file_path, "content": content}
 
 
+@app.post("/api/file/write", dependencies=[Depends(require_optional_api_token)])
 @app.post("/api/workspace/file/write", dependencies=[Depends(require_optional_api_token)])
 async def write_file(req: FileOperationRequest) -> dict[str, str]:
     """Atomically write one allowed workspace file when explicitly enabled.
