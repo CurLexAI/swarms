@@ -33,6 +33,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from collections.abc import Generator
 from typing import Final
 
 
@@ -101,7 +102,7 @@ SCAN_EXTS: Final[set[str]] = {".py", ".yml", ".yaml", ".js", ".ts", ".tsx", ".js
 SELF = Path(__file__).resolve()
 
 
-def _iter_files(root: Path):
+def _iter_files(root: Path) -> Generator[Path, None, None]:
     for path in root.rglob("*"):
         if any(part in SKIP_DIRS for part in path.parts):
             continue

@@ -50,6 +50,7 @@ class DriveServiceAgentTests(unittest.TestCase):
                 "QARAR_MAX_UPLOAD_BYTES": "1048576",
                 "QARAR_AUDIT_LOG_PATH": str(self.audit),
                 "QARAR_UPLOAD_ALLOWLIST_DIRS": str(self.root),
+                "QARAR_UPLOAD_ALLOWLIST_ROOT": str(self.root),
             }
         )
 

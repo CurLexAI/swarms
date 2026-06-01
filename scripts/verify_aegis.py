@@ -34,8 +34,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SWARM_DIR = REPO_ROOT / "sama_ingestion_swarm"
-PROVIDERS_DIR = REPO_ROOT / "src" / "providers"
-CORE_DIR = REPO_ROOT / "src" / "core"
+PROVIDERS_DIR = REPO_ROOT / "src" / "policy" / "sovereign" / "providers"
+CORE_DIR = REPO_ROOT / "src" / "policy" / "sovereign"
 TESTS_DIR = REPO_ROOT / "tests"
 
 SKIP_SCAN_PARTS = {

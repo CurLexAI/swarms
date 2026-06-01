@@ -280,7 +280,6 @@ export class NodeExecutionDispatchError extends Error {
     }
 }
 const RUNTIME_OUTPUT_FIELDS = ["output", "message", "result", "data"];
-
 function hasValidRuntimeOutputShape(payload) {
     return RUNTIME_OUTPUT_FIELDS.some((field) => {
         const value = payload[field];
@@ -291,7 +290,6 @@ function hasValidRuntimeOutputShape(payload) {
         return false;
     });
 }
-
 export class UnifiedAgentAdapter {
     registryPath;
     agents = new Map();
