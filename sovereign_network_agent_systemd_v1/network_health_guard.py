@@ -74,12 +74,27 @@ class GuardConfig:
     @staticmethod
     def from_env() -> "GuardConfig":
         log_path_value = os.getenv("QARAR_LOG_PATH") or os.getenv("QARAR_NETWORK_AUDIT_LOG") or "./logs/network-health.jsonl"
+        safe_log_root = Path("./logs").expanduser().resolve()
+        default_log_path = (safe_log_root / "network-health.jsonl").resolve()
+
+        candidate_log_path = Path(log_path_value).expanduser()
+        if not candidate_log_path.is_absolute():
+            candidate_log_path = (safe_log_root / candidate_log_path).resolve()
+        else:
+            candidate_log_path = candidate_log_path.resolve()
+
+        try:
+            candidate_log_path.relative_to(safe_log_root)
+            validated_log_path = candidate_log_path
+        except ValueError:
+            validated_log_path = default_log_path
+
         return GuardConfig(
             app_id=os.getenv("QARAR_APP_ID", "sovereign-agent-v2"),
             dry_run=_read_bool("QARAR_NETWORK_DRY_RUN", True),
             reboot_enabled=_read_bool("QARAR_ENABLE_ROUTER_REBOOT", False),
             interval_seconds=_read_int("QARAR_INTERVAL", 60, minimum=5),
-            log_path=Path(log_path_value).expanduser().resolve(),
+            log_path=validated_log_path,
             targets=_parse_targets(os.getenv("QARAR_TARGETS", "1.1.1.1:53,8.8.8.8:53,192.168.3.1:80")),
             connect_timeout_seconds=float(os.getenv("QARAR_CONNECT_TIMEOUT", "2.0")),
             failure_threshold=_read_int("QARAR_FAILURE_THRESHOLD", 3, minimum=1),
