@@ -298,8 +298,11 @@ def verify_secret_scan(state: GateState) -> None:
             if pattern.search(content):
                 violations.append(f"{path.relative_to(REPO_ROOT)}: {label}")
 
-    for violation in violations:
-        print(f"   ⚠️  {violation}")
+    if violations:
+        print(
+            f"   ⚠️  Potential secret-pattern findings: {len(violations)} "
+            "(details redacted)"
+        )
     state.check(
         f"no literal secret patterns in {scanned} Python files",
         not violations,
