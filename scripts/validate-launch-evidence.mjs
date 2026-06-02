@@ -53,7 +53,11 @@ if (evidence.no_auto_deploy_rule !== true) {
   fail('no_auto_deploy_rule must be true');
 }
 
-const phases = Array.isArray(evidence.phases) ? evidence.phases : fail('phases must be an array');
+if (!Array.isArray(evidence.phases)) {
+  fail('phases must be an array');
+}
+
+const phases = evidence.phases;
 if (phases.length !== requiredPhaseNames.length) {
   fail(`expected ${requiredPhaseNames.length} phases`);
 }
