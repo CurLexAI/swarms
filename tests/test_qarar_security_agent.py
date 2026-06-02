@@ -18,7 +18,7 @@ class FakeInferencePort:
 
     def __init__(self, response: str = "analysis complete") -> None:
         self.response = response
-        self.payloads: list[dict[str, object]] = []
+        self.payloads: list[Mapping[str, object]] = []
 
     async def generate(self, payload: Mapping[str, object]) -> str:
         """Capture the payload and return the configured response."""
