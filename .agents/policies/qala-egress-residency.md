@@ -22,6 +22,7 @@ skill. See `docs/decisions/ADR-0003-qala-security-architecture.md`
 | `api.github.com` | PR review comments, user info | `.agents/pr_review.py`, `.agents/mcp/cloudflare-mcp/src/github-handler.ts` |
 | `github.com` | GitHub OAuth authorization and token exchange | `.agents/mcp/cloudflare-mcp/src/github-handler.ts` |
 | `huggingface.co` | Model weight pull (Modal runtime only — never client) | `.agents/modal_app.py` |
+| `router.huggingface.co` | Public-only HF inference router for the public coding-model smoke test (synthetic/public snippets only — never repository source, legal corpora, customer data, or secrets) | `scripts/hf_public_coding_smoke.py` |
 | `ollama` | Local Ollama Docker/internal service for sovereign inference | `src/policy/sovereign/providers/local_ollama.py` |
 | `llama-server` | Local llama.cpp Docker/internal service for sovereign inference | `src/policy/sovereign/providers/local_llama_cpp.py` |
 | `qarar-security-gate` | Internal DLP/PII gate for SAMA ingestion decisions | `sama_ingestion_swarm/agent_auditor.py` |
