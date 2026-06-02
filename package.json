@@ -26,7 +26,8 @@
     "security:radar:simulate": "tsx src/security/sovereignCyberRadar.ts simulate",
     "integrity:frontend": "node scripts/generate-frontend-integrity.mjs",
     "test:cdn-sri": "node --test tests/cdn-sri-validation.test.js",
-    "doctor:cli": "node scripts/dev-cli-doctor.mjs"
+    "doctor:cli": "node scripts/dev-cli-doctor.mjs",
+    "deploy:evidence:validate": "node scripts/validate-launch-evidence.mjs"
   },
   "dependencies": {
     "js-yaml": "^4.1.0",
