@@ -35,28 +35,11 @@ fi
 
 # ── 2. Modal SDK must not be imported from client/public surfaces ────────────
 # Covers four import shapes × three string-literal forms (', ", `), and
-# allows whitespace -- including newlines -- between any two tokens, so
-# valid JS/TS formatting like
-#     import (
-#       "modal"
-#     )
-# or `from\n  'modal'` is also flagged.
-#
-# Implemented in python3 rather than `grep -P` because PCRE support is
-# GNU-grep-specific. On BSD/macOS grep there is no -P flag, and the
-# previous form silently false-passed: the option error was swallowed by
-# 2>/dev/null and the if/else fell into the "ok" branch. The python
-# scanner uses an explicit tri-state exit code so a runtime failure is
-# FAIL, never silently OK:
-#   0  -> at least one offending file (FAIL)
-#   1  -> clean (OK)
-#   ≥2 -> scanner itself failed (FAIL, fail-closed)
+# allows whitespace -- including newlines -- between any two tokens.
 if (( ${#EXISTING_DIRS[@]} > 0 )); then
   if ! command -v python3 >/dev/null 2>&1; then
     fail "PYTHON3_MISSING: cannot run Modal SDK import scan"
   else
-    # Temporarily disable errexit: rc=1 means "no matches" and is normal.
-    # We inspect rc explicitly below.
     set +e
     scan_output="$(python3 - "${EXISTING_DIRS[@]}" <<'PY'
 import os, re, sys
@@ -68,8 +51,6 @@ pattern = re.compile(
 exts = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
 skip_dirs = {"node_modules", ".next", "dist", "build", ".git"}
 
-# Follow symlinked directories (GNU `grep -R` does too). Track real paths
-# of visited dirs so a cycle like `src/vendor -> ..` cannot loop forever.
 hits = []
 visited = set()
 for root_arg in sys.argv[1:]:
@@ -89,7 +70,6 @@ for root_arg in sys.argv[1:]:
                     if pattern.search(f.read()):
                         hits.append(path)
             except OSError as e:
-                # An unreadable file is a scanner failure, not a silent pass.
                 sys.stderr.write(f"scan_error: {path}: {e}\n")
                 sys.exit(2)
 
@@ -132,7 +112,9 @@ for pkg in .agents/router/__init__.py .agents/validators/__init__.py; do
 done
 
 # ── 5. Secrets boundary: presence reported, never echoed ─────────────────────
-for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT AGENT_API_TOKEN; do
+# Mihwar/Bayyinah endpoints use endpoint-specific bearer tokens. The deprecated
+# shared AGENT_API_TOKEN is intentionally not part of this boundary check.
+for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN; do
   if [[ -n "${!v:-}" ]]; then
     ok "$v=SET"
   else
@@ -153,8 +135,6 @@ else
 fi
 
 # ── 7. ADR-0001 boundary regression gate ────────────────────────────────────
-# We have already cd'd into ROOT_DIR earlier, so pass "." to the chained gate
-# rather than the original (possibly relative) ROOT_DIR argument.
 ADR_GATE=scripts/commander/adr-0001-boundary-gate.sh
 if [[ -f "$ADR_GATE" ]]; then
   if bash "$ADR_GATE" .; then
@@ -165,7 +145,6 @@ if [[ -f "$ADR_GATE" ]]; then
 else
   warn "boundary gate not found: $ADR_GATE"
 fi
-
 
 # ── 8. Build artifact scan: no Modal domains inside client bundles ───────────
 BUILD_DIRS=(dist build .next out)
@@ -183,6 +162,7 @@ if (( ${#EXISTING_BUILD_DIRS[@]} > 0 )); then
 else
   warn "no build artifact directories to scan (skipped)"
 fi
+
 if [[ "$status" == "PASS" ]]; then
   echo "[RESULT] PASS"
   exit 0
