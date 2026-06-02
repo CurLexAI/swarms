@@ -132,7 +132,7 @@ for pkg in .agents/router/__init__.py .agents/validators/__init__.py; do
 done
 
 # ── 5. Secrets boundary: presence reported, never echoed ─────────────────────
-for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT AGENT_API_TOKEN; do
+for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN; do
   if [[ -n "${!v:-}" ]]; then
     ok "$v=SET"
   else

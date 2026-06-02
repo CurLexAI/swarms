@@ -45,3 +45,60 @@ def test_pr_review_reads_endpoint_specific_tokens() -> None:
     assert '_require_env("BAYYINAH_API_TOKEN")' in source
     assert '_require_env("MIHWAR_API_TOKEN")' in source
     assert '_require_env("AGENT_API_TOKEN")' not in source
+
+
+def test_local_modal_smoke_uses_endpoint_specific_tokens() -> None:
+    """Local smoke helper must mirror the activation workflow token contract."""
+
+    script = _read("scripts/commander/modal-runtime-smoke.sh")
+
+    assert "BAYYINAH_API_TOKEN" in script
+    assert "MIHWAR_API_TOKEN" in script
+    assert "Authorization: Bearer ${token}" in script
+    assert "Authorization: Bearer ${AGENT_API_TOKEN}" not in script
+
+
+def test_mcp_server_reads_endpoint_specific_tokens() -> None:
+    """MCP dispatch must choose the token that matches the target endpoint."""
+
+    source = _read(".agents/mcp/server.py")
+
+    assert 'os.environ.get("BAYYINAH_API_TOKEN", "")' in source
+    assert 'os.environ.get("MIHWAR_API_TOKEN", "")' in source
+    assert 'os.environ.get("AGENT_API_TOKEN", "")' not in source
+    assert '"AGENT_API_TOKEN is not configured."' not in source
+
+
+def test_modal_provider_reads_endpoint_specific_tokens() -> None:
+    """Provider adapter must not fall back to the legacy shared token."""
+
+    source = _read(".agents/providers/modal_provider.py")
+
+    assert 'return "BAYYINAH_API_TOKEN"' in source
+    assert 'return "MIHWAR_API_TOKEN"' in source
+    assert 'os.environ.get("AGENT_API_TOKEN", "")' not in source
+    assert '"AGENT_API_TOKEN is not configured."' not in source
+
+
+def test_remote_mcp_surfaces_use_endpoint_specific_tokens() -> None:
+    """Render and Cloudflare MCP adapters must keep tokens service-specific."""
+
+    render_blueprint = _read("render.yaml")
+    render_config = _read(".agents/mcp/modal-mcp/src/config.ts")
+    render_client = _read(".agents/mcp/modal-mcp/src/modalClient.ts")
+    cloudflare_agent = _read(".agents/mcp/cloudflare-mcp/src/mcp-agent.ts")
+    cloudflare_client = _read(".agents/mcp/cloudflare-mcp/src/modal-client.ts")
+
+    for source in (render_blueprint, render_config, render_client, cloudflare_agent, cloudflare_client):
+        assert "AGENT_API_TOKEN" not in source
+
+    assert "MIHWAR_API_TOKEN" in render_blueprint
+    assert "BAYYINAH_API_TOKEN" in render_blueprint
+    assert "mihwarApiToken: env.MIHWAR_API_TOKEN" in render_config
+    assert "bayyinahApiToken: env.BAYYINAH_API_TOKEN" in render_config
+    assert "this.config.mihwarApiToken" in render_client
+    assert "this.config.bayyinahApiToken" in render_client
+    assert "this.env.MIHWAR_API_TOKEN" in cloudflare_agent
+    assert "this.env.BAYYINAH_API_TOKEN" in cloudflare_agent
+    assert "config.mihwarApiToken" in cloudflare_client
+    assert "config.bayyinahApiToken" in cloudflare_client

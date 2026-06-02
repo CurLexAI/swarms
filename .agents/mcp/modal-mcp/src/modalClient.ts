@@ -76,7 +76,7 @@ class ModalClient {
     }
   }
 
-  private async postAgent<T>(endpoint: string, body: unknown): Promise<Result<T, ToolError>> {
+  private async postAgent<T>(endpoint: string, token: string | undefined, body: unknown): Promise<Result<T, ToolError>> {
     if (!endpoint) {
       return this.agentError('Agent endpoint not configured');
     }
@@ -85,7 +85,7 @@ class ModalClient {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          Authorization: this.config.agentApiToken ? `Bearer ${this.config.agentApiToken}` : '',
+          Authorization: token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(body)
@@ -127,6 +127,7 @@ class ModalClient {
   mihwarGenerate(task: string, code?: string, context?: string): Promise<Result<{ output: string }, ToolError>> {
     return this.postAgent<{ output: string }>(
       this.config.mihwarEndpoint ?? '',
+      this.config.mihwarApiToken,
       { task, code, context }
     );
   }
@@ -134,6 +135,7 @@ class ModalClient {
   bayyinahReview(code: string, context?: string): Promise<Result<{ output: string }, ToolError>> {
     return this.postAgent<{ output: string }>(
       this.config.bayyinahEndpoint ?? '',
+      this.config.bayyinahApiToken,
       { code, context }
     );
   }

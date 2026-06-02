@@ -44,7 +44,7 @@ def _run_gate(repo: Path) -> subprocess.CompletedProcess[str]:
     env = {
         k: v
         for k, v in os.environ.items()
-        if k not in {"BAYYINAH_ENDPOINT", "MIHWAR_ENDPOINT", "AGENT_API_TOKEN"}
+        if k not in {"BAYYINAH_ENDPOINT", "MIHWAR_ENDPOINT", "BAYYINAH_API_TOKEN", "MIHWAR_API_TOKEN"}
     }
     return subprocess.run(
         ["bash", str(GATE), str(repo)],

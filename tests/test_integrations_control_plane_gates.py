@@ -34,7 +34,8 @@ def test_render_blueprint_is_manual_gated_and_uses_secret_sync() -> None:
         "MODAL_API_TOKEN",
         "MIHWAR_ENDPOINT",
         "BAYYINAH_ENDPOINT",
-        "AGENT_API_TOKEN",
+        "MIHWAR_API_TOKEN",
+        "BAYYINAH_API_TOKEN",
     ):
         assert re.search(rf"key: {secret_name}\n\s+sync: false", render_yaml)
 

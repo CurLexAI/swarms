@@ -85,7 +85,8 @@ Open the **MCP configuration** page in your repository's Copilot settings and pa
       "env": {
         "MIHWAR_ENDPOINT": "$MIHWAR_ENDPOINT",
         "BAYYINAH_ENDPOINT": "$BAYYINAH_ENDPOINT",
-        "AGENT_API_TOKEN": "$AGENT_API_TOKEN",
+        "MIHWAR_API_TOKEN": "$MIHWAR_API_TOKEN",
+        "BAYYINAH_API_TOKEN": "$BAYYINAH_API_TOKEN",
         "AEGIS_MCP_ROLE": "$AEGIS_MCP_ROLE",
         "AEGIS_TENANT_ID": "$AEGIS_TENANT_ID"
       }
@@ -117,7 +118,8 @@ args = ["-u", "/absolute/path/to/swarms/.agents/mcp/server.py"]
 env_vars = [
   "MIHWAR_ENDPOINT",
   "BAYYINAH_ENDPOINT",
-  "AGENT_API_TOKEN",
+  "MIHWAR_API_TOKEN",
+  "BAYYINAH_API_TOKEN",
   "AEGIS_MCP_ROLE",
   "AEGIS_TENANT_ID",
   "QALA_AUDIT_SINK_PATH",
@@ -199,7 +201,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
       "env": {
         "MIHWAR_ENDPOINT": "$MIHWAR_ENDPOINT",
         "BAYYINAH_ENDPOINT": "$BAYYINAH_ENDPOINT",
-        "AGENT_API_TOKEN": "$AGENT_API_TOKEN",
+        "MIHWAR_API_TOKEN": "$MIHWAR_API_TOKEN",
+        "BAYYINAH_API_TOKEN": "$BAYYINAH_API_TOKEN",
         "AEGIS_MCP_ROLE": "operator",
         "AEGIS_TENANT_ID": "system"
       }
@@ -221,7 +224,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 ```bash
 export MIHWAR_ENDPOINT="${MIHWAR_ENDPOINT:?set in your secret manager}"
 export BAYYINAH_ENDPOINT="${BAYYINAH_ENDPOINT:?set in your secret manager}"
-export AGENT_API_TOKEN="${AGENT_API_TOKEN:?set in your secret manager}"
+export MIHWAR_API_TOKEN="${MIHWAR_API_TOKEN:?set in your secret manager}"
+export BAYYINAH_API_TOKEN="${BAYYINAH_API_TOKEN:?set in your secret manager}"
 export AEGIS_MCP_ROLE="operator"
 
 # List tools
@@ -262,6 +266,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
 
 ## Security
 
+- `AGENT_API_TOKEN` is deprecated for Bayyinah and Mihwar Modal endpoint authorization. Active setup examples must use `BAYYINAH_API_TOKEN` and `MIHWAR_API_TOKEN`; any legacy shared-token reference is retained only as historical compatibility evidence outside this active setup guide.
 - Tokens are read from environment variables; never logged or returned in errors.
 - Modal endpoints are not exposed to the client — only the tool names appear.
 - The server has no filesystem or shell access for tools; it only forwards HTTPS POST requests after Aegis authorization.

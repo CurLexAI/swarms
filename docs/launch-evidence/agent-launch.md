@@ -51,7 +51,8 @@ Selected repositories: `CurLexAI/swarms`, `LexPrim/Qarar`**.
 |---------------------|-------------------------|---------------------------|--------------|
 | `BAYYINAH_ENDPOINT` | UNVERIFIED              | UNVERIFIED                | UNVERIFIED   |
 | `MIHWAR_ENDPOINT`   | UNVERIFIED              | UNVERIFIED                | UNVERIFIED   |
-| `AGENT_API_TOKEN`   | UNVERIFIED              | UNVERIFIED                | UNVERIFIED   |
+| `BAYYINAH_API_TOKEN` | UNVERIFIED           | UNVERIFIED                | UNVERIFIED   |
+| `MIHWAR_API_TOKEN`   | UNVERIFIED             | UNVERIFIED                | UNVERIFIED   |
 
 Diagnostic shortcut: an `agent-review.yml` `bayyinah-review` job that
 completes in < 30 s with conclusion `success` proves the secret is
@@ -69,15 +70,13 @@ mocked relays do NOT satisfy this row.
 
 ### How to run
 
-The canonical smoke runner is `scripts/commander/modal-runtime-smoke.sh`.
-It refuses to make any network call until all three secrets are bound,
-never prints token or endpoint values, and never persists response
-bodies. Sample CI invocation:
+The canonical smoke runner is `.github/workflows/modal-runtime-activation.yml` with `workflow_dispatch` and endpoint smoke enabled. The workflow contains `deploy_modal` and `run_smoke` inputs, and its endpoint smoke step uses service-specific bearer tokens for each endpoint. Operators may also run `scripts/commander/modal-runtime-smoke.sh` from a trusted backend shell after binding the same endpoint-specific secrets. The smoke path refuses to make any network call until all endpoint and token secrets are bound, never prints token or endpoint values, and never persists response bodies. Sample trusted-shell invocation:
 
 ```bash
 BAYYINAH_ENDPOINT="$BAYYINAH_ENDPOINT" \
 MIHWAR_ENDPOINT="$MIHWAR_ENDPOINT" \
-AGENT_API_TOKEN="$AGENT_API_TOKEN" \
+BAYYINAH_API_TOKEN="$BAYYINAH_API_TOKEN" \
+MIHWAR_API_TOKEN="$MIHWAR_API_TOKEN" \
 bash scripts/commander/modal-runtime-smoke.sh
 ```
 
@@ -95,12 +94,8 @@ Exit codes:
 Fill the table below from a successful (`exit 0`) run. Copy the script's
 own `host=` and `http_code=` lines verbatim. Do NOT paste the response
 body, the request id, or any header value.
-Canonical smoke procedure: dispatch `Modal Smoke Probe`
-(`.github/workflows/smoke-modal.yml`) manually. A successful run shows
-each probe job at ≥ 60 s duration (vLLM cold start) with conclusion
-`success`, no `*.modal.run` string in any log line, and a stable JSON
-response body. Record the run URL + UTC timestamp in the Evidence
-column and flip the verdict to `VERIFIED`.
+Canonical smoke procedure: manually dispatch `Modal Runtime Activation`
+(`.github/workflows/modal-runtime-activation.yml`) with endpoint smoke enabled. Do not reference or run any other smoke workflow unless repository discovery confirms it is the intended active workflow for that run. A successful endpoint smoke returns `VERIFIED_ENDPOINT_SMOKE`, uses `BAYYINAH_API_TOKEN` for Bayyinah and `MIHWAR_API_TOKEN` for Mihwar, shows no `*.modal.run` string in any log line, and records no response bodies. Record the run URL + UTC timestamp in the Evidence column and flip the verdict to `VERIFIED` only after that successful smoke evidence exists.
 
 | Agent      | Endpoint reachable | Verdict roundtrip | Evidence |
 |------------|--------------------|-------------------|----------|
@@ -126,7 +121,7 @@ commit that resolves it. Do not delete rows; mark them `RESOLVED`.
 |-------------------|-------------|-------------|
 | AUTH_MISSING      | NOT_APPLICABLE — no auth-gated local path failed | N/A |
 | CONFIG_NOT_FOUND  | NOT_APPLICABLE — loadRegistry resolves .agents/config/agents.yaml successfully | N/A |
-| SECRET_MISSING    | BAYYINAH_ENDPOINT, MIHWAR_ENDPOINT, AGENT_API_TOKEN not set; expected outside CI/runtime | Awaiting secrets configuration in deployment environment; smoke runner is `scripts/commander/modal-runtime-smoke.sh` |
+| SECRET_MISSING    | BAYYINAH_ENDPOINT, MIHWAR_ENDPOINT, BAYYINAH_API_TOKEN, MIHWAR_API_TOKEN not set; expected outside CI/runtime | Awaiting operator follow-up to configure deployment secrets and run `.github/workflows/modal-runtime-activation.yml` with smoke enabled; launch evidence remains UNVERIFIED until `VERIFIED_ENDPOINT_SMOKE` is observed |
 | TEST_FAILURE      | RESOLVED — all 171 Python + 98 Node tests pass at HEAD 57017b3 | This commit |
 
 ## 8. Sign-off

@@ -9,7 +9,8 @@
    *   GITHUB_CLIENT_ID        — GitHub OAuth App client ID
    *   GITHUB_CLIENT_SECRET    — GitHub OAuth App client secret
    *   COOKIE_ENCRYPTION_KEY   — random hex string (openssl rand -hex 32)
-   *   AGENT_API_TOKEN         — bearer token for Modal agent endpoints
+   *   MIHWAR_API_TOKEN       — bearer token for Mihwar Modal endpoint
+   *   BAYYINAH_API_TOKEN     — bearer token for Bayyinah Modal endpoint
    *   MIHWAR_ENDPOINT         — Modal Mihwar agent URL (backend-only)
    *   BAYYINAH_ENDPOINT       — Modal Bayyinah agent URL (backend-only)
    */

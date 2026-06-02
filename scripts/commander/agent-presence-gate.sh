@@ -54,16 +54,16 @@ else
   echo "[WARN] Mihwar gate condition not found"
 fi
 
-if [[ -n "${BAYYINAH_ENDPOINT:-}" && -n "${AGENT_API_TOKEN:-}" ]]; then
+if [[ -n "${BAYYINAH_ENDPOINT:-}" && -n "${BAYYINAH_API_TOKEN:-}" ]]; then
   echo "[OK] BAYYINAH endpoint/token env vars present"
 else
-  echo "[WARN] SECRET_MISSING: BAYYINAH_ENDPOINT or AGENT_API_TOKEN"
+  echo "[WARN] SECRET_MISSING: BAYYINAH_ENDPOINT or BAYYINAH_API_TOKEN"
 fi
 
-if [[ -n "${MIHWAR_ENDPOINT:-}" && -n "${AGENT_API_TOKEN:-}" ]]; then
+if [[ -n "${MIHWAR_ENDPOINT:-}" && -n "${MIHWAR_API_TOKEN:-}" ]]; then
   echo "[OK] MIHWAR endpoint/token env vars present"
 else
-  echo "[WARN] SECRET_MISSING: MIHWAR_ENDPOINT or AGENT_API_TOKEN"
+  echo "[WARN] SECRET_MISSING: MIHWAR_ENDPOINT or MIHWAR_API_TOKEN"
 fi
 
 echo "[INFO] gate completed"
