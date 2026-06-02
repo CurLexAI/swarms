@@ -1,0 +1,432 @@
+{
+  "metadata": {
+    "registry_id": "qarar-mihwar-sovereign-security-controls",
+    "version": "2026-06-02",
+    "status": "architecture_only",
+    "evidence_label": "VERIFIED",
+    "activation_state": "not_active",
+    "owner": "repository-operator",
+    "purpose": "Governance registry for the eight proposed sovereign security controls around the Qarar/Mihwar agent operations boundary. This file records intended integration points only; it does not deploy, activate, or call external services.",
+    "zero_trust_principle": "Every agent, service, device, and network path is treated as untrusted until authenticated, authorized, inspected, and logged.",
+    "compliance_note": "ECC-2:2024 entries are control mappings for design traceability only, not a verified regulatory compliance attestation."
+  },
+  "constraints": {
+    "no_runtime_activation": true,
+    "no_external_endpoints": true,
+    "no_secret_values": true,
+    "fail_closed_required": true,
+    "least_privilege_required": true,
+    "audit_required": true,
+    "decision_executor": "qarar-decision-engine",
+    "human_review_required_for_destructive_actions": true
+  },
+  "controls": [
+    {
+      "id": "av-clamav",
+      "name": "ClamAV antivirus sidecar",
+      "category": "AV",
+      "layer": "processing-boundary",
+      "role": "Scan externally sourced documents before object-store ingestion.",
+      "integration_points": [
+        "sama-fetcher",
+        "minio-ingestion-prewrite",
+        "qala-audit-sink"
+      ],
+      "least_privilege": {
+        "runtime_user": "non-root",
+        "permissions": [
+          "read_new_files_only",
+          "no_object_store_write",
+          "no_policy_mutation"
+        ]
+      },
+      "audit_events": [
+        "malware_scan_requested",
+        "malware_scan_completed",
+        "malware_scan_blocked"
+      ],
+      "ecc_mappings": [
+        {
+          "control": "A.7.6.1",
+          "rationale": "Malware protection before processing externally sourced files.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        },
+        {
+          "control": "A.12.2.1",
+          "rationale": "Processing controls reject unsafe files before ingestion.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        }
+      ],
+      "activation": {
+        "state": "not_active",
+        "deployment_surface": "none"
+      }
+    },
+    {
+      "id": "edr-wazuh-agent",
+      "name": "Wazuh endpoint detection agent",
+      "category": "EDR",
+      "layer": "workload-runtime",
+      "role": "Monitor workload behavior and suspicious process, file, and network activity.",
+      "integration_points": [
+        "agent-containers",
+        "workload-hosts",
+        "siem-wazuh-elastic"
+      ],
+      "least_privilege": {
+        "runtime_user": "restricted-monitor",
+        "permissions": [
+          "observe_process_events",
+          "observe_file_events",
+          "observe_network_metadata",
+          "no_system_mutation"
+        ]
+      },
+      "audit_events": [
+        "suspicious_process_detected",
+        "protected_model_file_changed",
+        "unauthorized_network_flow_detected"
+      ],
+      "ecc_mappings": [
+        {
+          "control": "A.8.1.1",
+          "rationale": "Runtime inventory signals identify unexpected processes and assets.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        },
+        {
+          "control": "A.10.2.2",
+          "rationale": "Network access monitoring identifies unauthorized connections.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        }
+      ],
+      "activation": {
+        "state": "not_active",
+        "deployment_surface": "none"
+      }
+    },
+    {
+      "id": "siem-wazuh-elastic",
+      "name": "Wazuh server and Elastic SIEM",
+      "category": "SIEM",
+      "layer": "evidence-core",
+      "role": "Aggregate security events and preserve audit evidence for review.",
+      "integration_points": [
+        "qarar-security-gate",
+        "qala-audit-sink",
+        "av-clamav",
+        "edr-wazuh-agent",
+        "idsips-suricata",
+        "dlp-custom-scanner",
+        "waf-modsecurity-nginx",
+        "nac-tailscale",
+        "mtls-vault-pki"
+      ],
+      "least_privilege": {
+        "runtime_user": "siem-service",
+        "permissions": [
+          "append_security_events",
+          "read_own_indices",
+          "no_direct_response_actions"
+        ]
+      },
+      "audit_events": [
+        "security_event_ingested",
+        "audit_query_executed",
+        "incident_correlation_created"
+      ],
+      "ecc_mappings": [
+        {
+          "control": "A.12.4.1",
+          "rationale": "Security events are centrally logged for investigation.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        },
+        {
+          "control": "A.12.4.3",
+          "rationale": "Audit logs are intended to be append-only and protected.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        }
+      ],
+      "activation": {
+        "state": "not_active",
+        "deployment_surface": "none"
+      }
+    },
+    {
+      "id": "idsips-suricata",
+      "name": "Suricata IDS/IPS",
+      "category": "IDS_IPS",
+      "layer": "internal-network",
+      "role": "Inspect internal container traffic for known attack patterns.",
+      "integration_points": [
+        "lexprim-net-monitoring-boundary",
+        "siem-wazuh-elastic",
+        "qarar-decision-engine"
+      ],
+      "least_privilege": {
+        "runtime_user": "packet-monitor",
+        "permissions": [
+          "inspect_network_packets",
+          "emit_alerts",
+          "no_application_data_write"
+        ]
+      },
+      "audit_events": [
+        "suspicious_packet_detected",
+        "ips_block_recommended",
+        "lateral_movement_pattern_detected"
+      ],
+      "ecc_mappings": [
+        {
+          "control": "A.9.1.2",
+          "rationale": "Network access control is supported by internal traffic inspection.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        },
+        {
+          "control": "A.12.2.1",
+          "rationale": "Exploit traffic is rejected before reaching processing services.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        }
+      ],
+      "activation": {
+        "state": "not_active",
+        "deployment_surface": "none"
+      }
+    },
+    {
+      "id": "dlp-custom-scanner",
+      "name": "Custom DLP scanner",
+      "category": "DLP",
+      "layer": "data-egress",
+      "role": "Detect secrets and KSA PII before user output or model egress.",
+      "integration_points": [
+        "qarar-security-gate-output",
+        "qala-input-gate",
+        "qala-egress-residency-gate",
+        "bayyinah-redactor",
+        "siem-wazuh-elastic"
+      ],
+      "least_privilege": {
+        "runtime_user": "dlp-service",
+        "permissions": [
+          "inspect_payloads",
+          "emit_block_decisions",
+          "no_rule_disable"
+        ]
+      },
+      "audit_events": [
+        "secret_pattern_detected",
+        "ksa_pii_pattern_detected",
+        "dlp_egress_blocked"
+      ],
+      "ecc_mappings": [
+        {
+          "control": "A.11.2.6",
+          "rationale": "Sensitive data transfer is blocked unless authorized.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        },
+        {
+          "control": "A.8.2.3",
+          "rationale": "Sensitive data handling is checked before release.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        }
+      ],
+      "activation": {
+        "state": "not_active",
+        "deployment_surface": "none"
+      }
+    },
+    {
+      "id": "waf-modsecurity-nginx",
+      "name": "ModSecurity with Nginx WAF",
+      "category": "WAF",
+      "layer": "public-api-edge",
+      "role": "Protect public API entry points from OWASP Top 10 request patterns.",
+      "integration_points": [
+        "api-chat-edge",
+        "api-workspace-edge",
+        "qarar-security-gate",
+        "mobile-gate",
+        "siem-wazuh-elastic"
+      ],
+      "least_privilege": {
+        "runtime_user": "reverse-proxy",
+        "permissions": [
+          "validate_http_requests",
+          "reject_invalid_requests",
+          "no_backend_secret_access"
+        ]
+      },
+      "audit_events": [
+        "waf_request_rejected",
+        "waf_rule_matched",
+        "jwt_schema_failure_detected"
+      ],
+      "ecc_mappings": [
+        {
+          "control": "A.9.4.2",
+          "rationale": "Application access control is enforced at the API edge.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        },
+        {
+          "control": "A.12.6.1",
+          "rationale": "Known technical attack patterns are blocked at ingress.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        }
+      ],
+      "activation": {
+        "state": "not_active",
+        "deployment_surface": "none"
+      }
+    },
+    {
+      "id": "nac-tailscale",
+      "name": "Tailscale network access control",
+      "category": "NAC",
+      "layer": "device-network-access",
+      "role": "Restrict operator and device access to approved identities and posture.",
+      "integration_points": [
+        "iphone-command-center",
+        "mobile-gate",
+        "device-posture-service",
+        "siem-wazuh-elastic"
+      ],
+      "least_privilege": {
+        "runtime_user": "network-policy-controller",
+        "permissions": [
+          "evaluate_device_identity",
+          "evaluate_device_posture",
+          "update_draft_acl_policy",
+          "no_unreviewed_acl_activation"
+        ]
+      },
+      "audit_events": [
+        "device_connection_observed",
+        "device_posture_rejected",
+        "nac_acl_change_requested"
+      ],
+      "ecc_mappings": [
+        {
+          "control": "A.9.1.2",
+          "rationale": "Default-deny network access is based on device identity.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        },
+        {
+          "control": "A.9.2.1",
+          "rationale": "Device registration and removal are captured for review.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        }
+      ],
+      "activation": {
+        "state": "not_active",
+        "deployment_surface": "none"
+      }
+    },
+    {
+      "id": "mtls-vault-pki",
+      "name": "HashiCorp Vault PKI mTLS",
+      "category": "MTLS",
+      "layer": "service-identity",
+      "role": "Issue short-lived service certificates for mutual authentication.",
+      "integration_points": [
+        "control-plane-services",
+        "agent-services",
+        "qarar-security-gate",
+        "mihwar-gateway",
+        "siem-wazuh-elastic"
+      ],
+      "least_privilege": {
+        "runtime_user": "pki-issuer",
+        "permissions": [
+          "issue_short_lived_certificates",
+          "revoke_service_certificates",
+          "no_plaintext_private_key_export"
+        ]
+      },
+      "audit_events": [
+        "certificate_issued",
+        "certificate_revoked",
+        "mtls_handshake_rejected"
+      ],
+      "ecc_mappings": [
+        {
+          "control": "A.10.1.1",
+          "rationale": "Cryptographic controls protect service-to-service communication.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        },
+        {
+          "control": "A.9.1.2",
+          "rationale": "Service identity is required before network access is accepted.",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        }
+      ],
+      "activation": {
+        "state": "not_active",
+        "deployment_surface": "none"
+      }
+    }
+  ],
+  "playbooks": [
+    {
+      "id": "edr-suspicious-process-isolation",
+      "trigger_control": "edr-wazuh-agent",
+      "trigger_event": "suspicious_process_detected",
+      "qarar_response": [
+        "request_container_isolation",
+        "request_nac_blocklist_draft",
+        "notify_security_operator"
+      ],
+      "guardrails": [
+        "qarar_decision_required",
+        "human_review_required_for_business_impact",
+        "audit_before_action"
+      ],
+      "ecc_mappings": [
+        {
+          "control": "A.12.6.1",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        }
+      ]
+    },
+    {
+      "id": "waf-sqli-temporary-block",
+      "trigger_control": "waf-modsecurity-nginx",
+      "trigger_event": "waf_rule_matched",
+      "qarar_response": [
+        "request_source_ip_temporary_block",
+        "record_incident_for_investigation"
+      ],
+      "guardrails": [
+        "qarar_decision_required",
+        "time_bounded_block",
+        "audit_before_action"
+      ],
+      "ecc_mappings": [
+        {
+          "control": "A.9.4.2",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        }
+      ]
+    },
+    {
+      "id": "dlp-secret-exposure-containment",
+      "trigger_control": "dlp-custom-scanner",
+      "trigger_event": "secret_pattern_detected",
+      "qarar_response": [
+        "request_secret_revocation_workflow",
+        "notify_raptor_operator",
+        "record_high_severity_incident"
+      ],
+      "guardrails": [
+        "no_secret_value_logging",
+        "qarar_decision_required",
+        "human_review_required_for_revocation"
+      ],
+      "ecc_mappings": [
+        {
+          "control": "A.8.2.3",
+          "mapping_status": "UNVERIFIED_MAPPING"
+        }
+      ]
+    }
+  ]
+}
