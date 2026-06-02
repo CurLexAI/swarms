@@ -30,6 +30,7 @@ ALLOWLIST=(
   "api.github.com"
   "github.com"
   "huggingface.co"
+  "router.huggingface.co"
   "ollama"
   "llama-server"
   "qarar-security-gate"
@@ -74,6 +75,7 @@ ALLOWLIST = (
     "api.github.com",
     "github.com",
     "huggingface.co",
+    "router.huggingface.co",
     "ollama",
     "llama-server",
     "qarar-security-gate",
