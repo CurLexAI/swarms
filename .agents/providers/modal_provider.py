@@ -17,11 +17,12 @@ class ModalProvider:
 
     def execute(self, request: ProviderRequest) -> ProviderResponse:
         endpoint = _endpoint_for_model(request.model)
-        token = os.environ.get("AGENT_API_TOKEN", "")
+        token_env = _token_env_for_model(request.model)
+        token = os.environ.get(token_env, "")
         if not endpoint:
             raise RuntimeError(f"Modal endpoint is not configured for model {request.model!r}.")
         if not token:
-            raise RuntimeError("AGENT_API_TOKEN is not configured.")
+            raise RuntimeError(f"{token_env} is not configured.")
 
         metadata = request.metadata or {}
         payload = {
@@ -58,6 +59,12 @@ def _endpoint_env_for_model(model: str) -> str:
     if model == "bayyinah":
         return "BAYYINAH_ENDPOINT"
     return "MIHWAR_ENDPOINT"
+
+
+def _token_env_for_model(model: str) -> str:
+    if model == "bayyinah":
+        return "BAYYINAH_API_TOKEN"
+    return "MIHWAR_API_TOKEN"
 
 
 def _endpoint_for_model(model: str) -> str:

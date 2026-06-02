@@ -14,7 +14,8 @@ Use this runbook when private CurLexAI agents or custom models are not visible i
 
 - `MIHWAR_ENDPOINT`
 - `BAYYINAH_ENDPOINT`
-- `AGENT_API_TOKEN`
+- `BAYYINAH_API_TOKEN`
+- `MIHWAR_API_TOKEN`
 
 Never print values. Report only `SET` or `UNSET`.
 
@@ -26,14 +27,14 @@ git status --short
 git branch --show-current
 python3 .agents/invoke.py info
 python3 .agents/validate.py
-for v in MIHWAR_ENDPOINT BAYYINAH_ENDPOINT AGENT_API_TOKEN; do
+for v in MIHWAR_ENDPOINT BAYYINAH_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN; do
   if [ -n "${!v}" ]; then echo "$v=SET"; else echo "$v=UNSET"; fi
 done
 ```
 
 ## Runtime smoke checks (backend only)
 
-Run only from a trusted backend shell with secrets exported:
+The active repository workflow for runtime activation is `.github/workflows/modal-runtime-activation.yml`; it is manually triggered with `workflow_dispatch` and supports `deploy_modal` plus `run_smoke`. After operator-managed secrets are configured, run that workflow with smoke enabled. For local trusted-shell diagnostics only, with secrets exported, run:
 
 ```bash
 python3 .agents/invoke.py mihwar "Return: runtime_ok"

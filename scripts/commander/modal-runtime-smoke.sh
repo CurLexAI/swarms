@@ -5,13 +5,14 @@
 #   Prove that the Modal runtime is live by hitting /review and /generate
 #   on the deployed Bayyinah and Mihwar endpoints. Designed to run in a CI
 #   step with secrets bound, OR locally when the operator has bound the
-#   three required env vars. Fails closed on any missing prerequisite.
+#   required endpoint and token env vars. Fails closed on any missing
+#   prerequisite.
 #
 # Required env (presence-only; values are NEVER echoed):
-#   BAYYINAH_ENDPOINT  — Modal HTTPS URL ending in /bayyinah-review
-#   MIHWAR_ENDPOINT    — Modal HTTPS URL ending in /mihwar-generate
-#   AGENT_API_TOKEN    — shared bearer token configured in Modal
-#                        agent-api-secret
+#   BAYYINAH_ENDPOINT   — Modal HTTPS URL ending in /bayyinah-review
+#   MIHWAR_ENDPOINT     — Modal HTTPS URL ending in /mihwar-generate
+#   BAYYINAH_API_TOKEN  — Bayyinah endpoint bearer token
+#   MIHWAR_API_TOKEN    — Mihwar endpoint bearer token
 #
 # Output
 #   On stdout: a status block in the format expected by
@@ -58,14 +59,16 @@ report_presence() {
 echo "=== Modal Runtime Smoke — secrets ==="
 report_presence BAYYINAH_ENDPOINT
 report_presence MIHWAR_ENDPOINT
-report_presence AGENT_API_TOKEN
+report_presence BAYYINAH_API_TOKEN
+report_presence MIHWAR_API_TOKEN
 echo
 
 if [ -z "${BAYYINAH_ENDPOINT:-}" ] || \
    [ -z "${MIHWAR_ENDPOINT:-}" ] || \
-   [ -z "${AGENT_API_TOKEN:-}" ]; then
+   [ -z "${BAYYINAH_API_TOKEN:-}" ] || \
+   [ -z "${MIHWAR_API_TOKEN:-}" ]; then
     echo "[HOLD] one or more secrets are UNSET; aborting before any network call."
-    echo "[HOLD] bind BAYYINAH_ENDPOINT, MIHWAR_ENDPOINT, AGENT_API_TOKEN and re-run."
+    echo "[HOLD] bind BAYYINAH_ENDPOINT, MIHWAR_ENDPOINT, BAYYINAH_API_TOKEN, MIHWAR_API_TOKEN and re-run."
     # Canonical verdict label shared with .github/workflows/modal-runtime-activation.yml.
     # Missing secrets are a HOLD, never a FAIL.
     echo "STATUS=UNVERIFIED_SECRET_MISSING"
@@ -88,7 +91,8 @@ host_of() {
 hit_endpoint() {
     local label="$1"
     local url="$2"
-    local payload="$3"
+    local token="$3"
+    local payload="$4"
     local body_file
     body_file="$(mktemp)"
     local http_code
@@ -98,7 +102,7 @@ hit_endpoint() {
     http_code="$(curl -sS -o "$body_file" -w '%{http_code}' \
         --max-time 60 \
         -X POST "$url" \
-        -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
+        -H "Authorization: Bearer ${token}" \
         -H "Content-Type: application/json" \
         -H "X-Request-Id: smoke-$(date -u +%Y%m%dT%H%M%SZ)" \
         --data "$payload" 2>/dev/null)"
@@ -125,14 +129,14 @@ status=0
 bayyinah_payload='{"code":"def add(a, b):\n    return a + b","context":"smoke ping"}'
 mihwar_payload='{"task":"smoke ping","constraints":"reply OK","max_tokens":16}'
 
-if hit_endpoint "bayyinah" "$BAYYINAH_ENDPOINT" "$bayyinah_payload"; then
+if hit_endpoint "bayyinah" "$BAYYINAH_ENDPOINT" "$BAYYINAH_API_TOKEN" "$bayyinah_payload"; then
     bayyinah_verdict="PASS"
 else
     bayyinah_verdict="FAIL"
     status=1
 fi
 
-if hit_endpoint "mihwar" "$MIHWAR_ENDPOINT" "$mihwar_payload"; then
+if hit_endpoint "mihwar" "$MIHWAR_ENDPOINT" "$MIHWAR_API_TOKEN" "$mihwar_payload"; then
     mihwar_verdict="PASS"
 else
     mihwar_verdict="FAIL"

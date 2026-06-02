@@ -27,11 +27,11 @@ Render Web Service: curlexai-mcp-server
   └── /sse            authenticated MCP tool transport
        ├── Modal API  server-side deployment/log read tools
        └── CurLexAI private agents server-side only
-           ├── MIHWAR_ENDPOINT  configured as a Render secret/env var
-           └── BAYYINAH_ENDPOINT configured as a Render secret/env var
+           ├── MIHWAR_ENDPOINT / MIHWAR_API_TOKEN configured as Render secrets/env vars
+           └── BAYYINAH_ENDPOINT / BAYYINAH_API_TOKEN configured as Render secrets/env vars
 ```
 
-Private agent endpoints stay behind the Render service. Browser, iPhone, frontend code, and public product clients must never receive Modal URLs, Modal tokens, or `AGENT_API_TOKEN` values.
+Private agent endpoints stay behind the Render service. Browser, iPhone, frontend code, and public product clients must never receive Modal URLs, Modal tokens, or endpoint bearer-token values.
 
 ---
 
@@ -42,7 +42,7 @@ Private agent endpoints stay behind the Render service. Browser, iPhone, fronten
 - GitHub repository connected to Render.
 - Modal API token with the minimum scope needed for the read-only Modal tools.
 - CurLexAI private agent endpoints active server-side when agent tools are enabled.
-- CurLexAI agent API token only in Render secret/environment storage when the private agent endpoints require it.
+- CurLexAI endpoint-specific API tokens only in Render secret/environment storage when the private agent endpoints require them.
 
 ### Blueprint-backed service
 
@@ -73,7 +73,8 @@ Set secret values in the Render dashboard or approved secret manager. Do not pri
 | `MODAL_API_BASE_URL` | Modal API origin, normally `https://api.modal.com` | Yes | Not a secret, but keep server-side. |
 | `MIHWAR_ENDPOINT` | Private Mihwar endpoint URL | No | Secret-like private endpoint; Render server-side only. |
 | `BAYYINAH_ENDPOINT` | Private Bayyinah endpoint URL | No | Secret-like private endpoint; Render server-side only. |
-| `AGENT_API_TOKEN` | Token used by private agent endpoints | No | Secret; Render server-side only. |
+| `MIHWAR_API_TOKEN` | Token used by the private Mihwar endpoint | No | Secret; Render server-side only. |
+| `BAYYINAH_API_TOKEN` | Token used by the private Bayyinah endpoint | No | Secret; Render server-side only. |
 | `ENABLE_MUTATING_TOOLS` | Controls disabled mutating tool stubs | No | Keep `false` unless a separate approved change enables writes. |
 | `MODAL_DEPLOYMENT_ALLOWLIST` | Optional comma-separated deployment ID allow-list | No | Treat deployment identifiers as operational metadata. |
 | `MAX_LOG_LINES` | Maximum log lines returned by log tool | No | Use bounded values only. |
@@ -129,7 +130,7 @@ Configure only the Render MCP gateway URL and the MCP bearer token:
 - **URL**: `https://curlexai-mcp-server.onrender.com/sse`
 - **Auth header**: `Bearer <MCP_BEARER_TOKEN>`
 
-The client may see tool names such as `mihwar_generate`, `bayyinah_review`, `modal_list_deployments`, and `modal_get_recent_logs`. The client must not see `MIHWAR_ENDPOINT`, `BAYYINAH_ENDPOINT`, `MODAL_API_TOKEN`, or `AGENT_API_TOKEN` values.
+The client may see tool names such as `mihwar_generate`, `bayyinah_review`, `modal_list_deployments`, and `modal_get_recent_logs`. The client must not see `MIHWAR_ENDPOINT`, `BAYYINAH_ENDPOINT`, `MODAL_API_TOKEN`, `MIHWAR_API_TOKEN`, or `BAYYINAH_API_TOKEN` values.
 
 ---
 
@@ -186,7 +187,7 @@ Mutating tool names are scaffolded but disabled by default. Enabling them requir
 ### Agent tools return errors
 
 - Verify private agent endpoints from a trusted backend shell only.
-- Confirm `AGENT_API_TOKEN` is configured when required.
+- Confirm `MIHWAR_API_TOKEN` and `BAYYINAH_API_TOKEN` are configured when required.
 - Review Render logs only for sanitized status/error codes; do not log endpoint URLs, request bodies, or tokens.
 
 ### BSM health is requested
@@ -211,7 +212,8 @@ export MODAL_API_BASE_URL=https://api.modal.com
 # Optional private endpoints stay local/server-side only:
 # export MIHWAR_ENDPOINT=<server-side-mihwar-endpoint>
 # export BAYYINAH_ENDPOINT=<server-side-bayyinah-endpoint>
-# export AGENT_API_TOKEN=<server-side-agent-token>
+# export MIHWAR_API_TOKEN=<server-side-mihwar-token>
+# export BAYYINAH_API_TOKEN=<server-side-bayyinah-token>
 
 PORT=8787 node dist/server.js
 ```

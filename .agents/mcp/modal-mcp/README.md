@@ -57,7 +57,7 @@ PORT=8787 node dist/server.js
 3. Build command: `npm ci --include=dev && npm run build`
 4. Start command: `node dist/server.js`
 5. Health check path: `/health` (unauthenticated, returns `{ "status": "ok" }`, and must not call Modal or private agents). `/healthz` remains available as a compatibility alias.
-6. Add environment variables from `.env.example` using Render dashboard secrets. Keep `MIHWAR_ENDPOINT`, `BAYYINAH_ENDPOINT`, `MODAL_API_TOKEN`, and `AGENT_API_TOKEN` server-side only.
+6. Add environment variables from `.env.example` using Render dashboard secrets. Keep `MIHWAR_ENDPOINT`, `BAYYINAH_ENDPOINT`, `MODAL_API_TOKEN`, `MIHWAR_API_TOKEN`, and `BAYYINAH_API_TOKEN` server-side only.
 7. Keep `ENABLE_MUTATING_TOOLS=false` unless explicitly approved.
 
 The BSM backend is intentionally external to this service. Do not add product backend routes or public API gateway behavior to `modal-mcp`.

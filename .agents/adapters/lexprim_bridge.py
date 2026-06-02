@@ -7,7 +7,7 @@ LexPrim ↔ swarms Bridge (ADR-0001 Compliant)
 Unidirectional adapter: LexPrim → swarms only.
 
 Translates requests from LexPrim agents (CAO-Claude, CGSA-Gemini, VPE-FORGE)
-to swarms agents (Mihwar, Bayyinah) without adding new services or autoStart flags.
+to swarms agents (Mihwar, Bayyinah) without adding new services or automatic-start flags.
 
 Audit log: Local append-only JSONL file (bridge_audit.jsonl).
 Invocation: CLI (local) → GitHub Actions (automated).
@@ -138,7 +138,7 @@ class LexPrimBridge:
     Constraints (ADR-0001):
     - No new REST endpoints.
     - No bidirectional calls (LexPrim → swarms only).
-    - No autoStart or persistent services.
+    - No automatic-start flags or persistent services.
     - Local audit log only (no Qdrant ingestion).
     """
 
