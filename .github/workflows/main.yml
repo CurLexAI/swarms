@@ -1,0 +1,3 @@
+gh workflow run modal-runtime-activation.yml \
+  --repo CurLexAI/swarms --ref main \
+  -f deploy_modal=true -f run_smoke=true
