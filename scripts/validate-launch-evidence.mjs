@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 
-const evidence = JSON.parse(readFileSync('launch-evidence.json', 'utf8'));
+const evidence = JSON.parse(readFileSync('docs/launch-evidence/launch-evidence.json', 'utf8'));
 const allowedVerdicts = new Set(['READY', 'HOLD', 'REJECT']);
 const requiredPhaseNames = [
   'Governance',
