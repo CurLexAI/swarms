@@ -23,7 +23,8 @@ Usage (stdio):
 Required env:
     MIHWAR_ENDPOINT
     BAYYINAH_ENDPOINT
-    AGENT_API_TOKEN
+    MIHWAR_API_TOKEN
+    BAYYINAH_API_TOKEN
 
 Optional Aegis env:
     AEGIS_MCP_ROLE     default caller role (default: operator)
@@ -205,12 +206,22 @@ def _filter_birds(pool: list[dict[str, Any]], focus: list[str]) -> list[dict[str
     return selected or pool
 
 
-def _endpoint_for(tool_name: str) -> tuple[str, str]:
+def _endpoint_and_token_for(tool_name: str) -> tuple[str, str, str, str]:
     if tool_name in ("mihwar_generate", "free_birds_design"):
-        return os.environ.get("MIHWAR_ENDPOINT", ""), "MIHWAR_ENDPOINT"
+        return (
+            os.environ.get("MIHWAR_ENDPOINT", ""),
+            "MIHWAR_ENDPOINT",
+            os.environ.get("MIHWAR_API_TOKEN", ""),
+            "MIHWAR_API_TOKEN",
+        )
     if tool_name in ("bayyinah_review", "free_birds_review"):
-        return os.environ.get("BAYYINAH_ENDPOINT", ""), "BAYYINAH_ENDPOINT"
-    return "", ""
+        return (
+            os.environ.get("BAYYINAH_ENDPOINT", ""),
+            "BAYYINAH_ENDPOINT",
+            os.environ.get("BAYYINAH_API_TOKEN", ""),
+            "BAYYINAH_API_TOKEN",
+        )
+    return "", "", "", ""
 
 
 def _enrich_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -236,12 +247,11 @@ def _enrich_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, An
 
 
 def _call_modal(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    endpoint, env_name = _endpoint_for(tool_name)
-    token = os.environ.get("AGENT_API_TOKEN", "")
+    endpoint, endpoint_env_name, token, token_env_name = _endpoint_and_token_for(tool_name)
     if not endpoint:
-        raise RuntimeError(f"{env_name} is not configured.")
+        raise RuntimeError(f"{endpoint_env_name} is not configured.")
     if not token:
-        raise RuntimeError("AGENT_API_TOKEN is not configured.")
+        raise RuntimeError(f"{token_env_name} is not configured.")
 
     enriched = _enrich_arguments(tool_name, dict(arguments))
     # Modal endpoints in .agents/modal_app.py authenticate via Authorization:

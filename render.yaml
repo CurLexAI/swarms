@@ -29,7 +29,9 @@ services:
         sync: false
       - key: BAYYINAH_ENDPOINT
         sync: false
-      - key: AGENT_API_TOKEN
+      - key: MIHWAR_API_TOKEN
+        sync: false
+      - key: BAYYINAH_API_TOKEN
         sync: false
       - key: NODE_ENV
         value: production

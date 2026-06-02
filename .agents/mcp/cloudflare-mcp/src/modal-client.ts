@@ -19,7 +19,8 @@ export type Result<T> = AgentResult<T> | AgentError;
 interface ModalClientConfig {
   mihwarEndpoint: string;
   bayyinahEndpoint: string;
-  agentApiToken: string;
+  mihwarApiToken: string;
+  bayyinahApiToken: string;
 }
 
 function agentError(message: string): AgentError {
@@ -64,7 +65,7 @@ export function mihwarGenerate(
 ): Promise<Result<{ output: string }>> {
   return postAgent<{ output: string }>(
     config.mihwarEndpoint,
-    config.agentApiToken,
+    config.mihwarApiToken,
     { task, code, context },
   );
 }
@@ -76,7 +77,7 @@ export function bayyinahReview(
 ): Promise<Result<{ output: string }>> {
   return postAgent<{ output: string }>(
     config.bayyinahEndpoint,
-    config.agentApiToken,
+    config.bayyinahApiToken,
     { code, context },
   );
 }

@@ -68,7 +68,7 @@ run_required_check "Node full tests" "npm test"
 
 echo "=== SECRET STATE (presence only) ==="
 missing_runtime_secret=0
-for secret_name in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT AGENT_API_TOKEN MODAL_TOKEN_ID MODAL_TOKEN_SECRET; do
+for secret_name in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN MODAL_TOKEN_ID MODAL_TOKEN_SECRET; do
   if ! require_env "$secret_name"; then
     missing_runtime_secret=1
   fi

@@ -42,7 +42,8 @@ SMOKE = COMMANDER / "modal-runtime-smoke.sh"
 _SECRET_VARS = (
     "BAYYINAH_ENDPOINT",
     "MIHWAR_ENDPOINT",
-    "AGENT_API_TOKEN",
+    "BAYYINAH_API_TOKEN",
+    "MIHWAR_API_TOKEN",
     "MODAL_TOKEN_ID",
     "MODAL_TOKEN_SECRET",
 )
@@ -118,7 +119,8 @@ class ModalSmokeTests(unittest.TestCase):
             env = _env_without_secrets()
             env["BAYYINAH_ENDPOINT"] = url
             env["MIHWAR_ENDPOINT"] = url
-            env["AGENT_API_TOKEN"] = "test-token-not-a-secret"  # noqa: S105 - dummy
+            env["BAYYINAH_API_TOKEN"] = "test-bayyinah-token"  # noqa: S105 - dummy
+            env["MIHWAR_API_TOKEN"] = "test-mihwar-token"  # noqa: S105 - dummy
             result = _run(["bash", str(SMOKE)], env)
         finally:
             server.shutdown()

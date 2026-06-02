@@ -25,9 +25,10 @@ So if Bayyinah is `APPROVE` or a skip path is taken, Mihwar is expected to skip.
 The workflow requires these secrets for live inference path:
 - `BAYYINAH_ENDPOINT`
 - `MIHWAR_ENDPOINT`
-- `AGENT_API_TOKEN`
+- `BAYYINAH_API_TOKEN`
+- `MIHWAR_API_TOKEN`
 
-If missing, workflow intentionally reports UNVERIFIED behavior and skips remote calls.
+If missing, workflows intentionally report UNVERIFIED behavior and skip remote calls. Configure these as an operator follow-up after merge; a documentation PR cannot prove GitHub Secrets were added.
 
 ## Fast verification commands
 

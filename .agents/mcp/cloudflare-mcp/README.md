@@ -69,7 +69,8 @@ npx wrangler secret put GITHUB_CLIENT_SECRET
 npx wrangler secret put COOKIE_ENCRYPTION_KEY
 npx wrangler secret put MIHWAR_ENDPOINT
 npx wrangler secret put BAYYINAH_ENDPOINT
-npx wrangler secret put AGENT_API_TOKEN
+npx wrangler secret put MIHWAR_API_TOKEN
+npx wrangler secret put BAYYINAH_API_TOKEN
 ```
 
 ### 3. Create KV namespace

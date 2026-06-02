@@ -28,7 +28,8 @@ export class AgentMCP extends McpAgent<Env, {}, Props> {
     return {
       mihwarEndpoint: this.env.MIHWAR_ENDPOINT ?? "",
       bayyinahEndpoint: this.env.BAYYINAH_ENDPOINT ?? "",
-      agentApiToken: this.env.AGENT_API_TOKEN ?? "",
+      mihwarApiToken: this.env.MIHWAR_API_TOKEN ?? "",
+      bayyinahApiToken: this.env.BAYYINAH_API_TOKEN ?? "",
     };
   }
 

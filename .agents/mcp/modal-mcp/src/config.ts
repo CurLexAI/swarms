@@ -10,7 +10,8 @@ export interface Config {
   maxLogLines: number;
   mihwarEndpoint: string | undefined;
   bayyinahEndpoint: string | undefined;
-  agentApiToken: string | undefined;
+  mihwarApiToken: string | undefined;
+  bayyinahApiToken: string | undefined;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): Result<Config, string> {
@@ -41,7 +42,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): Result<Config, string> {
       maxLogLines: max,
       mihwarEndpoint: env.MIHWAR_ENDPOINT,
       bayyinahEndpoint: env.BAYYINAH_ENDPOINT,
-      agentApiToken: env.AGENT_API_TOKEN
+      mihwarApiToken: env.MIHWAR_API_TOKEN,
+      bayyinahApiToken: env.BAYYINAH_API_TOKEN
     }
   };
 }
