@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Licensed under MIT
-"""Fail-closed secrets manifest validator (names only — never values).
+"""Fail-closed secrets manifest validator (redacted output — never values or names).
 
 Reads ``docs/launch-evidence/secrets-manifest.json`` and reports each declared
 secret as SET or UNSET using **key membership only** (``name in os.environ``).
-It never reads, prints, logs, or returns a secret value, length, or prefix.
+To avoid logging anything that pattern-matches a secret, the output identifies
+each secret by a stable redacted id (``entry-NN``, its 1-based manifest order),
+never by name and never by value, length, or prefix. Map ids back to names via
+``docs/launch-evidence/secrets-manifest.json``.
 
 Exit codes:
     0  -> all secrets required for the requested phase are SET
@@ -55,44 +58,52 @@ def is_enforced(entry: dict[str, object], phase: str | None, enforce_all: bool) 
     return enforce_all or phase is None or phase == str(entry.get("phase", ""))
 
 
-def format_row(name: str, state: str, entry: dict[str, object]) -> str:
-    """Render a single presence row from a constant state literal and the name.
+def format_row(entry_id: str, state: str, entry: dict[str, object]) -> str:
+    """Render a presence row from a redacted id and a constant state literal.
 
-    Only the manifest-sourced ``name`` and a caller-chosen constant ``state``
-    ("SET"/"UNSET") are formatted. No environment-derived value is passed in,
-    so nothing secret-derived can reach the output.
+    Only the redacted ``entry_id``, a constant ``state`` ("SET"/"UNSET"), and
+    the non-sensitive ``required``/``phase`` metadata are formatted. The secret
+    name is never included, so nothing pattern-matching a secret can be logged.
     """
     flag = "required" if bool(entry.get("required", False)) else "optional"
-    return f"  {state:5s}  {name:24s} [{flag}, phase={entry.get('phase', '')}]"
+    return f"  {state:5s}  {entry_id:12s} [{flag}, phase={entry.get('phase', '')}]"
+
+
+def evaluate_entry(
+    entry_id: str, entry: dict[str, object], phase: str | None, enforce_all: bool
+) -> str | None:
+    """Print one presence row; return the redacted id if UNSET and enforced.
+
+    Presence is determined by key membership (``name in os.environ``) used
+    purely as a control-flow condition; the name is read from the manifest but
+    is never printed or returned.
+    """
+    name = str(entry.get("name", ""))
+    if not name:
+        return None
+    if name in os.environ:  # membership only; the value is never read
+        print(format_row(entry_id, "SET", entry))
+        return None
+    print(format_row(entry_id, "UNSET", entry))
+    return entry_id if is_enforced(entry, phase, enforce_all) else None
 
 
 def collect_missing(
     secrets: list[dict[str, object]], phase: str | None, enforce_all: bool
 ) -> list[str]:
-    """Print presence rows and return the names of UNSET enforced secrets.
-
-    Presence is determined by key membership (``name in os.environ``) used
-    purely as a control-flow condition. The printed rows carry only constant
-    "SET"/"UNSET" literals and the manifest-sourced name, never any value.
-    """
+    """Print presence rows and return the redacted ids of UNSET enforced secrets."""
+    print("SECRET PRESENCE (redacted ids; names in docs/launch-evidence/secrets-manifest.json):")
     missing: list[str] = []
-    print("SECRET PRESENCE (names only — values never read):")
-    for entry in secrets:
-        name = str(entry.get("name", ""))
-        if not name:
-            continue
-        if name in os.environ:  # membership only; the value is never read
-            print(format_row(name, "SET", entry))
-        else:
-            print(format_row(name, "UNSET", entry))
-            if is_enforced(entry, phase, enforce_all):
-                missing.append(name)
+    for index, entry in enumerate(secrets, start=1):
+        flagged = evaluate_entry(f"entry-{index:02d}", entry, phase, enforce_all)
+        if flagged is not None:
+            missing.append(flagged)
     return missing
 
 
 def main() -> int:
     """Run the fail-closed presence check."""
-    parser = argparse.ArgumentParser(description="Validate secret presence (names only).")
+    parser = argparse.ArgumentParser(description="Validate secret presence (redacted ids only).")
     parser.add_argument("--phase", default=None, help="Only enforce this phase.")
     parser.add_argument("--all", action="store_true", help="Enforce all required secrets.")
     args = parser.parse_args()
@@ -104,7 +115,7 @@ def main() -> int:
     if missing:
         scope = args.phase if (args.phase and not args.all) else "all phases"
         print(f"[FAIL] {len(missing)} required secret(s) UNSET for {scope}: "
-              f"{', '.join(sorted(missing))}")
+              f"{', '.join(missing)}")
         print("[RESULT] FAIL (fail-closed)")
         return 1
 

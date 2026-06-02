@@ -2,8 +2,10 @@
 
 This manifest lists the **names** of secrets the launch ladder requires, grouped by
 the phase that first needs them. It contains **no values**. Validation is performed
-by `scripts/check-secrets-manifest.py`, which reports each name as `SET`/`UNSET` from
-the process environment and **fails closed** when a required secret is absent.
+by `scripts/check-secrets-manifest.py`, which reports each entry by a redacted id
+(`entry-NN`, its 1-based order in this manifest) as `SET`/`UNSET` from the process
+environment — never printing the secret name itself — and **fails closed** when a
+required secret is absent. Map `entry-NN` back to a name via the order below.
 
 > Source of truth for names: `docs/launch-evidence/secrets-manifest.json`.
 > Rotation posture and storage rules: `docs/secrets-policy.md`.
