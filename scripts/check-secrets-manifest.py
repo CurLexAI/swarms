@@ -55,9 +55,13 @@ def is_enforced(entry: dict[str, object], phase: str | None, enforce_all: bool) 
     return enforce_all or phase is None or phase == str(entry.get("phase", ""))
 
 
-def format_row(name: str, present: bool, entry: dict[str, object]) -> str:
-    """Render a single presence row (SET/UNSET only — no value)."""
-    state = "SET" if present else "UNSET"
+def format_row(name: str, state: str, entry: dict[str, object]) -> str:
+    """Render a single presence row from a constant state literal and the name.
+
+    Only the manifest-sourced ``name`` and a caller-chosen constant ``state``
+    ("SET"/"UNSET") are formatted. No environment-derived value is passed in,
+    so nothing secret-derived can reach the output.
+    """
     flag = "required" if bool(entry.get("required", False)) else "optional"
     return f"  {state:5s}  {name:24s} [{flag}, phase={entry.get('phase', '')}]"
 
@@ -65,17 +69,24 @@ def format_row(name: str, present: bool, entry: dict[str, object]) -> str:
 def collect_missing(
     secrets: list[dict[str, object]], phase: str | None, enforce_all: bool
 ) -> list[str]:
-    """Print presence rows and return the names of UNSET enforced secrets."""
+    """Print presence rows and return the names of UNSET enforced secrets.
+
+    Presence is determined by key membership (``name in os.environ``) used
+    purely as a control-flow condition. The printed rows carry only constant
+    "SET"/"UNSET" literals and the manifest-sourced name, never any value.
+    """
     missing: list[str] = []
     print("SECRET PRESENCE (names only — values never read):")
     for entry in secrets:
         name = str(entry.get("name", ""))
         if not name:
             continue
-        present = name in os.environ  # key membership only; value is never read
-        print(format_row(name, present, entry))
-        if is_enforced(entry, phase, enforce_all) and not present:
-            missing.append(name)
+        if name in os.environ:  # membership only; the value is never read
+            print(format_row(name, "SET", entry))
+        else:
+            print(format_row(name, "UNSET", entry))
+            if is_enforced(entry, phase, enforce_all):
+                missing.append(name)
     return missing
 
 
