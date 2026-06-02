@@ -13,6 +13,8 @@ from typing import Any
 
 import anyio
 import pytest
+
+pytest.importorskip("fastapi")
 from fastapi import HTTPException
 
 
