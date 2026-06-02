@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "repository": "CurLexAI/swarms",
+  "generated_utc": "2026-06-02T00:00:00Z",
+  "production_principle": "verification before activation",
+  "final_verdict": "HOLD",
+  "no_auto_deploy_rule": true,
+  "phases": [
+    {
+      "order": 1,
+      "name": "Governance",
+      "status": "VERIFIED",
+      "evidence": [
+        "LAUNCH-GOVERNANCE.md"
+      ],
+      "blockers": []
+    },
+    {
+      "order": 2,
+      "name": "Secrets",
+      "status": "VERIFIED_NAME_MANIFEST_ONLY",
+      "evidence": [
+        "docs/secrets-manifest.md"
+      ],
+      "blockers": [
+        "SECRET_VALUES_NOT_INSPECTED"
+      ]
+    },
+    {
+      "order": 3,
+      "name": "Local gates",
+      "status": "VERIFIED_WITH_WARNINGS",
+      "evidence": [
+        "LAUNCH-READINESS.md#exact-local-validation-command-list",
+        "command_log_summary"
+      ],
+      "blockers": [
+        "LIVE_RUNTIME_SECRETS_NOT_PRESENT_IN_LOCAL_ENVIRONMENT"
+      ]
+    },
+    {
+      "order": 4,
+      "name": "Modal deploy",
+      "status": "HOLD",
+      "evidence": [
+        ".github/workflows/modal-runtime-activation.yml"
+      ],
+      "blockers": [
+        "PRODUCTION_APPROVAL_REQUIRED",
+        "DEPLOY_NOT_EXECUTED"
+      ]
+    },
+    {
+      "order": 5,
+      "name": "Modal CLI smoke",
+      "status": "HOLD",
+      "evidence": [],
+      "blockers": [
+        "APPROVED_DEPLOY_REQUIRED"
+      ]
+    },
+    {
+      "order": 6,
+      "name": "Endpoint smoke",
+      "status": "HOLD",
+      "evidence": [],
+      "blockers": [
+        "ENDPOINT_SMOKE_NOT_EXECUTED"
+      ]
+    },
+    {
+      "order": 7,
+      "name": "Bayyinah PR gate",
+      "status": "HOLD",
+      "evidence": [
+        ".github/workflows/agent-review.yml"
+      ],
+      "blockers": [
+        "BLOCKING_BEHAVIOR_NOT_LIVE_VERIFIED",
+        "BRANCH_PROTECTION_NOT_VERIFIED"
+      ]
+    },
+    {
+      "order": 8,
+      "name": "Control boundary",
+      "status": "HOLD",
+      "evidence": [],
+      "blockers": [
+        "CONTROL_BOUNDARY_NOT_RUNTIME_VERIFIED"
+      ]
+    },
+    {
+      "order": 9,
+      "name": "Device/connectivity pilot",
+      "status": "HOLD",
+      "evidence": [],
+      "blockers": [
+        "PILOT_NOT_EXECUTED"
+      ]
+    },
+    {
+      "order": 10,
+      "name": "Limited live",
+      "status": "HOLD",
+      "evidence": [],
+      "blockers": [
+        "PREVIOUS_GATES_NOT_ALL_VERIFIED"
+      ]
+    },
+    {
+      "order": 11,
+      "name": "Full live",
+      "status": "HOLD",
+      "evidence": [],
+      "blockers": [
+        "PREVIOUS_GATES_NOT_ALL_VERIFIED",
+        "CRITICAL_HIGH_BLOCKERS_REMAIN"
+      ]
+    }
+  ],
+  "required_secret_names": [
+    "MODAL_TOKEN_ID",
+    "MODAL_TOKEN_SECRET",
+    "HF_TOKEN",
+    "MIHWAR_MODEL_REVISION",
+    "BAYYINAH_MODEL_REVISION",
+    "MIHWAR_REMOTE_CODE_ACK",
+    "BAYYINAH_REMOTE_CODE_ACK",
+    "BAYYINAH_ENDPOINT",
+    "MIHWAR_ENDPOINT",
+    "BAYYINAH_API_TOKEN",
+    "MIHWAR_API_TOKEN",
+    "GITHUB_TOKEN",
+    "MIHWAR_HMAC_SECRET",
+    "QARAR_RAG_HMAC_SECRET",
+    "MCP_BEARER_TOKEN",
+    "SMOKE_TEST_TOKEN"
+  ],
+  "command_log_summary": [
+    {
+      "command": "npm ci",
+      "result": "PASS",
+      "notes": "Installed from package-lock; non-blocking npm http-proxy warning."
+    },
+    {
+      "command": "npm run check --if-present",
+      "result": "PASS",
+      "notes": "Aggregate local check passed."
+    },
+    {
+      "command": "npm run test --if-present",
+      "result": "PASS",
+      "notes": "30 Node tests passed."
+    },
+    {
+      "command": "npm run build --if-present",
+      "result": "PASS",
+      "notes": "TypeScript build completed; generated JS artifacts not committed."
+    },
+    {
+      "command": "python3 -m py_compile .agents/*.py",
+      "result": "PASS",
+      "notes": "Python agent files compiled."
+    },
+    {
+      "command": "python3 .agents/validate.py",
+      "result": "PASS",
+      "notes": "Required agent files validated."
+    },
+    {
+      "command": "bash scripts/commander/agent-presence-gate.sh .",
+      "result": "PASS_WITH_WARNINGS",
+      "notes": "Agent registry parsed; runtime endpoint secrets absent in local environment."
+    },
+    {
+      "command": "python3 .agents/invoke.py info",
+      "result": "PASS",
+      "notes": "Configured agents listed."
+    },
+    {
+      "command": "python3 scripts/security/static_audit.py .",
+      "result": "PASS",
+      "notes": "No obvious secrets found."
+    },
+    {
+      "command": "npm run deploy:evidence:validate --if-present",
+      "result": "PASS",
+      "notes": "Evidence schema and HOLD verdict validated."
+    }
+  ],
+  "blockers_by_severity": {
+    "CRITICAL": [
+      "Limited live and full live are blocked until every prior gate is verified."
+    ],
+    "HIGH": [
+      "Required secret presence is not verified in approved secret stores.",
+      "Modal deploy is not approved or executed.",
+      "Modal CLI smoke is not executed.",
+      "Endpoint smoke is not executed.",
+      "Bayyinah PR gate blocking behavior is not live verified.",
+      "Control boundary is not runtime verified.",
+      "Device/connectivity pilot is not executed."
+    ],
+    "MEDIUM": [
+      "Node integration tests may require backend endpoint environment variables."
+    ],
+    "LOW": [
+      "Some requested discovery targets are absent from the current repository layout."
+    ]
+  }
+}

@@ -6,22 +6,6 @@ on:
         description: "Type ACTIVATE to deploy Modal and run endpoint smoke"
         required: true
         type: string
-  push:
-    branches:
-      - main
-    paths:
-      - ".agents/modal_app.py"
-      - ".agents/pr_review.py"
-      - ".agents/providers/**"
-      - ".agents/mcp/**"
-      - ".github/workflows/modal-runtime-auto-activation.yml"
-      - ".github/workflows/modal-runtime-activation.yml"
-      - "scripts/commander/**"
-      - "tests/test_modal_endpoint_token_contract.py"
-      - "tests/test_modal_boundary_gate.py"
-  schedule:
-    # Daily endpoint health verification (smoke only, never deploys).
-    - cron: "23 6 * * *"
 permissions:
   contents: read
   actions: read
@@ -32,6 +16,7 @@ jobs:
   preflight:
     name: activation-preflight
     runs-on: ubuntu-latest
+    environment: production
     outputs:
       preflight_status: ${{ steps.preflight_result.outputs.status }}
     steps:
@@ -80,16 +65,13 @@ jobs:
         run: echo "status=PASS" >> "$GITHUB_OUTPUT"
 
   smoke:
-    # Automatic endpoint health verification for push and scheduled runs.
-    # This job never deploys Modal (deploy_modal stays false on these events)
-    # and is intentionally NOT pinned to the protected `production` environment,
-    # so verification runs unattended. It only reads the endpoint smoke secrets.
+    # Manual endpoint health verification only. Production approval is required
+    # before reading endpoint smoke secrets or invoking Modal runtime paths.
     name: endpoint-smoke-verification
     needs: preflight
-    if: |
-      needs.preflight.outputs.preflight_status == 'PASS' &&
-      (github.event_name == 'push' || github.event_name == 'schedule')
+    if: needs.preflight.outputs.preflight_status == 'PASS'
     runs-on: ubuntu-latest
+    environment: production
     timeout-minutes: 30
     steps:
       - name: Mask runtime secrets
