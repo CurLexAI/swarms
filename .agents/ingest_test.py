@@ -25,7 +25,8 @@ Required Modal secrets:
     qdrant-infra-secret  → QDRANT_INTERNAL_URL   (Modal-sovereign Qdrant URL)
                            QDRANT_API_KEY         (required unless break-glass
                                                    ALLOW_UNAUTHENTICATED_QDRANT=true)
-    agent-api-secret     → AGENT_API_TOKEN        (shared Bearer auth, same as curlexai-agents)
+    agent-api-secret     → RAG_INGEST_API_TOKEN   (pdpl-ingest endpoint Bearer auth)
+                         → RAG_VERIFY_API_TOKEN   (pdpl-verify endpoint Bearer auth)
 
 Smoke test (requires Modal auth):
     modal run .agents/ingest_test.py
@@ -125,10 +126,19 @@ def _qdrant_client():  # type: ignore[return]  # qdrant_client not available at 
     return QdrantClient(url=url, api_key=api_key)
 
 
-def _verify_bearer_token(authorization: Optional[str]) -> None:
-    expected = os.environ.get("AGENT_API_TOKEN", "")
+def _verify_bearer_token(authorization: Optional[str], *, token_env: str) -> None:
+    """Verify an endpoint-specific bearer token from the Modal secret store.
+
+    Args:
+        authorization: Raw ``Authorization`` header value supplied by FastAPI.
+        token_env: Environment variable name containing this endpoint's token.
+
+    Raises:
+        HTTPException: Raised when the token is missing, malformed, or invalid.
+    """
+    expected = os.environ.get(token_env, "")
     if not expected:
-        raise HTTPException(status_code=503, detail="agent_api_token_missing")
+        raise HTTPException(status_code=503, detail=f"{token_env.lower()}_missing")
     if not authorization:
         raise HTTPException(status_code=401, detail="missing_authorization")
     # HTTP auth scheme is case-insensitive (RFC 7235) — matches modal_app.py pattern
@@ -249,7 +259,7 @@ def ingest_web(
     authorization: str | None = Header(default=None),
     payload: dict = Body(default={}),
 ) -> dict:
-    _verify_bearer_token(authorization)
+    _verify_bearer_token(authorization, token_env="RAG_INGEST_API_TOKEN")
     ingestor = PDPLIngestor()
     return ingestor.ingest.remote()
 
@@ -265,7 +275,7 @@ def verify_web(
     authorization: str | None = Header(default=None),
     payload: dict = Body(default={}),
 ) -> dict:
-    _verify_bearer_token(authorization)
+    _verify_bearer_token(authorization, token_env="RAG_VERIFY_API_TOKEN")
     query: str = payload.get("query", "نقل البيانات الشخصية")
     if not isinstance(query, str) or not query.strip():
         raise HTTPException(status_code=400, detail="'query' must be a non-empty string")
