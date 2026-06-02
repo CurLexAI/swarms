@@ -4,8 +4,8 @@
 """Fail-closed secrets manifest validator (names only — never values).
 
 Reads ``docs/launch-evidence/secrets-manifest.json`` and reports each declared
-secret as SET or UNSET by inspecting the process environment. It NEVER prints,
-logs, or returns a secret value, length, or prefix.
+secret as SET or UNSET using **key membership only** (``name in os.environ``).
+It never reads, prints, logs, or returns a secret value, length, or prefix.
 
 Exit codes:
     0  -> all secrets required for the requested phase are SET
@@ -18,8 +18,7 @@ Usage:
     --phase PHASE   Only enforce secrets whose "phase" matches PHASE
                     (others are reported but not enforced).
     --all           Enforce every required secret regardless of phase.
-With no flag, every required secret is reported but the gate enforces only
-those marked required (equivalent to --all).
+With no flag, every required secret is enforced (equivalent to --all).
 """
 from __future__ import annotations
 
@@ -49,6 +48,37 @@ def load_manifest() -> list[dict[str, object]]:
     return secrets
 
 
+def is_enforced(entry: dict[str, object], phase: str | None, enforce_all: bool) -> bool:
+    """Return True when this required secret is in scope for enforcement."""
+    if not bool(entry.get("required", False)):
+        return False
+    return enforce_all or phase is None or phase == str(entry.get("phase", ""))
+
+
+def format_row(name: str, present: bool, entry: dict[str, object]) -> str:
+    """Render a single presence row (SET/UNSET only — no value)."""
+    state = "SET" if present else "UNSET"
+    flag = "required" if bool(entry.get("required", False)) else "optional"
+    return f"  {state:5s}  {name:24s} [{flag}, phase={entry.get('phase', '')}]"
+
+
+def collect_missing(
+    secrets: list[dict[str, object]], phase: str | None, enforce_all: bool
+) -> list[str]:
+    """Print presence rows and return the names of UNSET enforced secrets."""
+    missing: list[str] = []
+    print("SECRET PRESENCE (names only — values never read):")
+    for entry in secrets:
+        name = str(entry.get("name", ""))
+        if not name:
+            continue
+        present = name in os.environ  # key membership only; value is never read
+        print(format_row(name, present, entry))
+        if is_enforced(entry, phase, enforce_all) and not present:
+            missing.append(name)
+    return missing
+
+
 def main() -> int:
     """Run the fail-closed presence check."""
     parser = argparse.ArgumentParser(description="Validate secret presence (names only).")
@@ -57,29 +87,13 @@ def main() -> int:
     args = parser.parse_args()
 
     secrets = load_manifest()
-    missing_required: list[str] = []
-
-    print("SECRET PRESENCE (names only — values never read):")
-    for entry in secrets:
-        name = str(entry.get("name", ""))
-        if not name:
-            continue
-        required = bool(entry.get("required", False))
-        phase = str(entry.get("phase", ""))
-        present = name in os.environ and os.environ[name] != ""
-        state = "SET" if present else "UNSET"
-        flag = "required" if required else "optional"
-        print(f"  {state:5s}  {name:24s} [{flag}, phase={phase}]")
-
-        enforce = required and (args.all or args.phase is None or args.phase == phase)
-        if enforce and not present:
-            missing_required.append(name)
+    missing = collect_missing(secrets, args.phase, args.all)
 
     print("-" * 60)
-    if missing_required:
+    if missing:
         scope = args.phase if (args.phase and not args.all) else "all phases"
-        print(f"[FAIL] {len(missing_required)} required secret(s) UNSET for {scope}: "
-              f"{', '.join(sorted(missing_required))}")
+        print(f"[FAIL] {len(missing)} required secret(s) UNSET for {scope}: "
+              f"{', '.join(sorted(missing))}")
         print("[RESULT] FAIL (fail-closed)")
         return 1
 
