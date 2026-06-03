@@ -16,7 +16,8 @@ Guarantees locked in here:
    verdict — never a false ``FAIL``. (Both gate scripts previously contained a
    botched-merge ``PYTHON_BIN`` fragment that crashed the Python interpreter and
    failed the activation job regardless of secrets.)
-2. A successful endpoint smoke yields ``VERIFIED_ENDPOINT_SMOKE``.
+2. A successful endpoint smoke yields
+   ``VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION``.
 
 No real secrets are used; the success path is exercised against a localhost
 mock HTTP server.
@@ -69,9 +70,22 @@ def _run(cmd: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[str
 
 
 class _OkHandler(BaseHTTPRequestHandler):
-    """Minimal handler that answers any POST with a 200 JSON body."""
+    """Minimal handler that authorizes endpoint-specific smoke tokens."""
 
     def do_POST(self) -> None:  # noqa: N802 - http.server dispatch name
+        expected = {
+            "/bayyinah": "Bearer test-bayyinah-token",
+            "/mihwar": "Bearer test-mihwar-token",
+        }.get(self.path)
+        if self.headers.get("Authorization") != expected:
+            body = json.dumps({"error": "unauthorized"}).encode("utf-8")
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         body = json.dumps({"ok": True}).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -115,10 +129,9 @@ class ModalSmokeTests(unittest.TestCase):
         thread.start()
         try:
             port = int(server.server_address[1])
-            url = f"http://127.0.0.1:{port}/smoke"
             env = _env_without_secrets()
-            env["BAYYINAH_ENDPOINT"] = url
-            env["MIHWAR_ENDPOINT"] = url
+            env["BAYYINAH_ENDPOINT"] = f"http://127.0.0.1:{port}/bayyinah"
+            env["MIHWAR_ENDPOINT"] = f"http://127.0.0.1:{port}/mihwar"
             env["BAYYINAH_API_TOKEN"] = "test-bayyinah-token"  # noqa: S105 - dummy
             env["MIHWAR_API_TOKEN"] = "test-mihwar-token"  # noqa: S105 - dummy
             result = _run(["bash", str(SMOKE)], env)
@@ -128,7 +141,20 @@ class ModalSmokeTests(unittest.TestCase):
             thread.join(timeout=5)
         detail = result.stdout + result.stderr
         self.assertEqual(result.returncode, 0, detail)
-        self.assertIn("STATUS=VERIFIED_ENDPOINT_SMOKE", result.stdout)
+        self.assertIn("STATUS=VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION", result.stdout)
+
+    def test_blocks_shared_endpoint_token_before_network_call(self) -> None:
+        env = _env_without_secrets()
+        env["BAYYINAH_ENDPOINT"] = "http://127.0.0.1:9/bayyinah"
+        env["MIHWAR_ENDPOINT"] = "http://127.0.0.1:9/mihwar"
+        env["BAYYINAH_API_TOKEN"] = "shared-test-token"  # noqa: S105 - dummy
+        env["MIHWAR_API_TOKEN"] = "shared-test-token"  # noqa: S105 - dummy
+
+        result = _run(["bash", str(SMOKE)], env)
+
+        detail = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 5, detail)
+        self.assertIn("STATUS=BLOCKED_SHARED_ENDPOINT_TOKEN", result.stdout)
 
 
 if __name__ == "__main__":

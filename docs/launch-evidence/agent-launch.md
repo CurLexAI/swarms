@@ -84,10 +84,11 @@ Exit codes:
 
 | Exit | Meaning |
 |------|---------|
-| `0`  | `READY` — both endpoints answered 2xx with JSON-shaped bodies |
+| `0`  | `READY` — both endpoints answered 2xx with JSON-shaped bodies and rejected cross-token auth |
 | `2`  | `HOLD` — one or more secrets `UNSET`; nothing was contacted |
 | `3`  | `BLOCK` — at least one endpoint failed (auth, timeout, non-2xx) |
 | `4`  | `ERROR` — runtime prerequisite missing (`curl`) |
+| `5`  | `BLOCK` — endpoint tokens are equal or an endpoint accepted the other endpoint's token |
 
 ### Evidence rows
 
@@ -95,7 +96,7 @@ Fill the table below from a successful (`exit 0`) run. Copy the script's
 own `host=` and `http_code=` lines verbatim. Do NOT paste the response
 body, the request id, or any header value.
 Canonical smoke procedure: manually dispatch `Modal Runtime Activation`
-(`.github/workflows/modal-runtime-activation.yml`) with endpoint smoke enabled. Do not reference or run any other smoke workflow unless repository discovery confirms it is the intended active workflow for that run. A successful endpoint smoke returns `VERIFIED_ENDPOINT_SMOKE`, uses `BAYYINAH_API_TOKEN` for Bayyinah and `MIHWAR_API_TOKEN` for Mihwar, shows no `*.modal.run` string in any log line, and records no response bodies. Record the run URL + UTC timestamp in the Evidence column and flip the verdict to `VERIFIED` only after that successful smoke evidence exists.
+(`.github/workflows/modal-runtime-activation.yml`) with endpoint smoke enabled. Do not reference or run any other smoke workflow unless repository discovery confirms it is the intended active workflow for that run. A successful endpoint smoke returns `VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION`, uses `BAYYINAH_API_TOKEN` for Bayyinah and `MIHWAR_API_TOKEN` for Mihwar, rejects each endpoint's opposite token, shows no `*.modal.run` string in any log line, and records no response bodies. Record the run URL + UTC timestamp in the Evidence column and flip the verdict to `VERIFIED` only after that successful smoke evidence exists.
 
 | Agent      | Endpoint reachable | Verdict roundtrip | Evidence |
 |------------|--------------------|-------------------|----------|
@@ -121,8 +122,9 @@ commit that resolves it. Do not delete rows; mark them `RESOLVED`.
 |-------------------|-------------|-------------|
 | AUTH_MISSING      | NOT_APPLICABLE — no auth-gated local path failed | N/A |
 | CONFIG_NOT_FOUND  | NOT_APPLICABLE — loadRegistry resolves .agents/config/agents.yaml successfully | N/A |
-| SECRET_MISSING    | BAYYINAH_ENDPOINT, MIHWAR_ENDPOINT, BAYYINAH_API_TOKEN, MIHWAR_API_TOKEN not set; expected outside CI/runtime | Awaiting operator follow-up to configure deployment secrets and run `.github/workflows/modal-runtime-activation.yml` with smoke enabled; launch evidence remains UNVERIFIED until `VERIFIED_ENDPOINT_SMOKE` is observed |
-| TEST_FAILURE      | RESOLVED — all 171 Python + 98 Node tests pass at HEAD 57017b3 | This commit |
+| SECRET_MISSING    | BAYYINAH_ENDPOINT, MIHWAR_ENDPOINT, BAYYINAH_API_TOKEN, MIHWAR_API_TOKEN not set; expected outside CI/runtime | Awaiting operator follow-up to configure deployment secrets and run `.github/workflows/modal-runtime-activation.yml` with smoke enabled; launch evidence remains UNVERIFIED until `VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION` is observed |
+| SHARED_TOKEN      | BAYYINAH_API_TOKEN equals MIHWAR_API_TOKEN, or a live endpoint accepts the other endpoint's token | Provision distinct endpoint tokens and re-run smoke; `BLOCKED_SHARED_ENDPOINT_TOKEN` is not launch evidence |
+| TEST_FAILURE      | PARTIAL — targeted Modal/token and Node unit checks pass; full Python suite is environment-blocked here by missing `httpx`/`requests` | Re-run after installing declared Python test dependencies |
 
 ## 8. Sign-off
 

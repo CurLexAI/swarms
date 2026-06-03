@@ -20,10 +20,11 @@
 #   Response bodies, prompts, and tokens are NEVER printed.
 #
 # Exit codes
-#   0  READY   — both endpoints answered 2xx with non-empty JSON.
+#   0  READY   — endpoints answered 2xx and rejected cross-token auth.
 #   2  HOLD    — secrets unset; nothing was contacted.
 #   3  BLOCK   — at least one endpoint failed (auth/timeout/non-2xx).
 #   4  ERROR   — runtime prerequisite missing (curl, jq).
+#   5  BLOCK   — endpoint tokens are shared or cross-token auth succeeded.
 #
 # Safety
 #   - Bearer token is never written to logs, files, or argv.
@@ -73,6 +74,12 @@ if [ -z "${BAYYINAH_ENDPOINT:-}" ] || \
     # Missing secrets are a HOLD, never a FAIL.
     echo "STATUS=UNVERIFIED_SECRET_MISSING"
     exit 2
+fi
+
+if [ "$BAYYINAH_API_TOKEN" = "$MIHWAR_API_TOKEN" ]; then
+    echo "[BLOCK] endpoint tokens must be distinct; aborting before any network call."
+    echo "STATUS=BLOCKED_SHARED_ENDPOINT_TOKEN"
+    exit 5
 fi
 
 # ── Helper: extract host from URL (no path, no query) ──────────────────────
@@ -144,8 +151,26 @@ else
 fi
 
 echo
+echo "=== Modal Runtime Smoke — cross-token isolation ==="
+isolation_status=0
+if hit_endpoint "bayyinah-cross-token" "$BAYYINAH_ENDPOINT" "$MIHWAR_API_TOKEN" "$bayyinah_payload"; then
+    bayyinah_cross_verdict="FAIL_ACCEPTED_WRONG_TOKEN"
+    isolation_status=1
+else
+    bayyinah_cross_verdict="PASS_REJECTED_WRONG_TOKEN"
+fi
+
+if hit_endpoint "mihwar-cross-token" "$MIHWAR_ENDPOINT" "$BAYYINAH_API_TOKEN" "$mihwar_payload"; then
+    mihwar_cross_verdict="FAIL_ACCEPTED_WRONG_TOKEN"
+    isolation_status=1
+else
+    mihwar_cross_verdict="PASS_REJECTED_WRONG_TOKEN"
+fi
+
+echo
 echo "=== Modal Runtime Smoke — verdict ==="
 echo "bayyinah=$bayyinah_verdict mihwar=$mihwar_verdict"
+echo "bayyinah_cross_token=$bayyinah_cross_verdict mihwar_cross_token=$mihwar_cross_verdict"
 
 if [ "$status" -ne 0 ]; then
     echo "[BLOCK] at least one endpoint failed; runtime is not READY."
@@ -153,8 +178,14 @@ if [ "$status" -ne 0 ]; then
     exit 3
 fi
 
-echo "[READY] both endpoints answered 2xx with JSON-shaped bodies."
-echo "STATUS=VERIFIED_ENDPOINT_SMOKE"
+if [ "$isolation_status" -ne 0 ]; then
+    echo "[BLOCK] at least one endpoint accepted the other endpoint's token."
+    echo "STATUS=BLOCKED_SHARED_ENDPOINT_TOKEN"
+    exit 5
+fi
+
+echo "[READY] endpoints answered 2xx with JSON-shaped bodies and rejected cross-token auth."
+echo "STATUS=VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION"
 echo "Now update docs/launch-evidence/agent-launch.md §5 with this run's"
 echo "host + http_code values. Do NOT paste response bodies."
 exit 0

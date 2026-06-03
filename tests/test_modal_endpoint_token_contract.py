@@ -35,6 +35,10 @@ def test_modal_activation_endpoint_smoke_uses_endpoint_specific_tokens() -> None
     assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in workflow
     assert "secrets.AGENT_API_TOKEN" not in workflow
     assert "Authorization: Bearer ${AGENT_API_TOKEN}" not in workflow
+    assert "BLOCKED_SHARED_ENDPOINT_TOKEN" in workflow
+    assert "VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION" in workflow
+    assert "bayyinah_cross_status" in workflow
+    assert "mihwar_cross_status" in workflow
 
 
 def test_smoke_modal_uses_endpoint_specific_tokens() -> None:
@@ -79,6 +83,10 @@ def test_local_modal_smoke_uses_endpoint_specific_tokens() -> None:
     assert "MIHWAR_API_TOKEN" in script
     assert "Authorization: Bearer ${token}" in script
     assert "Authorization: Bearer ${AGENT_API_TOKEN}" not in script
+    assert "STATUS=BLOCKED_SHARED_ENDPOINT_TOKEN" in script
+    assert "STATUS=VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION" in script
+    assert "bayyinah-cross-token" in script
+    assert "mihwar-cross-token" in script
 
 
 def test_mcp_server_reads_endpoint_specific_tokens() -> None:
