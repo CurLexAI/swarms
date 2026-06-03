@@ -103,11 +103,21 @@ jobs:
             echo "FINAL_STATUS=UNVERIFIED_SECRET_MISSING" >> "$GITHUB_ENV"
             exit 0
           fi
+          if [[ "$BAYYINAH_API_TOKEN" == "$MIHWAR_API_TOKEN" ]]; then
+            echo "FINAL_STATUS=BLOCKED_SHARED_ENDPOINT_TOKEN" >> "$GITHUB_ENV"
+            exit 1
+          fi
           bayyinah_status="$(curl -sS --max-time 240 -o /tmp/bayyinah.json -w '%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer ${BAYYINAH_API_TOKEN}" -X POST -d '{"code":"def add(a,b):return a+b","context":"smoke"}' "$BAYYINAH_ENDPOINT" || echo 000)"
           mihwar_status="$(curl -sS --max-time 420 -o /tmp/mihwar.json -w '%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer ${MIHWAR_API_TOKEN}" -X POST -d '{"task":"return integer 1","context_files":{}}' "$MIHWAR_ENDPOINT" || echo 000)"
-          rm -f /tmp/bayyinah.json /tmp/mihwar.json
+          bayyinah_cross_status="$(curl -sS --max-time 240 -o /tmp/bayyinah-cross.json -w '%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer ${MIHWAR_API_TOKEN}" -X POST -d '{"code":"def add(a,b):return a+b","context":"cross-token-smoke"}' "$BAYYINAH_ENDPOINT" || echo 000)"
+          mihwar_cross_status="$(curl -sS --max-time 420 -o /tmp/mihwar-cross.json -w '%{http_code}' -H 'Content-Type: application/json' -H "Authorization: Bearer ${BAYYINAH_API_TOKEN}" -X POST -d '{"task":"return integer 1","context_files":{}}' "$MIHWAR_ENDPOINT" || echo 000)"
+          rm -f /tmp/bayyinah.json /tmp/mihwar.json /tmp/bayyinah-cross.json /tmp/mihwar-cross.json
           if [[ "$bayyinah_status" == "200" && "$mihwar_status" == "200" ]]; then
-            echo "FINAL_STATUS=VERIFIED_ENDPOINT_SMOKE" >> "$GITHUB_ENV"
+            if [[ "$bayyinah_cross_status" == 2* || "$mihwar_cross_status" == 2* ]]; then
+              echo "FINAL_STATUS=BLOCKED_SHARED_ENDPOINT_TOKEN" >> "$GITHUB_ENV"
+              exit 1
+            fi
+            echo "FINAL_STATUS=VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION" >> "$GITHUB_ENV"
           else
             echo "FINAL_STATUS=BLOCKED_MODAL_FAILURE" >> "$GITHUB_ENV"
             exit 1
