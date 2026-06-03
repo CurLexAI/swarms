@@ -37,32 +37,50 @@ python3 -m pytest -q tests/
 python3 -m pytest -q tests/test_router_policy.py            # single file
 python3 -m pytest -q tests/test_router_policy.py::TestName  # single test
 
-# Node tests for the unified agent adapter
-npm test                 # full adapter suite (3 files)
-npm run test:unit        # unit only
+# Node tests for the unified agent adapter (3 files: unit + 2 integration)
+npm test                 # full adapter suite
+npm run test:unit        # unifiedAgentAdapter unit only
 npm run test:security    # sovereignCyberRadar
 node --test tests/unifiedAgentAdapter.test.js               # single file
+node --import tsx --test tests/runtime-policy.test.ts       # a .ts test via tsx
 
-# TypeScript strict check (no emit)
+# Security radar CLI (Sovereign Cyber Radar)
+npm run security:radar:url      # scan a URL
+npm run security:radar:text     # scan text
+npm run security:radar:command  # scan a command
+npm run security:radar:simulate
+
+# TypeScript strict check (no emit) — needs `npm ci` first; see "Known TS blocker"
 npx tsc --noEmit
 # Build (emits .js next to .ts)
 npm run build
 
-# Aggregate gate: service-divergence + unit tests + ADR-0001 boundary
+# Aggregate gate (npm run check), in order:
+#   service-divergence -> unit tests -> ADR-0001 boundary -> CDN SRI ->
+#   Qala audit-integrity -> swarms-presence -> Supabase public boundary ->
+#   runtime-policy check -> runtime-policy test
 npm run check
 ```
 
 ## Repository policy gates (must pass before claiming readiness)
 
+The full gate set lives in `scripts/commander/`. The core ones:
+
 ```bash
-bash scripts/commander/p0-security-test-gate.sh .
-bash scripts/commander/modal-boundary-gate.sh .
-bash scripts/commander/adr-0001-boundary-gate.sh .
-bash scripts/commander/agent-presence-gate.sh .
+bash scripts/commander/p0-security-test-gate.sh .          # P0 security tests
+bash scripts/commander/modal-boundary-gate.sh .            # Modal stays backend-only
+bash scripts/commander/adr-0001-boundary-gate.sh .         # boundary / no forbidden paths
+bash scripts/commander/agent-presence-gate.sh .            # required agent assets present
+bash scripts/commander/public-surface-boundary-gate.sh .   # public/ surface boundary
+bash scripts/commander/qala-audit-integrity-gate.sh .      # Qala audit hash-chain integrity
+bash scripts/commander/qala-egress-residency-gate.sh .     # egress/data-residency boundary
+bash scripts/commander/release-readiness-gate.sh .         # aggregate launch readiness
+python3 scripts/commander/swarm-presence-monitor.py --repo-root . --no-network
+python3 scripts/commander/copilot-agent-profiles-gate.py
 bash .agents/skills/codex-commander/scripts/codex_commander_gate.sh .
 ```
 
-`modal-boundary-gate.sh` blocks `*.modal.run` URLs or Modal SDK imports from leaking into public/client surfaces. `adr-0001-boundary-gate.sh` rejects the forbidden paths above and any `autoStart` activation flag in `.agents/`, `agents/`, `src/`, `public/`, `.github/`.
+`modal-boundary-gate.sh` blocks `*.modal.run` URLs or Modal SDK imports from leaking into public/client surfaces. `adr-0001-boundary-gate.sh` rejects the forbidden paths above and any `autoStart` activation flag in `.agents/`, `agents/`, `src/`, `public/`, `.github/`. The Qala gates enforce the security architecture in ADR-0003 (audit hash-chain, egress residency).
 
 ## Invoking agents (requires Modal + secrets)
 
@@ -74,7 +92,7 @@ python3 .agents/invoke.py pipeline "Add rate limiting to the API"  # mihwar -> b
 modal deploy .agents/modal_app.py
 ```
 
-Required runtime secrets (configure in GitHub Actions / Render / secret manager — never commit): `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, `AGENT_API_TOKEN`. Optional: `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, `RENDER_API_TOKEN`, `CLOUDFLARE_API_TOKEN`, `SOVEREIGN_API_KEY`. When checking presence, report only `SET`/`UNSET` — never echo values. See `docs/secrets-policy.md`.
+Required runtime secrets (configure in GitHub Actions / Render / secret manager — never commit): `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, and the **per-agent bearer tokens** `MIHWAR_API_TOKEN` and `BAYYINAH_API_TOKEN` (split from the legacy shared `AGENT_API_TOKEN` — each endpoint now isolates its own token). Optional: `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, `RENDER_API_TOKEN`, `CLOUDFLARE_API_TOKEN`, `SOVEREIGN_API_KEY`. When checking presence, report only `SET`/`UNSET` — never echo values. See `docs/secrets-policy.md`.
 
 ## Architecture (big picture)
 
@@ -106,27 +124,37 @@ Default collaboration: Mihwar generates → Bayyinah reviews → up to 3 revisio
 - **`.agents/modal_app.py`** — Modal deployment surface (vLLM endpoints `MihwarAgent`, `BayyinahAgent`).
 - **`.agents/invoke.py`** — CLI to call agents. Has a fallback YAML parser so `info` works without PyYAML installed.
 - **`.agents/pr_review.py`** + **`.github/workflows/agent-review.yml`** — Bayyinah review of PR diffs on `main`. Workflow runs boundary gates *before* reading secrets.
-- **`.agents/router/`** — Qarar model router: `task_classifier.py` → `model_policy_engine.py` → `model_router.py` produces an `ExecutionPlan` (primary agent, validation steps, reviewer routing). Inserts `bayyinah_validation_gate` for high/critical risk tasks.
-- **`.agents/validators/bayyinah_validation_gate.py`** — programmatic validation gate (P0-tested in `tests/test_bayyinah_validation_gate.py`).
-- **`.agents/providers/`** — provider abstractions (`modal_provider.py`, `openai_provider.py`, `anthropic_provider.py`).
-- **`.agents/mcp/`** — MCP server config for Copilot integration.
-- **`src/services/unifiedAgentAdapter.ts`** — Node-side adapter that loads `agents/registry.yaml`, validates payloads, authorizes via `PolicyService`, and dispatches to Python or Node runtimes. Hand-maintained `.js` companion is tracked; `ControlPlaneSecurityService.js` is gitignored as tsc-emitted output.
+- **`.agents/router/`** — Qarar model router: `task_classifier.py` → `model_policy_engine.py` → `model_router.py` produces an `ExecutionPlan` (primary agent, validation steps, reviewer routing). Inserts `bayyinah_validation_gate` for high/critical risk tasks. `audited_router.py` wraps routing decisions with Qala trace/audit.
+- **`.agents/validators/`** — programmatic gates. `bayyinah_validation_gate.py` (P0-tested in `tests/test_bayyinah_validation_gate.py`) plus the **Qala security layer** (`qala_input_gate.py`, `qala_ksa_pii.py`, `qala_trace.py`, `qala_audit_sink.py`) and `classification_validator.py` / `sovereign_security_controls.py`. Qala (قلعة, "Qal'a") is the dependency-free security architecture from `docs/decisions/ADR-0003-qala-security-architecture.md` — input validation, KSA PII redaction, trace correlation, and a sealed hash-chained audit sink. Raw secrets/PII must never enter these modules.
+- **`.agents/providers/`** — provider abstractions: `modal_provider.py`, `openai_provider.py`, `anthropic_provider.py`, and local sovereign runtimes `local_ollama.py` / `local_llama_cpp.py`.
+- **`.agents/mcp/`** — MCP server config and the **Aegis gateway** (`aegis_gateway.py`): a local-only, dependency-free MCP boundary that does role-based `tools/list` filtering, prompt-injection inspection of `tools/call` args, and sanitized hash-chained audit through Qala. Also hosts the Qarar API server (`qarar_api_server.py`) and Copilot/Render/Cloudflare/Modal MCP integration config.
+- **`src/services/unifiedAgentAdapter.ts`** — Node-side adapter. Loads `.agents/config/agents.yaml` (falls back to `agents/registry.yaml`), validates payloads, authorizes via `PolicyService`, and dispatches to Python or Node runtimes (dynamic import of `../runners/agentRunner.js`). Hand-maintained `.js` companion is tracked; `ControlPlaneSecurityService.js` is gitignored as tsc-emitted output.
+- **`src/security/`** — TS mirrors of the Qala Python layer (`qalaTrace.ts`, `qalaKsaPii.ts`, `qalaAuditSink.ts`, `bayyinahRedactor.ts`, `contentSecurityPolicy.ts`) plus `sovereignCyberRadar.ts` — the security scanner CLI (`npm run security:radar:*`).
+- **`src/runtimePolicy.ts`** / **`src/policy/runtime-policy.ts`** — runtime policy enforced by `scripts/check-runtime-policy.ts` and `tests/runtime-policy.test.ts` (both run inside `npm run check`).
 - **`src/services/AuditService.ts`** + **`src/utils/auditLogger`** — audit trail used by the adapter.
-- **`src/security/sovereignCyberRadar.ts`** — security scanner CLI (`npm run security:radar:*`).
-- **`scripts/commander/*.sh`** — boundary/policy/security gates; the codex-commander skill chains them.
-- **`scripts/check-service-divergence.mjs`** — verifies `.ts`/`.js` companions don't drift (run via `npm run check`).
+- **`scripts/commander/*.sh` and `*.py`** — boundary/policy/security gates; the codex-commander skill chains them.
+- **`scripts/check-service-divergence.mjs`** — verifies `.ts`/`.js` companions don't drift (run via `npm run check`). Other `npm run check` steps live in `scripts/check-*.mjs` / `check-*.ts`.
 
 ### Skills and policies (operating doctrine)
 
-`.agents/skills/` are *playbooks* for task classes. `.agents/policies/` are *boundaries*; they are mandatory, not optional. The Codex Commander skill (`.agents/skills/codex-commander/SKILL.md`) is the lead operating doctrine — its `references/repo-command-sequences.md`, `references/pr-playbooks.md`, and `references/commander-report-template.md` define the canonical command sequences and report format.
+`.agents/skills/` are *playbooks* for task classes (e.g. `codex-commander`, `modal-runtime-operator`, `secure-pr-review`, `public-surface-auditor`, `agent-runtime-auditor`, `hf-cli`). `.agents/policies/` are *boundaries*; they are mandatory, not optional (`secrets-boundary.md`, `network-boundary.md`, `dependency-build-safety.md`, `qala-egress-residency.md`, `execution-discipline-maximum.md`). The Codex Commander skill (`.agents/skills/codex-commander/SKILL.md`) is the lead operating doctrine — its `references/repo-command-sequences.md`, `references/pr-playbooks.md`, and `references/commander-report-template.md` define the canonical command sequences and report format.
+
+### Other surface directories (peripheral; respect ADR-0001 before editing)
+
+Beyond the four allowed categories, the repo also carries operator-adjacent surfaces that are sanctioned exceptions or POCs — confirm scope against ADR-0001 before touching them:
+
+- `mihwar-core/` — Go service skeleton for the Mihwar runtime; `windows-agent/` (C#) and `ios-companion/` (Swift) — companion clients.
+- `sama_ingestion_swarm/` — SAMA document ingestion swarm (fetcher/parser/auditor/orchestrator); an ADR-0001-sanctioned POC with deps gated in `requirements-agent.txt`.
+- `sovereign-connectivity-poc/`, `qarar-swarms-sovereign-integration/`, `dev-factory/`, `sovereign_network_agent_systemd_v1/` — connectivity/integration POCs and operator tooling.
+- `modal/`, `mcp/`, `config/`, `agents/` (legacy `registry.yaml`) — runtime manifests and the legacy agent registry fallback.
 
 ## Required conventions
 
 - **Evidence labels.** Every material claim uses exactly one of `VERIFIED` (command output / file content / smoke test), `INFERRED` (derived but not directly proven), or `UNVERIFIED` (not checked / blocked). Use `SKIPPED_UNVERIFIED` for checks blocked by missing secrets, and `NOT_APPLICABLE` when a file/dependency is absent. Never collapse skipped into pass; never claim runtime activation without a smoke test.
 - **Reports.** End substantive runs with the `COMMANDER REPORT` block from `.agents/skills/codex-commander/references/commander-report-template.md` (or the shorter form in `.agents/templates/report-template.md`).
 - **Small PRs.** Split broad work into reviewable PRs with files/acceptance criteria/rollback path. Do not merge with unresolved CRITICAL or HIGH findings.
-- **TS/JS companions.** Several files exist as both `.ts` and `.js` (`unifiedAgentAdapter`, `AuditService`, `sovereignCyberRadar`, `auditLogger`, `logger`). The `.js` files are hand-maintained and tracked; keep them in sync (the service-divergence check catches drift). `ControlPlaneSecurityService.js` and `src/services/unifiedAgentAdapter.*.mjs` are gitignored.
-- **Known TS blocker.** `npx tsc --noEmit` currently fails with `TS2307: Cannot find module '../runners/agentRunner.js'` in `src/services/unifiedAgentAdapter.ts`. Tracked separately; do not fabricate fixes that mask it.
+- **TS/JS companions.** Several files exist as both `.ts` and `.js` (`unifiedAgentAdapter`, `AuditService`, `sovereignCyberRadar`, `auditLogger`, `logger`, and the Qala mirrors `qalaTrace` / `qalaKsaPii` / `qalaAuditSink`). The `.js` files are hand-maintained and tracked; keep them in sync (the `check:service-divergence` step catches drift). `ControlPlaneSecurityService.js` and `src/services/unifiedAgentAdapter.*.mjs` are gitignored.
+- **Known TS blocker.** `npx tsc --noEmit` requires `npm ci` first (without `node_modules` it fails early on `TS2688: Cannot find type definition file for 'node'`). Even with deps installed, type-checking is a tracked blocker: `src/runners/` ships only `agentRunner.d.ts` (no `.ts`/`.js` source), so the dynamic `import("../runners/agentRunner.js")` in `unifiedAgentAdapter.ts` has no resolvable module. Do not fabricate fixes that mask it.
 - **Work intake.** This repo does not use inline `TODO`/`FIXME`/`XXX`/`HACK` markers — a grep returns no real matches by design. Don't invent one. Pull next work from (in order): open issues, failing PR checks, the Activation Checklist in `AGENTS.md`, the first failing test, then documented blockers in `docs/`.
 
 ## Absolute prohibitions
@@ -143,9 +171,15 @@ Default collaboration: Mihwar generates → Bayyinah reviews → up to 3 revisio
 
 ## Pointers
 
-- `AGENTS.md` — agent handbook (read first for operating model and execution order).
+- `AGENTS.md` — agent handbook (read first for operating model, execution order, and the Repository Activation Checklist).
+- `INSTRUCTION_LOADING_ORDER.md` — deterministic instruction-loading policy (kernel + policies + one task mode).
+- `CONSTITUTION.md` — founding charter (Arabic); founder/client rights and duties.
 - `README.md` — operating-model summary and verification command list.
-- `docs/decisions/ADR-0001-swarms-boundary.md` — repository boundary (authoritative).
+- `docs/decisions/` — Architecture Decision Records. Key ones:
+  - `ADR-0001-swarms-boundary.md` — repository boundary (authoritative).
+  - `ADR-0003-qala-security-architecture.md` — Qala (قلعة) security layer.
+  - `ADR-0004-qala-modal-edge-hmac-auth.md` — Modal/edge HMAC auth.
+  - `ADR-0005-public-llm-gateway.md`, `ADR-0006-fastapi-secondary-ai-gateway.md`, `ADR-0007-sovereign-incident-decision-service.md`.
 - `docs/secrets-policy.md` — required/optional secrets and rotation posture.
 - `docs/launch-evidence/agent-launch.md` — launch readiness template (stays pending until evidence exists).
 - `docs/operations/codex-sdk-usage.md` — Codex SDK integration notes.
