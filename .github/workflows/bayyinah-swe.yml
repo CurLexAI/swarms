@@ -91,12 +91,12 @@ jobs:
         if: steps.pr-context.outputs.is_pr == 'true'
         env:
           BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
-          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}
         run: |
           set -euo pipefail
-          if [[ -z "${BAYYINAH_ENDPOINT}" || -z "${AGENT_API_TOKEN}" ]]; then
+          if [[ -z "${BAYYINAH_ENDPOINT}" || -z "${BAYYINAH_API_TOKEN}" ]]; then
             echo "status=SKIPPED_UNVERIFIED" >> "$GITHUB_OUTPUT"
-            echo "::warning::Bayyinah Agent UNVERIFIED — BAYYINAH_ENDPOINT or AGENT_API_TOKEN not configured. Exiting 0."
+            echo "::warning::Bayyinah Agent UNVERIFIED — BAYYINAH_ENDPOINT or BAYYINAH_API_TOKEN not configured. Exiting 0."
           else
             echo "status=READY" >> "$GITHUB_OUTPUT"
           fi
@@ -131,7 +131,7 @@ jobs:
         if: steps.secrets-check.outputs.status == 'READY'
         env:
           BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
-          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
           FOCUS: ${{ steps.pr-context.outputs.focus }}
@@ -165,7 +165,7 @@ jobs:
 
           if ! RESPONSE=$(curl -sS --fail-with-body --max-time 120 \
             -X POST "${BAYYINAH_ENDPOINT}" \
-            -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
+            -H "Authorization: Bearer ${BAYYINAH_API_TOKEN}" \
             -H "Content-Type: application/json" \
             --data-binary @/tmp/bayyinah-payload.json); then
             echo "::error::Bayyinah endpoint request failed. Response: $RESPONSE"
@@ -243,7 +243,7 @@ jobs:
           cat > /tmp/bayyinah-skipped.md <<'EOF'
           ### [bayyinah][skipped]
 
-          `BAYYINAH_ENDPOINT` or `AGENT_API_TOKEN` is not configured.
+          `BAYYINAH_ENDPOINT` or `BAYYINAH_API_TOKEN` is not configured.
           Bayyinah Agent **SKIPPED_UNVERIFIED** — configure secrets to enable on-demand security review.
           EOF
           gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/bayyinah-skipped.md 2>/dev/null || true

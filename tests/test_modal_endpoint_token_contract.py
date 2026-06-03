@@ -125,3 +125,49 @@ def test_remote_mcp_surfaces_use_endpoint_specific_tokens() -> None:
     assert "this.env.BAYYINAH_API_TOKEN" in cloudflare_agent
     assert "config.mihwarApiToken" in cloudflare_client
     assert "config.bayyinahApiToken" in cloudflare_client
+
+
+def test_runtime_security_has_no_legacy_shared_token_fallback() -> None:
+    """Modal runtime auth must not accept the deprecated shared token path."""
+
+    source = _read(".agents/runtime_security.py")
+
+    assert "AGENT_API_TOKEN" not in source
+    assert "ALLOW_LEGACY_SHARED_AGENT_TOKEN" not in source
+    assert 'os.environ.get(token_env, "")' in source
+
+
+def test_on_demand_agent_workflows_use_endpoint_specific_tokens() -> None:
+    """Slash-command agent workflows must not authorize with a shared token."""
+
+    workflows = {
+        "bayyinah": _read(".github/workflows/bayyinah-swe.yml"),
+        "mihwar": _read(".github/workflows/mihwar-swe.yml"),
+        "free_birds": _read(".github/workflows/free-birds-swe.yml"),
+    }
+
+    for source in workflows.values():
+        assert "secrets.AGENT_API_TOKEN" not in source
+        assert "Authorization: Bearer ${AGENT_API_TOKEN}" not in source
+        assert "AGENT_API_TOKEN" not in source
+
+    assert "BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}" in workflows["bayyinah"]
+    assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in workflows["bayyinah"]
+    assert "MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}" in workflows["mihwar"]
+    assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in workflows["mihwar"]
+    assert "BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}" in workflows["free_birds"]
+    assert "MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}" in workflows["free_birds"]
+    assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in workflows["free_birds"]
+    assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in workflows["free_birds"]
+
+
+def test_modal_activation_verifies_token_isolation_negative_smoke() -> None:
+    """Runtime activation must prove each endpoint rejects the other endpoint token."""
+
+    workflow = _read(".github/workflows/modal-runtime-activation.yml")
+
+    assert "BLOCKED_SHARED_ENDPOINT_TOKEN" in workflow
+    assert "cross-token-negative-smoke" in workflow
+    assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in workflow
+    assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in workflow
+    assert "VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION" in workflow

@@ -37,7 +37,7 @@ deploy/smoke workflows.
 | 3 | Local gates | 🟡 PARTIAL | `npm run check`/`test`/`build` exit 0; `validate.py`/`py_compile` exit 0; commander gates PASS **except** qala-egress + pytest collection — both fixed in **#336** |
 | 4 | Modal deploy | ⛔ BLOCKED | prepared command below; needs `MODAL_TOKEN_*` + approval |
 | 5 | Modal CLI smoke | ⛔ BLOCKED | depends on Phase 4 |
-| 6 | Endpoint smoke | ⛔ BLOCKED | needs `BAYYINAH_ENDPOINT`/`MIHWAR_ENDPOINT`/`AGENT_API_TOKEN` live |
+| 6 | Endpoint smoke | ⛔ BLOCKED | needs `BAYYINAH_ENDPOINT`/`MIHWAR_ENDPOINT` plus `BAYYINAH_API_TOKEN`/`MIHWAR_API_TOKEN` live and cross-token negative smoke passing |
 | 7 | Bayyinah PR gate | ⛔ BLOCKED | runs on PRs; non-approving when secrets absent; merge-block via branch protection UNVERIFIED |
 | 8 | Control boundary | ⛔ BLOCKED | needs running runtime for live boundary tests |
 | 9 | Device/connectivity pilot | ⬜ NOT_STARTED | needs Phases 4–8 green + allowlisted device + operator |

@@ -8,8 +8,7 @@ Fail-closed helpers shared by `.agents/modal_app.py` and `.agents/ingest_test.py
 * `require_pinned_revision` / `trust_remote_code_for` — supply-chain guard that
   refuses to load a model from a mutable ref or to execute remote model code
   unless a pinned commit SHA AND a deliberate acknowledgement are both present.
-* `verify_bearer_token` — endpoint-specific Bearer auth (no shared token by
-  default; an explicit break-glass flag re-enables the legacy shared token).
+* `verify_bearer_token` — endpoint-specific Bearer auth with no legacy shared-token fallback.
 * `require_qdrant_auth` — Qdrant must be authenticated unless an explicit
   break-glass flag is set for an isolated, network-protected lab instance.
 
@@ -70,10 +69,9 @@ def verify_bearer_token(
     # without requiring fastapi to be present in that image.
     from fastapi import HTTPException
 
+    # `allow_legacy_shared_token` is retained only for API compatibility with
+    # older callers; it must not re-enable the deprecated shared-token fallback.
     expected = os.environ.get(token_env, "")
-    if not expected and allow_legacy_shared_token:
-        if os.environ.get("ALLOW_LEGACY_SHARED_AGENT_TOKEN", "") == "true":
-            expected = os.environ.get("AGENT_API_TOKEN", "")
     if not expected:
         raise HTTPException(status_code=503, detail=f"{token_env.lower()}_missing")
     if not authorization:

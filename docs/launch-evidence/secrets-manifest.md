@@ -15,13 +15,12 @@ required secret is absent. Map `entry-NN` back to a name via the order below.
 
 | Secret | Required | First needed in | Purpose |
 |---|---|---|---|
-| `AGENT_API_TOKEN` | ✅ | Endpoint smoke | Auth for Mihwar/Bayyinah Modal endpoint calls |
 | `BAYYINAH_ENDPOINT` | ✅ | Endpoint smoke | Bayyinah vLLM endpoint URL (backend-only) |
 | `MIHWAR_ENDPOINT` | ✅ | Endpoint smoke | Mihwar vLLM endpoint URL (backend-only) |
-| `BAYYINAH_API_TOKEN` | ✅ | Bayyinah PR gate | Token for `.agents/pr_review.py` |
+| `BAYYINAH_API_TOKEN` | ✅ | Endpoint smoke | Endpoint-specific token for Bayyinah Modal calls and PR review |
 | `MODAL_TOKEN_ID` | ✅ | Modal deploy | Modal auth id |
 | `MODAL_TOKEN_SECRET` | ✅ | Modal deploy | Modal auth secret |
-| `MIHWAR_API_TOKEN` | ⬜ | Bayyinah PR gate | Mihwar fix suggestions on `REQUEST_CHANGES` |
+| `MIHWAR_API_TOKEN` | ✅ | Endpoint smoke | Endpoint-specific token for Mihwar Modal calls and fix suggestions |
 | `HF_READ_TOKEN` | ⬜ | Local gates | Public HF coding-model smoke (PUBLIC egress only) |
 | `RENDER_DEPLOY_HOOK_URL` | ⬜ | Edge deploy | Render production deploy hook (manual, gated) |
 | `SONAR_TOKEN` | ⬜ | Local gates | SonarCloud analysis (non-blocking) |
