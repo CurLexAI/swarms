@@ -63,14 +63,11 @@ def verify_bearer_token(
     authorization: str | None,
     *,
     token_env: str,
-    allow_legacy_shared_token: bool = False,
 ) -> None:
     # Imported lazily so the model-loading path can import the other guards
     # without requiring fastapi to be present in that image.
     from fastapi import HTTPException
 
-    # `allow_legacy_shared_token` is retained only for API compatibility with
-    # older callers; it must not re-enable the deprecated shared-token fallback.
     expected = os.environ.get(token_env, "")
     if not expected:
         raise HTTPException(status_code=503, detail=f"{token_env.lower()}_missing")

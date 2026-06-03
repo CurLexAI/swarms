@@ -134,7 +134,20 @@ def test_runtime_security_has_no_legacy_shared_token_fallback() -> None:
 
     assert "AGENT_API_TOKEN" not in source
     assert "ALLOW_LEGACY_SHARED_AGENT_TOKEN" not in source
+    assert "allow_legacy_shared_token" not in source
     assert 'os.environ.get(token_env, "")' in source
+
+
+def test_modal_app_does_not_expose_legacy_shared_token_opt_in() -> None:
+    """Modal endpoint wiring must not document or pass a legacy-token opt-in."""
+
+    source = _read(".agents/modal_app.py")
+
+    assert "AGENT_API_TOKEN" not in source
+    assert "ALLOW_LEGACY_SHARED_AGENT_TOKEN" not in source
+    assert "allow_legacy_shared_token" not in source
+    assert 'token_env="BAYYINAH_API_TOKEN"' in source
+    assert 'token_env="MIHWAR_API_TOKEN"' in source
 
 
 def test_on_demand_agent_workflows_use_endpoint_specific_tokens() -> None:
