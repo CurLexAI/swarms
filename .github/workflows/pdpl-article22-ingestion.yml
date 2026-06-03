@@ -13,7 +13,7 @@ jobs:
     env:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
-      AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+      RAG_INGEST_API_TOKEN: ${{ secrets.RAG_INGEST_API_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,7 +26,7 @@ jobs:
       - name: Validate required secrets
         run: |
           set -euo pipefail
-          for key in MODAL_TOKEN_ID MODAL_TOKEN_SECRET AGENT_API_TOKEN; do
+          for key in MODAL_TOKEN_ID MODAL_TOKEN_SECRET RAG_INGEST_API_TOKEN; do
             if [ -z "${!key:-}" ]; then
               echo "FAILED_AT_PHASE_SECRET_VALIDATION: missing $key" | tee -a "$GITHUB_STEP_SUMMARY"
               exit 1
@@ -73,7 +73,7 @@ PY
           set -euo pipefail
           endpoint='${{ steps.deploy.outputs.endpoint }}'
           http_code=$(curl -sS -o ingestion_response.json -w '%{http_code}' \
-            -H "Authorization: Bearer $AGENT_API_TOKEN" \
+            -H "Authorization: Bearer $RAG_INGEST_API_TOKEN" \
             -H 'Content-Type: application/json' \
             -X POST "$endpoint")
           if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then

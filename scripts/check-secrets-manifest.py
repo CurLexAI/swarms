@@ -51,11 +51,24 @@ def load_manifest() -> list[dict[str, object]]:
     return secrets
 
 
+def entry_phases(entry: dict[str, object]) -> list[str]:
+    """Return the manifest phases for an entry as normalized strings."""
+    phase_value = entry.get("phase", "")
+    if isinstance(phase_value, list):
+        return [str(item) for item in phase_value]
+    return [str(phase_value)]
+
+
+def format_phases(entry: dict[str, object]) -> str:
+    """Render phase metadata without exposing secret names or values."""
+    return ",".join(entry_phases(entry))
+
+
 def is_enforced(entry: dict[str, object], phase: str | None, enforce_all: bool) -> bool:
     """Return True when this required secret is in scope for enforcement."""
     if not bool(entry.get("required", False)):
         return False
-    return enforce_all or phase is None or phase == str(entry.get("phase", ""))
+    return enforce_all or phase is None or phase in entry_phases(entry)
 
 
 def format_row(entry_id: str, state: str, entry: dict[str, object]) -> str:
@@ -66,7 +79,7 @@ def format_row(entry_id: str, state: str, entry: dict[str, object]) -> str:
     name is never included, so nothing pattern-matching a secret can be logged.
     """
     flag = "required" if bool(entry.get("required", False)) else "optional"
-    return f"  {state:5s}  {entry_id:12s} [{flag}, phase={entry.get('phase', '')}]"
+    return f"  {state:5s}  {entry_id:12s} [{flag}, phase={format_phases(entry)}]"
 
 
 def evaluate_entry(

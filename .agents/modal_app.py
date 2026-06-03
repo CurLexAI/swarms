@@ -25,6 +25,8 @@ Environment secrets required in Modal dashboard:
 
 Endpoint auth is per-endpoint only. The deprecated shared token contract is not
 accepted by the Bayyinah or Mihwar endpoints.
+Endpoint auth is per-endpoint only. No shared-token fallback is accepted by
+the endpoints below.
 
 Model loading is fail-closed: each model requires a pinned revision, and
 trust_remote_code stays off unless <AGENT>_REMOTE_CODE_ACK explicitly

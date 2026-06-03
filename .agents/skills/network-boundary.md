@@ -44,7 +44,7 @@ This policy does NOT govern:
 | Package registry domains | Yes | `registry.npmjs.org`, `registry.yarnpkg.com`, `pypi.org` only |
 | HTTP methods for allowed domains | `GET` / `HEAD` only | No `POST`, `PUT`, `PATCH`, `DELETE` from agent code editing sessions |
 | Git operations to `github.com` | Yes | Push/pull to `CurLexAI/swarms` only |
-| Modal inference endpoints | Yes | `POST` from GitHub Actions only — `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT` — authenticated with `AGENT_API_TOKEN` |
+| Modal inference endpoints | Yes | `POST` from GitHub Actions only — `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT` — authenticated with endpoint-specific `BAYYINAH_API_TOKEN` / `MIHWAR_API_TOKEN` |
 
 ---
 

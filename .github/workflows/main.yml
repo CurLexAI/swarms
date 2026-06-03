@@ -1,3 +1,67 @@
-gh workflow run modal-runtime-activation.yml \
-  --repo CurLexAI/swarms --ref main \
-  -f deploy_modal=true -f run_smoke=true
+name: Main CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-and-node-gates:
+    name: Python and Node gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-agent.txt
+
+      - name: Install Python test dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements-agent.txt
+
+      - name: Validate agent assets
+        run: python3 .agents/validate.py
+
+      - name: Syntax-check Python agent files
+        run: python3 -m py_compile .agents/*.py
+
+      - name: Show configured agents
+        run: python3 .agents/invoke.py info
+
+      - name: Run full Python test suite
+        run: python3 -m pytest -q tests/
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci --include=dev
+
+      - name: Run aggregate Node gate
+        run: npm run check
+
+      - name: Run full JavaScript Node test suite
+        run: node --import tsx --test tests/*.test.js
+
+      - name: Run TypeScript-backed Node tests
+        run: node --import tsx --test tests/*.test.ts

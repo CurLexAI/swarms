@@ -21,6 +21,10 @@ required secret is absent. Map `entry-NN` back to a name via the order below.
 | `MODAL_TOKEN_ID` | ✅ | Modal deploy | Modal auth id |
 | `MODAL_TOKEN_SECRET` | ✅ | Modal deploy | Modal auth secret |
 | `MIHWAR_API_TOKEN` | ✅ | Endpoint smoke | Endpoint-specific token for Mihwar Modal calls and fix suggestions |
+| `BAYYINAH_API_TOKEN` | ✅ | Endpoint smoke + Bayyinah PR gate | Bayyinah endpoint bearer token; must differ from `MIHWAR_API_TOKEN` |
+| `MIHWAR_API_TOKEN` | ✅ | Endpoint smoke + Bayyinah PR gate | Mihwar endpoint bearer token; must differ from `BAYYINAH_API_TOKEN` |
+| `MODAL_TOKEN_ID` | ✅ | Modal deploy | Modal auth id |
+| `MODAL_TOKEN_SECRET` | ✅ | Modal deploy | Modal auth secret |
 | `HF_READ_TOKEN` | ⬜ | Local gates | Public HF coding-model smoke (PUBLIC egress only) |
 | `RENDER_DEPLOY_HOOK_URL` | ⬜ | Edge deploy | Render production deploy hook (manual, gated) |
 | `SONAR_TOKEN` | ⬜ | Local gates | SonarCloud analysis (non-blocking) |
@@ -48,5 +52,6 @@ Exit `0` = all enforced required secrets `SET`; exit `1` = at least one `UNSET`
 `VERIFIED` (`scripts/check-secrets-manifest.py --all`, exit 1): all six required
 secrets report **UNSET** in the repository build environment. This is expected —
 secrets live in GitHub Actions / the secret manager, not in the repo or this
-container. The fail-closed result is correct and gates Phases 5+ until secrets are
-provisioned by the owner.
+container. `AGENT_API_TOKEN` is intentionally absent from this manifest; Modal
+endpoint authorization uses endpoint-specific tokens only. The fail-closed result
+is correct and gates Phases 5+ until secrets are provisioned by the owner.
