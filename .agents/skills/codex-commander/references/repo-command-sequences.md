@@ -48,8 +48,9 @@ bash scripts/commander/agent-presence-gate.sh
 ```bash
 : "${BAYYINAH_ENDPOINT:?missing BAYYINAH_ENDPOINT}"
 : "${MIHWAR_ENDPOINT:?missing MIHWAR_ENDPOINT}"
-: "${AGENT_API_TOKEN:?missing AGENT_API_TOKEN}"
-bash scripts/commander/modal-agent-smoke.sh
+: "${BAYYINAH_API_TOKEN:?missing BAYYINAH_API_TOKEN}"
+: "${MIHWAR_API_TOKEN:?missing MIHWAR_API_TOKEN}"
+bash scripts/commander/modal-runtime-smoke.sh
 ```
 
 ## Node validation, only when package.json exists
@@ -68,7 +69,7 @@ fi
 Do not paste secret values into chat, PR comments, logs, or artifacts. Report only `SET` or `UNSET`:
 
 ```bash
-for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT AGENT_API_TOKEN SOVEREIGN_API_KEY; do
+for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN SOVEREIGN_API_KEY; do
   if [ -n "${!v:-}" ]; then echo "$v=SET"; else echo "$v=UNSET"; fi
 done
 ```

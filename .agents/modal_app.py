@@ -23,10 +23,8 @@ Environment secrets required in Modal dashboard:
     model-pinning       →  MIHWAR_MODEL_REVISION    (full 40-char HF commit SHA)
                            BAYYINAH_MODEL_REVISION  (full 40-char HF commit SHA)
 
-Endpoint auth is per-endpoint by default. The legacy single AGENT_API_TOKEN is
-only honoured when an endpoint explicitly opts in via verify_bearer_token(
-allow_legacy_shared_token=True) together with ALLOW_LEGACY_SHARED_AGENT_TOKEN;
-the endpoints below do not opt in.
+Endpoint auth is per-endpoint only. No shared-token fallback is accepted by
+the endpoints below.
 
 Model loading is fail-closed: each model requires a pinned revision, and
 trust_remote_code stays off unless <AGENT>_REMOTE_CODE_ACK explicitly
@@ -352,7 +350,6 @@ def bayyinah_review_web(
     verify_bearer_token(
         authorization,
         token_env="BAYYINAH_API_TOKEN",
-        allow_legacy_shared_token=False,
     )
     _limit_payload_bytes(payload, MAX_REVIEW_PAYLOAD_BYTES)
 
@@ -384,7 +381,6 @@ def mihwar_generate_web(
     verify_bearer_token(
         authorization,
         token_env="MIHWAR_API_TOKEN",
-        allow_legacy_shared_token=False,
     )
     _limit_payload_bytes(payload, MAX_GENERATE_PAYLOAD_BYTES)
 

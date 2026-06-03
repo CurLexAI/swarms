@@ -112,8 +112,8 @@ for pkg in .agents/router/__init__.py .agents/validators/__init__.py; do
 done
 
 # ── 5. Secrets boundary: presence reported, never echoed ─────────────────────
-# Mihwar/Bayyinah endpoints use endpoint-specific bearer tokens. The deprecated
-# shared AGENT_API_TOKEN is intentionally not part of this boundary check.
+# Mihwar/Bayyinah endpoints use endpoint-specific bearer tokens.
+# The retired shared agent bearer token is intentionally not part of this boundary check.
 for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN; do
   if [[ -n "${!v:-}" ]]; then
     ok "$v=SET"

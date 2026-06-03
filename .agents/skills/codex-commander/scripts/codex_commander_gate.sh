@@ -53,7 +53,7 @@ else
   warn "package.json missing; npm tests/audit are NOT_APPLICABLE"
 fi
 
-for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT AGENT_API_TOKEN; do
+for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN; do
   if [ -n "${!v:-}" ]; then
     ok "$v=SET"
   else

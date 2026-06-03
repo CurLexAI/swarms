@@ -21,7 +21,7 @@ agents:
       kind: "modal_vllm"
       model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
       endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "MIHWAR_API_TOKEN"
 
   - id: bayyinah
     name: "Bayyinah — البيّنة"
@@ -46,7 +46,7 @@ agents:
       kind: "modal_vllm"
       model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "BAYYINAH_API_TOKEN"
 
   - id: qarar-router
     name: "Qarar Model Router"
@@ -88,7 +88,7 @@ agents:
       kind: "modal_vllm"
       model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
       endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "MIHWAR_API_TOKEN"
 
   - id: qwen-coder
     name: "Qwen2.5 Coder 32B — كيونق كود"
@@ -105,7 +105,7 @@ agents:
       kind: "modal_vllm"
       model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "BAYYINAH_API_TOKEN"
 
   - id: pr-fix-conflict
     name: "PR Fix Conflict"
@@ -128,7 +128,7 @@ agents:
       kind: "modal_vllm"
       model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "BAYYINAH_API_TOKEN"
 
   # ── External provider agents (UNVERIFIED until env is configured) ────────
   # Gated by ALLOW_EXTERNAL_AI=true. Transports for these providers are NOT
@@ -205,7 +205,7 @@ agents:
       kind: "modal_vllm"
       model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "BAYYINAH_API_TOKEN"
 
   - id: hawk
     name: "Hawk — الباز"
@@ -226,7 +226,7 @@ agents:
       kind: "modal_vllm"
       model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "BAYYINAH_API_TOKEN"
 
   - id: shaheen
     name: "Shaheen — الشاهين"
@@ -247,7 +247,7 @@ agents:
       kind: "modal_vllm"
       model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "BAYYINAH_API_TOKEN"
 
   - id: kestrel
     name: "Kestrel — اليؤيؤ"
@@ -268,7 +268,7 @@ agents:
       kind: "modal_vllm"
       model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "BAYYINAH_API_TOKEN"
 
   - id: osprey
     name: "Osprey — العقاب النهري"
@@ -289,7 +289,7 @@ agents:
       kind: "modal_vllm"
       model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "BAYYINAH_API_TOKEN"
 
   - id: harrier
     name: "Harrier — المرزة"
@@ -310,7 +310,7 @@ agents:
       kind: "modal_vllm"
       model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "BAYYINAH_API_TOKEN"
 
   - id: merlin
     name: "Merlin — الحرّ"
@@ -332,7 +332,7 @@ agents:
       kind: "modal_vllm"
       model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "BAYYINAH_API_TOKEN"
 
   - id: saker
     name: "Saker — الصقر الحرّ"
@@ -353,7 +353,7 @@ agents:
       kind: "modal_vllm"
       model: "Qwen/Qwen2.5-Coder-32B-Instruct"
       endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "BAYYINAH_API_TOKEN"
 
   # — Reasoning birds (DeepSeek-Coder-V2, sovereign architect) —
 
@@ -377,7 +377,7 @@ agents:
       kind: "modal_vllm"
       model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
       endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "MIHWAR_API_TOKEN"
 
   - id: raven
     name: "Raven — الغراب"
@@ -399,7 +399,7 @@ agents:
       kind: "modal_vllm"
       model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
       endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "MIHWAR_API_TOKEN"
 
   - id: eagle
     name: "Eagle — النسر"
@@ -421,7 +421,7 @@ agents:
       kind: "modal_vllm"
       model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
       endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "MIHWAR_API_TOKEN"
 
   - id: phoenix
     name: "Phoenix — العنقاء"
@@ -443,7 +443,7 @@ agents:
       kind: "modal_vllm"
       model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
       endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "AGENT_API_TOKEN"
+      token_env: "MIHWAR_API_TOKEN"
 
 # ── Swarms ──────────────────────────────────────────────────────────────────
 # A swarm is a named, ordered group of agents that operate in coordination on
