@@ -1,5 +1,20 @@
 name: Modal Runtime Auto Activation
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/modal-runtime-auto-activation.yml"
+      - ".agents/modal_app.py"
+      - ".agents/validate.py"
+      - ".agents/config/agents.yaml"
+      - "scripts/commander/**"
+      - "scripts/security/static_audit.py"
+      - "package.json"
+      - "package-lock.json"
+      - "requirements-agent.txt"
+  schedule:
+    - cron: "23 6 * * *"
   workflow_dispatch:
     inputs:
       confirm:
@@ -16,7 +31,6 @@ jobs:
   preflight:
     name: activation-preflight
     runs-on: ubuntu-latest
-    environment: production
     outputs:
       preflight_status: ${{ steps.preflight_result.outputs.status }}
     steps:
@@ -65,13 +79,15 @@ jobs:
         run: echo "status=PASS" >> "$GITHUB_OUTPUT"
 
   smoke:
-    # Manual endpoint health verification only. Production approval is required
-    # before reading endpoint smoke secrets or invoking Modal runtime paths.
+    # Unattended endpoint health verification only. This job never deploys and
+    # intentionally avoids the protected production environment so push/schedule
+    # can verify runtime health without production approval.
     name: endpoint-smoke-verification
     needs: preflight
-    if: needs.preflight.outputs.preflight_status == 'PASS'
+    if: |
+      needs.preflight.outputs.preflight_status == 'PASS' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.confirm != 'ACTIVATE')
     runs-on: ubuntu-latest
-    environment: production
     timeout-minutes: 30
     steps:
       - name: Mask runtime secrets
