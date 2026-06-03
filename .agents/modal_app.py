@@ -23,6 +23,8 @@ Environment secrets required in Modal dashboard:
     model-pinning       →  MIHWAR_MODEL_REVISION    (full 40-char HF commit SHA)
                            BAYYINAH_MODEL_REVISION  (full 40-char HF commit SHA)
 
+Endpoint auth is per-endpoint only. The deprecated shared token contract is not
+accepted by the Bayyinah or Mihwar endpoints.
 Endpoint auth is per-endpoint only. No shared-token fallback is accepted by
 the endpoints below.
 

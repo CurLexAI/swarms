@@ -135,57 +135,60 @@ def test_remote_mcp_surfaces_use_endpoint_specific_tokens() -> None:
     assert "config.bayyinahApiToken" in cloudflare_client
 
 
-def test_on_demand_swe_workflows_use_endpoint_specific_tokens() -> None:
-    """On-demand agent workflows must not use the retired shared token."""
+def test_runtime_security_has_no_legacy_shared_token_fallback() -> None:
+    """Modal runtime auth must not accept the deprecated shared token path."""
 
-    bayyinah = _read(".github/workflows/bayyinah-swe.yml")
-    mihwar = _read(".github/workflows/mihwar-swe.yml")
-    free_birds = _read(".github/workflows/free-birds-swe.yml")
+    source = _read(".agents/runtime_security.py")
 
-    assert "BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}" in bayyinah
-    assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in bayyinah
-    assert "MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}" in mihwar
-    assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in mihwar
-    assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in free_birds
-    assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in free_birds
-
-    for workflow in (bayyinah, mihwar, free_birds):
-        assert "secrets.AGENT_API_TOKEN" not in workflow
-        assert "Authorization: Bearer ${AGENT_API_TOKEN}" not in workflow
+    assert "AGENT_API_TOKEN" not in source
+    assert "ALLOW_LEGACY_SHARED_AGENT_TOKEN" not in source
+    assert "allow_legacy_shared_token" not in source
+    assert 'os.environ.get(token_env, "")' in source
 
 
-def test_pdpl_ingestion_uses_rag_ingest_token_only() -> None:
-    """PDPL ingestion workflow must authenticate with the RAG ingest token."""
+def test_modal_app_does_not_expose_legacy_shared_token_opt_in() -> None:
+    """Modal endpoint wiring must not document or pass a legacy-token opt-in."""
 
-    workflow = _read(".github/workflows/pdpl-article22-ingestion.yml")
+    source = _read(".agents/modal_app.py")
 
-    assert "RAG_INGEST_API_TOKEN: ${{ secrets.RAG_INGEST_API_TOKEN }}" in workflow
-    assert "Authorization: Bearer $RAG_INGEST_API_TOKEN" in workflow
-    assert "secrets.AGENT_API_TOKEN" not in workflow
-    assert "Authorization: Bearer $AGENT_API_TOKEN" not in workflow
-
-
-def test_rag_modal_endpoints_use_split_tokens_without_legacy_fallback() -> None:
-    """RAG Modal endpoints must split ingest/verify auth and reject fallback."""
-
-    source = _read(".agents/ingest_test.py")
-    runtime_security = _read(".agents/runtime_security.py")
-    modal_app = _read(".agents/modal_app.py")
-
-    assert 'token_env="RAG_INGEST_API_TOKEN"' in source
-    assert 'token_env="RAG_VERIFY_API_TOKEN"' in source
-    assert 'os.environ.get("AGENT_API_TOKEN", "")' not in source
-    assert 'os.environ.get("AGENT_API_TOKEN", "")' not in runtime_security
-    assert "allow_legacy_shared_token" not in runtime_security
-    assert "ALLOW_LEGACY_SHARED_AGENT_TOKEN" not in runtime_security
-    assert "allow_legacy_shared_token" not in modal_app
+    assert "AGENT_API_TOKEN" not in source
+    assert "ALLOW_LEGACY_SHARED_AGENT_TOKEN" not in source
+    assert "allow_legacy_shared_token" not in source
+    assert 'token_env="BAYYINAH_API_TOKEN"' in source
+    assert 'token_env="MIHWAR_API_TOKEN"' in source
 
 
-def test_agent_registry_uses_endpoint_specific_tokens() -> None:
-    """Modal registry entries must bind the token matching their endpoint."""
+def test_on_demand_agent_workflows_use_endpoint_specific_tokens() -> None:
+    """Slash-command agent workflows must not authorize with a shared token."""
 
-    registry = _read("agents/registry.yaml")
+    workflows = {
+        "bayyinah": _read(".github/workflows/bayyinah-swe.yml"),
+        "mihwar": _read(".github/workflows/mihwar-swe.yml"),
+        "free_birds": _read(".github/workflows/free-birds-swe.yml"),
+    }
 
-    assert 'token_env: "AGENT_API_TOKEN"' not in registry
-    assert 'endpoint_env: "BAYYINAH_ENDPOINT"\n      token_env: "BAYYINAH_API_TOKEN"' in registry
-    assert 'endpoint_env: "MIHWAR_ENDPOINT"\n      token_env: "MIHWAR_API_TOKEN"' in registry
+    for source in workflows.values():
+        assert "secrets.AGENT_API_TOKEN" not in source
+        assert "Authorization: Bearer ${AGENT_API_TOKEN}" not in source
+        assert "AGENT_API_TOKEN" not in source
+
+    assert "BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}" in workflows["bayyinah"]
+    assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in workflows["bayyinah"]
+    assert "MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}" in workflows["mihwar"]
+    assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in workflows["mihwar"]
+    assert "BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}" in workflows["free_birds"]
+    assert "MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}" in workflows["free_birds"]
+    assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in workflows["free_birds"]
+    assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in workflows["free_birds"]
+
+
+def test_modal_activation_verifies_token_isolation_negative_smoke() -> None:
+    """Runtime activation must prove each endpoint rejects the other endpoint token."""
+
+    workflow = _read(".github/workflows/modal-runtime-activation.yml")
+
+    assert "BLOCKED_SHARED_ENDPOINT_TOKEN" in workflow
+    assert "cross-token-negative-smoke" in workflow
+    assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in workflow
+    assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in workflow
+    assert "VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION" in workflow

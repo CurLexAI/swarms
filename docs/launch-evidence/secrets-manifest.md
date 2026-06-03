@@ -17,6 +17,10 @@ required secret is absent. Map `entry-NN` back to a name via the order below.
 |---|---|---|---|
 | `BAYYINAH_ENDPOINT` | ✅ | Endpoint smoke | Bayyinah vLLM endpoint URL (backend-only) |
 | `MIHWAR_ENDPOINT` | ✅ | Endpoint smoke | Mihwar vLLM endpoint URL (backend-only) |
+| `BAYYINAH_API_TOKEN` | ✅ | Endpoint smoke | Endpoint-specific token for Bayyinah Modal calls and PR review |
+| `MODAL_TOKEN_ID` | ✅ | Modal deploy | Modal auth id |
+| `MODAL_TOKEN_SECRET` | ✅ | Modal deploy | Modal auth secret |
+| `MIHWAR_API_TOKEN` | ✅ | Endpoint smoke | Endpoint-specific token for Mihwar Modal calls and fix suggestions |
 | `BAYYINAH_API_TOKEN` | ✅ | Endpoint smoke + Bayyinah PR gate | Bayyinah endpoint bearer token; must differ from `MIHWAR_API_TOKEN` |
 | `MIHWAR_API_TOKEN` | ✅ | Endpoint smoke + Bayyinah PR gate | Mihwar endpoint bearer token; must differ from `BAYYINAH_API_TOKEN` |
 | `MODAL_TOKEN_ID` | ✅ | Modal deploy | Modal auth id |

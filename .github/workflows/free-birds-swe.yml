@@ -148,6 +148,7 @@ jobs:
         env:
           BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
           BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}
+          MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
           FOCUS: ${{ steps.pr-context.outputs.focus }}
@@ -305,6 +306,6 @@ jobs:
           ### [free-birds][skipped]
 
           Required endpoints/token missing for subcommand=\`${SUBCOMMAND}\`.
-          Free Birds Swarm **SKIPPED_UNVERIFIED** — configure \`BAYYINAH_ENDPOINT\` with \`BAYYINAH_API_TOKEN\` and/or \`MIHWAR_ENDPOINT\` with \`MIHWAR_API_TOKEN\`.
+          Free Birds Swarm **SKIPPED_UNVERIFIED** — configure \`BAYYINAH_ENDPOINT\` (review) and/or \`MIHWAR_ENDPOINT\` (design) plus \`BAYYINAH_API_TOKEN\` / \`MIHWAR_API_TOKEN\`.
           EOF
           gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/fb-skipped.md 2>/dev/null || true

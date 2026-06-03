@@ -8,6 +8,7 @@ Fail-closed helpers shared by `.agents/modal_app.py` and `.agents/ingest_test.py
 * `require_pinned_revision` / `trust_remote_code_for` — supply-chain guard that
   refuses to load a model from a mutable ref or to execute remote model code
   unless a pinned commit SHA AND a deliberate acknowledgement are both present.
+* `verify_bearer_token` — endpoint-specific Bearer auth with no legacy shared-token fallback.
 * `verify_bearer_token` — endpoint-specific Bearer auth with no shared-token
   fallback path.
 * `require_qdrant_auth` — Qdrant must be authenticated unless an explicit
