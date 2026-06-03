@@ -30,7 +30,7 @@
     "deploy:evidence:validate": "node scripts/validate-launch-evidence.mjs"
   },
   "dependencies": {
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.2.0",
     "uuid": "^14.0.0"
   },
   "devDependencies": {
