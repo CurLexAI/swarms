@@ -1,6 +1,6 @@
 ---
 name: modal-runtime-operator
-description: operate the backend-only modal runtime for mihwar and bayyinah agents. use when deploying or updating `.agents/modal_app.py`, checking modal secrets, verifying `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, `AGENT_API_TOKEN`, running smoke tests, or proving whether private agent runtime is active. never expose modal urls to browser, iphone, frontend, or public client surfaces.
+description: operate the backend-only modal runtime for mihwar and bayyinah agents. use when deploying or updating `.agents/modal_app.py`, checking modal secrets, verifying `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, `BAYYINAH_API_TOKEN`, `MIHWAR_API_TOKEN`, running smoke tests, or proving whether private agent runtime is active. never expose modal urls to browser, iphone, frontend, or public client surfaces.
 ---
 
 # Modal Runtime Operator
@@ -29,7 +29,8 @@ Report only:
 ```text
 BAYYINAH_ENDPOINT=SET|UNSET
 MIHWAR_ENDPOINT=SET|UNSET
-AGENT_API_TOKEN=SET|UNSET
+BAYYINAH_API_TOKEN=SET|UNSET
+MIHWAR_API_TOKEN=SET|UNSET
 ```
 
 Never print values.

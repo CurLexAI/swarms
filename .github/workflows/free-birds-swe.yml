@@ -91,14 +91,15 @@ jobs:
         env:
           BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
           MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
-          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}
+          MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}
           SUBCOMMAND: ${{ steps.pr-context.outputs.subcommand }}
         run: |
           set -euo pipefail
           REVIEW_OK=1
           DESIGN_OK=1
-          if [[ -z "${BAYYINAH_ENDPOINT}" || -z "${AGENT_API_TOKEN}" ]]; then REVIEW_OK=0; fi
-          if [[ -z "${MIHWAR_ENDPOINT}"   || -z "${AGENT_API_TOKEN}" ]]; then DESIGN_OK=0; fi
+          if [[ -z "${BAYYINAH_ENDPOINT}" || -z "${BAYYINAH_API_TOKEN}" ]]; then REVIEW_OK=0; fi
+          if [[ -z "${MIHWAR_ENDPOINT}"   || -z "${MIHWAR_API_TOKEN}" ]]; then DESIGN_OK=0; fi
 
           case "${SUBCOMMAND}" in
             review) NEED=$REVIEW_OK ;;
@@ -146,7 +147,7 @@ jobs:
            steps.pr-context.outputs.subcommand == 'full')
         env:
           BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
-          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
           FOCUS: ${{ steps.pr-context.outputs.focus }}
@@ -183,7 +184,7 @@ jobs:
 
           RESPONSE=$(curl -sS --fail-with-body --max-time 180 \
             -X POST "${BAYYINAH_ENDPOINT}" \
-            -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
+            -H "Authorization: Bearer ${BAYYINAH_API_TOKEN}" \
             -H "Content-Type: application/json" \
             --data-binary @/tmp/fb-review-payload.json)
 
@@ -200,7 +201,7 @@ jobs:
            steps.pr-context.outputs.subcommand == 'full')
         env:
           MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
-          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
           FOCUS: ${{ steps.pr-context.outputs.focus }}
@@ -233,7 +234,7 @@ jobs:
 
           RESPONSE=$(curl -sS --fail-with-body --max-time 180 \
             -X POST "${MIHWAR_ENDPOINT}" \
-            -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
+            -H "Authorization: Bearer ${MIHWAR_API_TOKEN}" \
             -H "Content-Type: application/json" \
             --data-binary @/tmp/fb-design-payload.json)
 
@@ -304,6 +305,6 @@ jobs:
           ### [free-birds][skipped]
 
           Required endpoints/token missing for subcommand=\`${SUBCOMMAND}\`.
-          Free Birds Swarm **SKIPPED_UNVERIFIED** — configure \`BAYYINAH_ENDPOINT\` (review) and/or \`MIHWAR_ENDPOINT\` (design) plus \`AGENT_API_TOKEN\`.
+          Free Birds Swarm **SKIPPED_UNVERIFIED** — configure \`BAYYINAH_ENDPOINT\` with \`BAYYINAH_API_TOKEN\` and/or \`MIHWAR_ENDPOINT\` with \`MIHWAR_API_TOKEN\`.
           EOF
           gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/fb-skipped.md 2>/dev/null || true

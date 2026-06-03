@@ -83,12 +83,12 @@ jobs:
         if: steps.pr-context.outputs.is_pr == 'true'
         env:
           MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
-          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}
         run: |
           set -euo pipefail
-          if [[ -z "${MIHWAR_ENDPOINT}" || -z "${AGENT_API_TOKEN}" ]]; then
+          if [[ -z "${MIHWAR_ENDPOINT}" || -z "${MIHWAR_API_TOKEN}" ]]; then
             echo "status=SKIPPED_UNVERIFIED" >> "$GITHUB_OUTPUT"
-            echo "::warning::Mihwar Agent UNVERIFIED — MIHWAR_ENDPOINT or AGENT_API_TOKEN not configured. Exiting 0."
+            echo "::warning::Mihwar Agent UNVERIFIED — MIHWAR_ENDPOINT or MIHWAR_API_TOKEN not configured. Exiting 0."
           else
             echo "status=READY" >> "$GITHUB_OUTPUT"
           fi
@@ -110,7 +110,7 @@ jobs:
         if: steps.secrets-check.outputs.status == 'READY'
         env:
           MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
-          AGENT_API_TOKEN: ${{ secrets.AGENT_API_TOKEN }}
+          MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.pr-context.outputs.pr_number }}
           INSTRUCTION: ${{ steps.pr-context.outputs.instruction }}
@@ -135,7 +135,7 @@ jobs:
 
           RESPONSE=$(curl -sS --fail-with-body --max-time 120 \
             -X POST "${MIHWAR_ENDPOINT}" \
-            -H "Authorization: Bearer ${AGENT_API_TOKEN}" \
+            -H "Authorization: Bearer ${MIHWAR_API_TOKEN}" \
             -H "Content-Type: application/json" \
             --data-binary @/tmp/mihwar-payload.json)
 
@@ -182,7 +182,7 @@ jobs:
           cat > /tmp/mihwar-skipped.md <<'EOF'
           ### [mihwar][skipped]
 
-          `MIHWAR_ENDPOINT` or `AGENT_API_TOKEN` is not configured.
+          `MIHWAR_ENDPOINT` or `MIHWAR_API_TOKEN` is not configured.
           Mihwar Agent **SKIPPED_UNVERIFIED** — configure secrets to enable SWE execution.
           EOF
           gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/mihwar-skipped.md 2>/dev/null || true

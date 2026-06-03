@@ -76,7 +76,7 @@ MCP يعمل في no-secrets/offline mode إلا إذا وافق المؤسس ص
 
 - MIHWAR_ENDPOINT الحقيقي
 - BAYYINAH_ENDPOINT الحقيقي
-- AGENT_API_TOKEN الحقيقي
+- BAYYINAH_API_TOKEN أو MIHWAR_API_TOKEN الحقيقي
 - أي مفتاح API
 
 ## أسلوب المتابعة مع المهندسين
