@@ -37,13 +37,18 @@ jobs:
     environment: production
     steps:
       - name: Validate request
+        # Inputs are passed via env (not interpolated into the shell) to avoid
+        # Actions expression-injection; compare shell variables only.
+        env:
+          TARGET: ${{ inputs.target }}
+          CONFIRM: ${{ inputs.confirm }}
         run: |
           set -euo pipefail
-          if [ "${{ inputs.target }}" = "smoke" ] && [ "${{ inputs.confirm }}" != "SMOKE" ]; then
+          if [ "$TARGET" = "smoke" ] && [ "$CONFIRM" != "SMOKE" ]; then
             echo "Smoke requires confirm=SMOKE"
             exit 1
           fi
-          if [ "${{ inputs.target }}" = "activate" ] && [ "${{ inputs.confirm }}" != "ACTIVATE" ]; then
+          if [ "$TARGET" = "activate" ] && [ "$CONFIRM" != "ACTIVATE" ]; then
             echo "Activation requires confirm=ACTIVATE"
             exit 1
           fi
