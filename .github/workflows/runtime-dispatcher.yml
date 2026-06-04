@@ -1,0 +1,70 @@
+# Runtime Dispatcher — constrained automation entry point.
+#
+# Purpose: let approved automation (a fine-grained PAT or a dedicated GitHub App
+# with Actions: read/write ONLY) request a Modal runtime smoke or activation,
+# WITHOUT granting that automation contents:write, secrets, admin, or the ability
+# to bypass environment approval.
+#
+# Defense in depth:
+#   1. This dispatcher is itself gated on the protected `production` environment.
+#   2. It validates the typed confirmation phrase before dispatching.
+#   3. The dispatched workflow (modal-runtime-auto-activation.yml) re-checks
+#      `confirm == 'ACTIVATE'` and is itself gated on `production`.
+# The PAT is used ONLY here, ONLY to dispatch the activation workflow.
+name: Runtime Dispatcher
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target action"
+        required: true
+        type: choice
+        options:
+          - smoke
+          - activate
+      confirm:
+        description: "Type ACTIVATE for deploy, SMOKE for smoke-only"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Validate request
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.target }}" = "smoke" ] && [ "${{ inputs.confirm }}" != "SMOKE" ]; then
+            echo "Smoke requires confirm=SMOKE"
+            exit 1
+          fi
+          if [ "${{ inputs.target }}" = "activate" ] && [ "${{ inputs.confirm }}" != "ACTIVATE" ]; then
+            echo "Activation requires confirm=ACTIVATE"
+            exit 1
+          fi
+
+      - name: Dispatch smoke-only
+        if: ${{ inputs.target == 'smoke' }}
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_DISPATCH_PAT }}
+        run: |
+          set -euo pipefail
+          gh workflow run modal-runtime-auto-activation.yml \
+            --repo CurLexAI/swarms \
+            --ref main
+
+      - name: Dispatch activation
+        if: ${{ inputs.target == 'activate' }}
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_DISPATCH_PAT }}
+        run: |
+          set -euo pipefail
+          gh workflow run modal-runtime-auto-activation.yml \
+            --repo CurLexAI/swarms \
+            --ref main \
+            -f confirm=ACTIVATE
