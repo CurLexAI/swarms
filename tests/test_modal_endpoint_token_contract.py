@@ -7,6 +7,8 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 LEGACY_SHARED_TOKEN_ENV = "AGENT" + "_API_TOKEN"
@@ -199,7 +201,7 @@ def test_modal_activation_verifies_token_isolation_negative_smoke() -> None:
     assert "VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION" in workflow
 
 
-def test_qdrant_auth_is_required_in_production(monkeypatch) -> None:
+def test_qdrant_auth_is_required_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
     """Qdrant break-glass must not bypass production API-key auth."""
 
     import importlib.util
@@ -225,7 +227,7 @@ def test_qdrant_auth_is_required_in_production(monkeypatch) -> None:
         raise AssertionError("production Qdrant auth bypass was accepted")
 
 
-def test_qdrant_break_glass_is_local_private_only(monkeypatch) -> None:
+def test_qdrant_break_glass_is_local_private_only(monkeypatch: pytest.MonkeyPatch) -> None:
     """Unauthenticated Qdrant is accepted only for local/dev private-network use."""
 
     import importlib.util
