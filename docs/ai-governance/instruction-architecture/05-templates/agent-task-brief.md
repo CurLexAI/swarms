@@ -52,7 +52,8 @@
 
 - `MIHWAR_ENDPOINT`: [ ] SET  [ ] UNSET
 - `BAYYINAH_ENDPOINT`: [ ] SET  [ ] UNSET
-- `AGENT_API_TOKEN`: [ ] SET  [ ] UNSET
+- `BAYYINAH_API_TOKEN`: [ ] SET  [ ] UNSET
+- `MIHWAR_API_TOKEN`: [ ] SET  [ ] UNSET
 ```
 
 ---

@@ -266,7 +266,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
 
 ## Security
 
-- `AGENT_API_TOKEN` is deprecated for Bayyinah and Mihwar Modal endpoint authorization. Active setup examples must use `BAYYINAH_API_TOKEN` and `MIHWAR_API_TOKEN`; any legacy shared-token reference is retained only as historical compatibility evidence outside this active setup guide.
+- The retired shared-token contract is deprecated for Bayyinah and Mihwar Modal endpoint authorization. Active setup examples must use `BAYYINAH_API_TOKEN` and `MIHWAR_API_TOKEN`; any legacy shared-token reference is retained only as historical compatibility evidence outside this active setup guide.
 - Tokens are read from environment variables; never logged or returned in errors.
 - Modal endpoints are not exposed to the client — only the tool names appear.
 - The server has no filesystem or shell access for tools; it only forwards HTTPS POST requests after Aegis authorization.

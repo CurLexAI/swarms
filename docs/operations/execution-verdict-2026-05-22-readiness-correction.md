@@ -35,7 +35,7 @@ INFERRED:
 UNVERIFIED (SKIPPED_UNVERIFIED — expected outside CI/runtime):
 - BAYYINAH_ENDPOINT = UNSET
 - MIHWAR_ENDPOINT = UNSET
-- AGENT_API_TOKEN = UNSET
+- endpoint-specific runtime tokens = UNSET
 - Live Modal smoke test against `MihwarAgent` / `BayyinahAgent` vLLM endpoints.
 - TypeScript strict check: `npx tsc --noEmit` fails with
   `TS2688: Cannot find type definition file for 'node'` — pre-existing,

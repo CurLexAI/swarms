@@ -93,7 +93,8 @@ modal deploy .agents/modal_app.py
 ```
 BAYYINAH_ENDPOINT   — SET/UNSET (لا تطبع القيمة)
 MIHWAR_ENDPOINT     — SET/UNSET
-AGENT_API_TOKEN     — SET/UNSET
+BAYYINAH_API_TOKEN  — SET/UNSET
+MIHWAR_API_TOKEN    — SET/UNSET
 MODAL_TOKEN_ID      — SET/UNSET (اختياري)
 MODAL_TOKEN_SECRET  — SET/UNSET (اختياري)
 ```

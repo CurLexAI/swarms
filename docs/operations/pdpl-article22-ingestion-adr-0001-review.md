@@ -10,10 +10,10 @@ Reporter: Codex Commander discipline, claude/compliance-rag-setup-MTijg session.
 
 ## What the workflow does
 
-1. Validates `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, `AGENT_API_TOKEN` secrets are present.
+1. Validates `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, `RAG_INGEST_API_TOKEN` / `RAG_VERIFY_API_TOKEN` secrets are present.
 2. Installs `requirements-agent.txt` and authenticates with Modal.
 3. Deploys `.agents/ingest_test.py` to Modal and captures the resulting `*.modal.run` endpoint.
-4. POSTs to that endpoint with `Authorization: Bearer $AGENT_API_TOKEN`.
+4. POSTs to that endpoint with `Authorization: Bearer $RAG_INGEST_API_TOKEN`.
 5. Validates the JSON response asserts Qdrant collection `qarar_regulatory_test` has at least three points and a fixed semantic-search query (`نقل البيانات الشخصية خارج المملكة`) was answered.
 6. Uploads `modal_deploy.log` + `ingestion_response.json` as evidence artifacts.
 

@@ -21,7 +21,7 @@ Do not commit Vercel token values, organization IDs, project IDs, deploy hooks, 
 
 Only variables with public frontend prefixes may be exposed to browser code. In this repository, public frontend configuration starts with `NEXT_PUBLIC_`.
 
-Private runtime variables such as `MIHWAR_ENDPOINT`, `BAYYINAH_ENDPOINT`, `AGENT_API_TOKEN`, Modal tokens, Render deploy hooks, and provider API tokens must remain server-side secrets.
+Private runtime variables such as `MIHWAR_ENDPOINT`, `BAYYINAH_ENDPOINT`, endpoint-specific runtime tokens, Modal tokens, Render deploy hooks, and provider API tokens must remain server-side secrets.
 
 ## Modal Boundary
 

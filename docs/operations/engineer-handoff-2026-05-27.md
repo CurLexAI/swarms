@@ -98,7 +98,7 @@
 |---|---|
 | `BAYYINAH_ENDPOINT` | UNVERIFIED |
 | `MIHWAR_ENDPOINT` | UNVERIFIED |
-| `AGENT_API_TOKEN` | UNVERIFIED |
+| Endpoint-specific API tokens | UNVERIFIED |
 | اختبار دخان Bayyinah | SKIPPED_UNVERIFIED |
 | اختبار دخان Mihwar | SKIPPED_UNVERIFIED |
 | Render API | SKIPPED_UNVERIFIED |
@@ -176,7 +176,7 @@ CLAUDE.md يَعتبره fallback تلقائي فقط عندما يغيب `.agen
 
 ### المرحلة 3 — تفعيل وقت التشغيل (يحتاج أسرار)
 
-7. ضبط `BAYYINAH_ENDPOINT`، `MIHWAR_ENDPOINT`، `AGENT_API_TOKEN` في GitHub Secrets + Modal.
+7. ضبط `BAYYINAH_ENDPOINT`، `MIHWAR_ENDPOINT`، `BAYYINAH_API_TOKEN`، `MIHWAR_API_TOKEN` في GitHub Secrets + Modal.
 8. تشغيل `bash scripts/commander/modal-runtime-smoke.sh` ثم `modal deploy .agents/modal_app.py`.
 9. ملء أقسام Secrets/Smoke/Edge في `docs/launch-evidence/agent-launch.md` بنتائج موقَّعة.
 10. الحصول على Sign-off مشغّل بشري في القسم 8.

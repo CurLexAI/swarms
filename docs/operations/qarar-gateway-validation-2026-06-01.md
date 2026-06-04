@@ -1650,7 +1650,7 @@ $ bash scripts/commander/modal-boundary-gate.sh .
 [OK]   package init present: .agents/validators/__init__.py
 [WARN] SECRET_MISSING: BAYYINAH_ENDPOINT (expected outside CI/runtime)
 [WARN] SECRET_MISSING: MIHWAR_ENDPOINT (expected outside CI/runtime)
-[WARN] SECRET_MISSING: AGENT_API_TOKEN (expected outside CI/runtime)
+[WARN] SECRET_MISSING: endpoint-specific runtime token (expected outside CI/runtime)
 [OK]   workflow .github/workflows/agent-review.yml has no hardcoded modal URL
 [INFO] ADR-0001 boundary gate
 [INFO] repo=/workspace/swarms

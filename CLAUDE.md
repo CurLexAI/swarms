@@ -92,7 +92,7 @@ python3 .agents/invoke.py pipeline "Add rate limiting to the API"  # mihwar -> b
 modal deploy .agents/modal_app.py
 ```
 
-Required runtime secrets (configure in GitHub Actions / Render / secret manager — never commit): `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, and the **per-agent bearer tokens** `MIHWAR_API_TOKEN` and `BAYYINAH_API_TOKEN` (split from the legacy shared `AGENT_API_TOKEN` — each endpoint now isolates its own token). Optional: `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, `RENDER_API_TOKEN`, `CLOUDFLARE_API_TOKEN`, `SOVEREIGN_API_KEY`. When checking presence, report only `SET`/`UNSET` — never echo values. See `docs/secrets-policy.md`.
+Required runtime secrets (configure in GitHub Actions / Render / secret manager — never commit): `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, and the **per-agent bearer tokens** `MIHWAR_API_TOKEN` and `BAYYINAH_API_TOKEN` (split from the retired shared-token contract — each endpoint now isolates its own token). Optional: `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, `RENDER_API_TOKEN`, `CLOUDFLARE_API_TOKEN`, `SOVEREIGN_API_KEY`. When checking presence, report only `SET`/`UNSET` — never echo values. See `docs/secrets-policy.md`.
 
 ## Architecture (big picture)
 

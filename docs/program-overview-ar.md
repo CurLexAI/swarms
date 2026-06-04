@@ -55,7 +55,7 @@ User / iPhone / GitHub / Copilot
 
 - **Codex Commander**: قائد التنفيذ — يحدّد النطاق، يخطّط PRs صغيرة، يشغّل البوابات، يصدر تقرير `COMMANDER REPORT`.
 - **Bayyinah**: بوابة التحقق والمراجعة — تفعيلها التشغيلي يبقى `UNVERIFIED` حتى تنجح smoke tests على الـ endpoint.
-- **Mihwar**: وكيل التنفيذ واقتراح الإصلاحات — لا يُعتبر حياً قبل ضبط `MIHWAR_ENDPOINT` و `AGENT_API_TOKEN` وإثبات اختبار حي.
+- **Mihwar**: وكيل التنفيذ واقتراح الإصلاحات — لا يُعتبر حياً قبل ضبط `MIHWAR_ENDPOINT` و `MIHWAR_API_TOKEN` وإثبات اختبار حي.
 - **Render**: مصدر التطبيق (origin).
 - **Cloudflare**: طبقة الـ edge (DNS/TLS/WAF).
 - **Modal**: وقت تشغيل النماذج فقط — **backend-only** — يُحظر استدعاء `*.modal.run` من المتصفح أو iPhone أو أي سطح عام.
@@ -152,7 +152,7 @@ npm run test:cdn-sri
 - يعرّف Modal App اسمها `curlexai-agents`.
 - يحوي endpoint `MihwarAgent` (2× A100-80GB، vLLM، tensor parallel 2).
 - يحوي endpoint `BayyinahAgent` (1× A100-80GB، vLLM).
-- نقاط النهاية محميّة بـ HMAC bearer token (`AGENT_API_TOKEN`).
+- نقاط النهاية محميّة بـ bearer tokens معزولة: `BAYYINAH_API_TOKEN` و `MIHWAR_API_TOKEN`.
 - الأسرار من Modal: `huggingface-secret`، `agent-api-secret`.
 
 ### مصدر النشر
@@ -272,7 +272,7 @@ npm run test:cdn-sri
 | فحص TypeScript | `npx tsc --noEmit` (به blocker معروف يتم تتبّعه منفصلاً) |
 | الفحص المجمَّع | `npm run check` |
 
-> **آخر دليل launch evidence مُسجَّل:** عند الـ commit `57017b3a`، حالة الجاهزية المحلية `LOCAL_READY` — كل بوابات P0 والـ Python (171 اختبار) و Node (98 اختبار) تمر. التحقق من runtime مُعلَّق على إعداد الأسرار `BAYYINAH_ENDPOINT` / `MIHWAR_ENDPOINT` / `AGENT_API_TOKEN`.
+> **آخر دليل launch evidence مُسجَّل:** عند الـ commit `57017b3a`، حالة الجاهزية المحلية `LOCAL_READY` — كل بوابات P0 والـ Python (171 اختبار) و Node (98 اختبار) تمر. التحقق من runtime مُعلَّق على إعداد الأسرار `BAYYINAH_ENDPOINT` / `MIHWAR_ENDPOINT` / `BAYYINAH_API_TOKEN` / `MIHWAR_API_TOKEN`.
 
 ---
 
@@ -364,4 +364,4 @@ npm run test:cdn-sri
 - **الواجهات العامة:** Trust Center فقط (`public/trust/`).
 - **الخلفية:** Modal سيادي backend-only، Render origin، Cloudflare edge، اعتمادات في Secret Managers لا في الـ repo.
 - **براءات الاختراع:** **لم تكتمل** — لا تقنياً (أدلة الكود مفقودة من هذا المستودع لأنها تخص الـ monorepo الإنتاجي) ولا قانونياً (لا أرقام تقديم/شهادات تسجيل موثَّقة هنا).
-- **الجاهزية الحالية:** `LOCAL_READY` — كل بوابات P0 والاختبارات تمر، runtime activation معلَّق على ضبط `BAYYINAH_ENDPOINT` و `MIHWAR_ENDPOINT` و `AGENT_API_TOKEN` ثم تشغيل smoke tests فعلية ضد Modal.
+- **الجاهزية الحالية:** `LOCAL_READY` — كل بوابات P0 والاختبارات تمر، runtime activation معلَّق على ضبط `BAYYINAH_ENDPOINT` و `MIHWAR_ENDPOINT` و `BAYYINAH_API_TOKEN` و `MIHWAR_API_TOKEN` ثم تشغيل smoke tests فعلية ضد Modal.

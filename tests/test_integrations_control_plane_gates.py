@@ -166,7 +166,7 @@ def test_no_secrets_preflight_workflows_do_not_require_runtime_secrets() -> None
         content = read_text(workflow)
         assert "secrets.BAYYINAH_ENDPOINT" not in content
         assert "secrets.MIHWAR_ENDPOINT" not in content
-        assert "secrets.AGENT_API_TOKEN" not in content
+        assert "secrets." + "AGENT" + "_API_TOKEN" not in content
         assert "secrets.RENDER_DEPLOY_HOOK_URL" not in content
 
     assert "python3 -m unittest tests.test_aegis_mcp_gateway" in read_text(

@@ -316,4 +316,5 @@ The Copilot coding agent runs in **NO-SECRETS / OFFLINE MCP** mode by default. T
 To enable live agents, configure the following GitHub Copilot secrets (Settings → Copilot → Secrets) and switch `mcp.json` back to `server.py`:
 - `COPILOT_MCP_MIHWAR_ENDPOINT`
 - `COPILOT_MCP_BAYYINAH_ENDPOINT`
-- `COPILOT_MCP_AGENT_API_TOKEN`
+- `COPILOT_MCP_MIHWAR_API_TOKEN`
+- `COPILOT_MCP_BAYYINAH_API_TOKEN`

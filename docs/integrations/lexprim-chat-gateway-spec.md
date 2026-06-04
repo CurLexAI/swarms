@@ -24,7 +24,7 @@ Cloudflare edge   (WAF, DNS, mTLS terminator if used)
     ▼
 Render origin     (public gateway service in the product repo —
                    NOT in swarms)
-    │  HMAC bearer (AGENT_API_TOKEN)
+    │  endpoint-specific bearer tokens
     ▼
 Modal runtime     (MIHWAR_ENDPOINT, BAYYINAH_ENDPOINT)
 ```
@@ -33,11 +33,11 @@ Modal runtime     (MIHWAR_ENDPOINT, BAYYINAH_ENDPOINT)
 1. The client must **never** call `*.modal.run` directly. The
    `modal-boundary-gate.sh` in `swarms` enforces this and any product PR
    that violates it must be rejected at review.
-2. The bearer token (`AGENT_API_TOKEN`) lives only on the Render origin
+2. Endpoint-specific bearer tokens live only on the Render origin
    server. Browsers and mobile clients must never see it.
 3. The product repo is responsible for its own session auth between
    client and Render. The Render origin then attaches `Authorization:
-   Bearer ${AGENT_API_TOKEN}` when calling Modal.
+   Bearer ${MIHWAR_API_TOKEN}` or `Bearer ${BAYYINAH_API_TOKEN}` according to the target Modal endpoint.
 4. Both directions must be HTTPS. No mixed content, no fallback to HTTP.
 
 ---
@@ -55,10 +55,10 @@ cookie, etc.). Whatever is chosen must:
 
 ### 2.2 Render → Modal
 
-Single shared secret, HMAC bearer:
+Endpoint-specific bearer secret, selected per target agent:
 
 ```http
-Authorization: Bearer <AGENT_API_TOKEN>
+Authorization: Bearer <ENDPOINT_SPECIFIC_API_TOKEN>
 Content-Type: application/json
 ```
 

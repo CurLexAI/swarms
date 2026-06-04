@@ -23,8 +23,11 @@ Endpoints (after deploy — copy URLs into secrets, never commit them):
 Required Modal secrets:
     huggingface-secret   → HF_TOKEN             (bge-m3 model download)
     qdrant-infra-secret  → QDRANT_INTERNAL_URL   (Modal-sovereign Qdrant URL)
-                           QDRANT_API_KEY         (required unless break-glass
-                                                   ALLOW_UNAUTHENTICATED_QDRANT=true)
+                           QDRANT_API_KEY         (required in production or any
+                                                   reachable runtime; local/dev
+                                                   break-glass only when
+                                                   ALLOW_UNAUTHENTICATED_QDRANT=true
+                                                   and the URL is private/local)
     rag-api-secret       → RAG_INGEST_API_TOKEN  (pdpl-ingest Bearer auth)
                            RAG_VERIFY_API_TOKEN  (pdpl-verify Bearer auth)
 

@@ -52,6 +52,6 @@ Exit `0` = all enforced required secrets `SET`; exit `1` = at least one `UNSET`
 `VERIFIED` (`scripts/check-secrets-manifest.py --all`, exit 1): all six required
 secrets report **UNSET** in the repository build environment. This is expected —
 secrets live in GitHub Actions / the secret manager, not in the repo or this
-container. `AGENT_API_TOKEN` is intentionally absent from this manifest; Modal
+container. the retired shared-token secret is intentionally absent from this manifest; Modal
 endpoint authorization uses endpoint-specific tokens only. The fail-closed result
 is correct and gates Phases 5+ until secrets are provisioned by the owner.

@@ -14,7 +14,7 @@ Phase 1 discovery (2026-05-15) identified the Modal web endpoints in
 `.agents/modal_app.py` as the highest-leverage authentication weakness
 in the repository. The current model is:
 
-- A single shared static token (`AGENT_API_TOKEN`) projected into both
+- A single shared static token (now retired for Modal endpoint auth) projected into both
   `bayyinah_review_web` and `mihwar_generate_web` via the
   `agent-api-secret` Modal secret.
 - The token is carried in the JSON request body under a `"token"` key
