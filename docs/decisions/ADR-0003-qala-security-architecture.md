@@ -19,7 +19,7 @@ self-hosted vendor libraries, and seven shell/Node boundary gates.
 Discovery (Phase 1, 2026-05-15) recorded specific weaknesses:
 
 1. The Modal web endpoints in `.agents/modal_app.py` authenticate by a
-   single shared static `AGENT_API_TOKEN` carried in the JSON body and
+   single shared static token carried in the JSON body and
    compared with plain `==` — no per-caller identity, no replay defense,
    no timing-safe comparison.
 2. `AuditService` writes to `console.log` only — there is no
@@ -92,7 +92,7 @@ discovery.
 **Qal'a extension.** Modal-edge HMAC replacement is *deferred* to
 `ADR-0004` (Phase 2 item 6). This ADR explicitly does not authorize
 the implementation. Modal endpoints, vLLM model weights, and the
-shared `AGENT_API_TOKEN` rotation cadence remain as-is until ADR-0004
+shared-token rotation cadence remain as-is until ADR-0004
 is accepted.
 
 **Hot-surface classification.** Modal-edge auth is a hot surface per

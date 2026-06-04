@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "repository": "CurLexAI/swarms",
-  "generated_utc": "2026-06-02T00:00:00Z",
+  "generated_utc": "2026-06-04T00:00:00Z",
   "production_principle": "verification before activation",
-  "final_verdict": "HOLD",
+  "final_verdict": "WAIT",
   "no_auto_deploy_rule": true,
   "phases": [
     {
@@ -41,7 +41,7 @@
     {
       "order": 4,
       "name": "Modal deploy",
-      "status": "HOLD",
+      "status": "WAIT",
       "evidence": [
         ".github/workflows/modal-runtime-activation.yml"
       ],
@@ -53,7 +53,7 @@
     {
       "order": 5,
       "name": "Modal CLI smoke",
-      "status": "HOLD",
+      "status": "WAIT",
       "evidence": [],
       "blockers": [
         "APPROVED_DEPLOY_REQUIRED"
@@ -62,16 +62,19 @@
     {
       "order": 6,
       "name": "Endpoint smoke",
-      "status": "HOLD",
-      "evidence": [],
+      "status": "WAIT",
+      "evidence": [
+        "WAIT until VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION is emitted by approved smoke"
+      ],
       "blockers": [
-        "ENDPOINT_SMOKE_NOT_EXECUTED"
+        "ENDPOINT_SMOKE_NOT_EXECUTED",
+        "CROSS_TOKEN_NEGATIVE_SMOKE_NOT_EXECUTED"
       ]
     },
     {
       "order": 7,
       "name": "Bayyinah PR gate",
-      "status": "HOLD",
+      "status": "WAIT",
       "evidence": [
         ".github/workflows/agent-review.yml"
       ],
@@ -83,7 +86,7 @@
     {
       "order": 8,
       "name": "Control boundary",
-      "status": "HOLD",
+      "status": "WAIT",
       "evidence": [],
       "blockers": [
         "CONTROL_BOUNDARY_NOT_RUNTIME_VERIFIED"
@@ -185,7 +188,7 @@
     {
       "command": "npm run deploy:evidence:validate --if-present",
       "result": "PASS",
-      "notes": "Evidence schema and HOLD verdict validated."
+      "notes": "Evidence schema and WAIT verdict validated."
     }
   ],
   "blockers_by_severity": {
@@ -196,7 +199,7 @@
       "Required secret presence is not verified in approved secret stores.",
       "Modal deploy is not approved or executed.",
       "Modal CLI smoke is not executed.",
-      "Endpoint smoke is not executed.",
+      "Endpoint smoke and cross-token negative smoke are not executed.",
       "Bayyinah PR gate blocking behavior is not live verified.",
       "Control boundary is not runtime verified.",
       "Device/connectivity pilot is not executed."

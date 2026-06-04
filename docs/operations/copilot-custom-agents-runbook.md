@@ -20,7 +20,7 @@ Do not claim live agent operation until all are true:
 1. Modal workflow ran successfully.
 2. `BAYYINAH_ENDPOINT` is configured.
 3. `MIHWAR_ENDPOINT` is configured.
-4. `AGENT_API_TOKEN` is configured.
+4. endpoint-specific runtime tokens are configured.
 5. Endpoint smoke returned HTTP 200 from both Bayyinah and Mihwar.
 6. Bayyinah validation has no CRITICAL/HIGH blockers.
 

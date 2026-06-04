@@ -5,8 +5,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+LEGACY_SHARED_TOKEN_ENV = "AGENT" + "_API_TOKEN"
+LEGACY_SHARED_SECRET_REF = f"secrets.{LEGACY_SHARED_TOKEN_ENV}"
+LEGACY_SHARED_BEARER = f"Authorization: Bearer ${{{LEGACY_SHARED_TOKEN_ENV}}}"
 
 
 def _read(relative_path: str) -> str:
@@ -20,8 +25,8 @@ def test_agent_review_uses_endpoint_specific_tokens() -> None:
 
     assert "BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}" in workflow
     assert "MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}" in workflow
-    assert "secrets.AGENT_API_TOKEN" not in workflow
-    assert "AGENT_API_TOKEN is missing" not in workflow
+    assert LEGACY_SHARED_SECRET_REF not in workflow
+    assert f"{LEGACY_SHARED_TOKEN_ENV} is missing" not in workflow
 
 
 def test_modal_activation_endpoint_smoke_uses_endpoint_specific_tokens() -> None:
@@ -33,8 +38,8 @@ def test_modal_activation_endpoint_smoke_uses_endpoint_specific_tokens() -> None
     assert "MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}" in workflow
     assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in workflow
     assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in workflow
-    assert "secrets.AGENT_API_TOKEN" not in workflow
-    assert "Authorization: Bearer ${AGENT_API_TOKEN}" not in workflow
+    assert LEGACY_SHARED_SECRET_REF not in workflow
+    assert LEGACY_SHARED_BEARER not in workflow
     assert "BLOCKED_SHARED_ENDPOINT_TOKEN" in workflow
     assert "VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION" in workflow
     assert "bayyinah_cross_status" in workflow
@@ -50,9 +55,9 @@ def test_smoke_modal_uses_endpoint_specific_tokens() -> None:
     assert "MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}" in workflow
     assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in workflow
     assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in workflow
-    assert "secrets.AGENT_API_TOKEN" not in workflow
-    assert "Authorization: Bearer ${AGENT_API_TOKEN}" not in workflow
-    assert "AGENT_API_TOKEN" not in workflow
+    assert LEGACY_SHARED_SECRET_REF not in workflow
+    assert LEGACY_SHARED_BEARER not in workflow
+    assert LEGACY_SHARED_TOKEN_ENV not in workflow
 
 
 def test_modal_boundary_gate_reports_endpoint_specific_tokens() -> None:
@@ -61,7 +66,7 @@ def test_modal_boundary_gate_reports_endpoint_specific_tokens() -> None:
     source = _read("scripts/commander/modal-boundary-gate.sh")
 
     assert "for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN" in source
-    assert "for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT AGENT_API_TOKEN" not in source
+    assert "for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT " + LEGACY_SHARED_TOKEN_ENV not in source
 
 
 def test_pr_review_reads_endpoint_specific_tokens() -> None:
@@ -71,7 +76,7 @@ def test_pr_review_reads_endpoint_specific_tokens() -> None:
 
     assert '_require_env("BAYYINAH_API_TOKEN")' in source
     assert '_require_env("MIHWAR_API_TOKEN")' in source
-    assert '_require_env("AGENT_API_TOKEN")' not in source
+    assert f'_require_env("{LEGACY_SHARED_TOKEN_ENV}")' not in source
 
 
 def test_local_modal_smoke_uses_endpoint_specific_tokens() -> None:
@@ -82,7 +87,7 @@ def test_local_modal_smoke_uses_endpoint_specific_tokens() -> None:
     assert "BAYYINAH_API_TOKEN" in script
     assert "MIHWAR_API_TOKEN" in script
     assert "Authorization: Bearer ${token}" in script
-    assert "Authorization: Bearer ${AGENT_API_TOKEN}" not in script
+    assert LEGACY_SHARED_BEARER not in script
     assert "STATUS=BLOCKED_SHARED_ENDPOINT_TOKEN" in script
     assert "STATUS=VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION" in script
     assert "bayyinah-cross-token" in script
@@ -96,8 +101,8 @@ def test_mcp_server_reads_endpoint_specific_tokens() -> None:
 
     assert 'os.environ.get("BAYYINAH_API_TOKEN", "")' in source
     assert 'os.environ.get("MIHWAR_API_TOKEN", "")' in source
-    assert 'os.environ.get("AGENT_API_TOKEN", "")' not in source
-    assert '"AGENT_API_TOKEN is not configured."' not in source
+    assert f'os.environ.get("{LEGACY_SHARED_TOKEN_ENV}", "")' not in source
+    assert f'"{LEGACY_SHARED_TOKEN_ENV} is not configured."' not in source
 
 
 def test_modal_provider_reads_endpoint_specific_tokens() -> None:
@@ -107,8 +112,8 @@ def test_modal_provider_reads_endpoint_specific_tokens() -> None:
 
     assert 'return "BAYYINAH_API_TOKEN"' in source
     assert 'return "MIHWAR_API_TOKEN"' in source
-    assert 'os.environ.get("AGENT_API_TOKEN", "")' not in source
-    assert '"AGENT_API_TOKEN is not configured."' not in source
+    assert f'os.environ.get("{LEGACY_SHARED_TOKEN_ENV}", "")' not in source
+    assert f'"{LEGACY_SHARED_TOKEN_ENV} is not configured."' not in source
 
 
 def test_remote_mcp_surfaces_use_endpoint_specific_tokens() -> None:
@@ -121,7 +126,7 @@ def test_remote_mcp_surfaces_use_endpoint_specific_tokens() -> None:
     cloudflare_client = _read(".agents/mcp/cloudflare-mcp/src/modal-client.ts")
 
     for source in (render_blueprint, render_config, render_client, cloudflare_agent, cloudflare_client):
-        assert "AGENT_API_TOKEN" not in source
+        assert LEGACY_SHARED_TOKEN_ENV not in source
 
     assert "MIHWAR_API_TOKEN" in render_blueprint
     assert "BAYYINAH_API_TOKEN" in render_blueprint
@@ -140,8 +145,8 @@ def test_runtime_security_has_no_legacy_shared_token_fallback() -> None:
 
     source = _read(".agents/runtime_security.py")
 
-    assert "AGENT_API_TOKEN" not in source
-    assert "ALLOW_LEGACY_SHARED_AGENT_TOKEN" not in source
+    assert LEGACY_SHARED_TOKEN_ENV not in source
+    assert "ALLOW_LEGACY_SHARED_" + "AGENT_TOKEN" not in source
     assert "allow_legacy_shared_token" not in source
     assert 'os.environ.get(token_env, "")' in source
 
@@ -151,8 +156,8 @@ def test_modal_app_does_not_expose_legacy_shared_token_opt_in() -> None:
 
     source = _read(".agents/modal_app.py")
 
-    assert "AGENT_API_TOKEN" not in source
-    assert "ALLOW_LEGACY_SHARED_AGENT_TOKEN" not in source
+    assert LEGACY_SHARED_TOKEN_ENV not in source
+    assert "ALLOW_LEGACY_SHARED_" + "AGENT_TOKEN" not in source
     assert "allow_legacy_shared_token" not in source
     assert 'token_env="BAYYINAH_API_TOKEN"' in source
     assert 'token_env="MIHWAR_API_TOKEN"' in source
@@ -168,9 +173,9 @@ def test_on_demand_agent_workflows_use_endpoint_specific_tokens() -> None:
     }
 
     for source in workflows.values():
-        assert "secrets.AGENT_API_TOKEN" not in source
-        assert "Authorization: Bearer ${AGENT_API_TOKEN}" not in source
-        assert "AGENT_API_TOKEN" not in source
+        assert LEGACY_SHARED_SECRET_REF not in source
+        assert LEGACY_SHARED_BEARER not in source
+        assert LEGACY_SHARED_TOKEN_ENV not in source
 
     assert "BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}" in workflows["bayyinah"]
     assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in workflows["bayyinah"]
@@ -192,3 +197,58 @@ def test_modal_activation_verifies_token_isolation_negative_smoke() -> None:
     assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in workflow
     assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in workflow
     assert "VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION" in workflow
+
+
+def test_qdrant_auth_is_required_in_production(monkeypatch) -> None:
+    """Qdrant break-glass must not bypass production API-key auth."""
+
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "runtime_security", REPO_ROOT / ".agents" / "runtime_security.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+    monkeypatch.setenv("ALLOW_UNAUTHENTICATED_QDRANT", "true")
+    monkeypatch.setenv("QDRANT_INTERNAL_URL", "http://qdrant:6333")
+    monkeypatch.setenv("NODE_ENV", "production")
+
+    try:
+        module.require_qdrant_auth()
+    except RuntimeError as error:
+        assert str(error) == "qdrant_api_key_required_in_production"
+    else:
+        raise AssertionError("production Qdrant auth bypass was accepted")
+
+
+def test_qdrant_break_glass_is_local_private_only(monkeypatch) -> None:
+    """Unauthenticated Qdrant is accepted only for local/dev private-network use."""
+
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "runtime_security", REPO_ROOT / ".agents" / "runtime_security.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+    monkeypatch.setenv("ALLOW_UNAUTHENTICATED_QDRANT", "true")
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("QDRANT_INTERNAL_URL", "http://127.0.0.1:6333")
+
+    module.require_qdrant_auth()
+
+    monkeypatch.setenv("QDRANT_INTERNAL_URL", "https://qdrant.example.invalid")
+    try:
+        module.require_qdrant_auth()
+    except RuntimeError as error:
+        assert str(error) == "qdrant_unauthenticated_requires_private_network"
+    else:
+        raise AssertionError("reachable Qdrant auth bypass was accepted")

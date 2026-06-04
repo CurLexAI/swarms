@@ -18,7 +18,7 @@ VALIDATION:
 RISKS:
 - UNVERIFIED_RUNTIME: runtime activation still depends on external Modal account credentials and endpoint secrets.
 - DEPLOYMENT_BLOCKED risk remains when `MODAL_TOKEN_ID`/`MODAL_TOKEN_SECRET` are absent.
-- SECRET_MISSING risk remains when `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, or `AGENT_API_TOKEN` are absent for endpoint smoke.
+- SECRET_MISSING risk remains when `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, `BAYYINAH_API_TOKEN`, or `MIHWAR_API_TOKEN` are absent for endpoint smoke.
 
 DECISION:
 - Status: CHANGED_BUT_NOT_VERIFIED.

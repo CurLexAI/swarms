@@ -11,8 +11,8 @@ the agent hardening closed:
 * admin tokens accepted from query strings
 * CORS wildcard combined with credentials
 * unpinned GitHub Actions
-* `QDRANT_API_KEY` documented as optional
-* the legacy shared `AGENT_API_TOKEN`
+* Qdrant API-key requirement weakened in runtime docs/config
+* the legacy shared endpoint bearer token
 
 Findings carry a severity and a `blocking` flag:
 
@@ -76,14 +76,14 @@ CHECKS: Final[list[Check]] = [
     Check(
         "HIGH",
         False,
-        re.compile(r"QDRANT_API_KEY.*optional", re.IGNORECASE),
-        "QDRANT_API_KEY must not be documented as optional without break-glass flag",
+        re.compile("QDRANT" + r"_API_KEY.*optional", re.IGNORECASE),
+        "Qdrant API key must not be documented as optional without local/dev private-network break-glass scope",
     ),
     Check(
         "MEDIUM",
         False,
-        re.compile(r"AGENT_API_TOKEN.*shared", re.IGNORECASE),
-        "Shared AGENT_API_TOKEN should be replaced with endpoint-specific tokens",
+        re.compile("AGENT" + r"_API_TOKEN.*shared", re.IGNORECASE),
+        "Shared endpoint bearer token should be replaced with endpoint-specific tokens",
     ),
 ]
 

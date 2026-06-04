@@ -110,13 +110,19 @@ with the new `Last rotated` date — never the value.
 
 ## 5. Incident Response
 
-If a secret is suspected to have been logged, committed, or exposed:
+If a secret is suspected to have been logged, committed, copied into an env
+file, or exposed partially:
 
-1. Revoke the secret at the source provider immediately.
-2. Replace it in GitHub Actions secrets.
-3. If committed: rotate, then run `git log -p` plus a secret scanner
-   over the affected branch range. File an issue tagged `security`.
-4. Record the incident date and resolution in this file under §6.
+1. Revoke and rotate the secret at the source provider immediately.
+2. Replace it in the approved secret store; never paste values into commits, PRs,
+   issue comments, screenshots, or logs.
+3. Rotate any related GitHub, Render, external AI-provider, Telegram, or other
+   token-shaped material that appeared or partially appeared in the exposure.
+4. If committed: rotate first, then run `git log -p` plus a secret scanner over
+   the affected branch range. File an issue tagged `security`.
+5. Re-run a clean HEAD secret scan and record only redacted status evidence. Raw
+   scanner reports must not be committed.
+6. Record the incident date and resolution in this file under §6.
 
 ## 6. Incident Log
 

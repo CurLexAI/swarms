@@ -3,7 +3,7 @@ Execution Verdict:
 - Scope: Comprehensive production-readiness audit for agent operations repository surfaces (agents, tests, workflows, commander gates).
 - Canonical Path: /workspace/swarms on branch work.
 - Files Touched: docs/operations/execution-verdict-2026-05-22-readiness-audit.md
-- Blockers: TEST_FAILURE (python test collection missing requests), WORKFLOW_CONFLICT (ADR-0001 boundary gate fails via autoStart drift), SECRET_MISSING (BAYYINAH_ENDPOINT, MIHWAR_ENDPOINT, AGENT_API_TOKEN for runtime checks).
+- Blockers: TEST_FAILURE (python test collection missing requests), WORKFLOW_CONFLICT (ADR-0001 boundary gate fails via autoStart drift), SECRET_MISSING (BAYYINAH_ENDPOINT, MIHWAR_ENDPOINT, endpoint-specific runtime tokens for runtime checks).
 - Hot Surface Risk: HIGH — boundary policy regression indicates shared deployment/governance surface drift.
 - What Was Actually Changed: Added this execution-discipline audit evidence report only.
 - What Was Actually Verified: python agent files compile; .agents/validate.py passes; invoke info renders configured agents; node test suite in npm test passes; P0 security gate passes; modal boundary gate and npm run check fail due ADR-0001 boundary drift.

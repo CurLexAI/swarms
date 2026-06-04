@@ -69,6 +69,6 @@ Modal tokens  →  secrets manager only
 | JWT / OAuth tokens | ممنوع في السجلات |
 
 الأسرار المطلوبة للتشغيل (SET/UNSET فقط — لا تطبع القيم):
-`BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, `AGENT_API_TOKEN`
+`BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, `BAYYINAH_API_TOKEN`, `MIHWAR_API_TOKEN`
 
 الاختيارية: `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, `RENDER_API_TOKEN`, `CLOUDFLARE_API_TOKEN`, `SOVEREIGN_API_KEY`

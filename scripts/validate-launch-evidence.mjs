@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 
 const evidence = JSON.parse(readFileSync('docs/launch-evidence/launch-evidence.json', 'utf8'));
-const allowedVerdicts = new Set(['READY', 'HOLD', 'REJECT']);
+const allowedVerdicts = new Set(['READY', 'WAIT', 'HOLD', 'REJECT']);
 const requiredPhaseNames = [
   'Governance',
   'Secrets',
@@ -39,7 +39,7 @@ function fail(message) {
 }
 
 if (!allowedVerdicts.has(evidence.final_verdict)) {
-  fail('final_verdict must be READY, HOLD, or REJECT');
+  fail('final_verdict must be READY, WAIT, HOLD, or REJECT');
 }
 
 if (evidence.final_verdict === 'READY') {

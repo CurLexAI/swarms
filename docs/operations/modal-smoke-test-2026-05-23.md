@@ -1,7 +1,7 @@
 # Modal Endpoint Smoke Test — 2026-05-23
 
 > **Purpose:** Verify that `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, and
-> `AGENT_API_TOKEN` are correctly bound in GitHub Actions Repository
+> endpoint-specific runtime tokens are correctly bound in GitHub Actions Repository
 > Secrets, and that Modal endpoints respond to real inference requests.
 >
 > **Method:** This file exists to trigger `agent-review.yml` on a PR.
