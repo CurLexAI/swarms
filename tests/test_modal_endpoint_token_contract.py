@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+from types import ModuleType
 
 import pytest
 
@@ -18,6 +19,31 @@ LEGACY_SHARED_BEARER = f"Authorization: Bearer ${{{LEGACY_SHARED_TOKEN_ENV}}}"
 
 def _read(relative_path: str) -> str:
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def _load_runtime_security_module() -> ModuleType:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "runtime_security", REPO_ROOT / ".agents" / "runtime_security.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _assert_rejects_cross_token(module: ModuleType, token_env: str, wrong_token: str) -> None:
+    from fastapi import HTTPException
+
+    try:
+        module.verify_bearer_token(f"Bearer {wrong_token}", token_env=token_env)
+    except HTTPException as error:
+        assert error.status_code == 401
+        assert error.detail == "invalid_token"
+    else:
+        raise AssertionError(f"{token_env} accepted another endpoint token")
 
 
 def test_agent_review_uses_endpoint_specific_tokens() -> None:
@@ -199,6 +225,44 @@ def test_modal_activation_verifies_token_isolation_negative_smoke() -> None:
     assert "Authorization: Bearer ${MIHWAR_API_TOKEN}" in workflow
     assert "Authorization: Bearer ${BAYYINAH_API_TOKEN}" in workflow
     assert "VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION" in workflow
+
+
+def test_modal_endpoint_tokens_reject_cross_endpoint_bearers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bayyinah and Mihwar must reject each other's endpoint token."""
+
+    module = _load_runtime_security_module()
+    monkeypatch.setenv("BAYYINAH_API_TOKEN", "bayyinah-only-token")
+    monkeypatch.setenv("MIHWAR_API_TOKEN", "mihwar-only-token")
+
+    module.verify_bearer_token(
+        "Bearer bayyinah-only-token", token_env="BAYYINAH_API_TOKEN"
+    )
+    module.verify_bearer_token(
+        "Bearer mihwar-only-token", token_env="MIHWAR_API_TOKEN"
+    )
+    _assert_rejects_cross_token(module, "BAYYINAH_API_TOKEN", "mihwar-only-token")
+    _assert_rejects_cross_token(module, "MIHWAR_API_TOKEN", "bayyinah-only-token")
+
+
+def test_rag_endpoint_tokens_reject_cross_endpoint_bearers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RAG ingest and verify endpoints must reject each other's token."""
+
+    module = _load_runtime_security_module()
+    monkeypatch.setenv("RAG_INGEST_API_TOKEN", "rag-ingest-only-token")
+    monkeypatch.setenv("RAG_VERIFY_API_TOKEN", "rag-verify-only-token")
+
+    module.verify_bearer_token(
+        "Bearer rag-ingest-only-token", token_env="RAG_INGEST_API_TOKEN"
+    )
+    module.verify_bearer_token(
+        "Bearer rag-verify-only-token", token_env="RAG_VERIFY_API_TOKEN"
+    )
+    _assert_rejects_cross_token(module, "RAG_INGEST_API_TOKEN", "rag-verify-only-token")
+    _assert_rejects_cross_token(module, "RAG_VERIFY_API_TOKEN", "rag-ingest-only-token")
 
 
 def test_qdrant_auth_is_required_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
