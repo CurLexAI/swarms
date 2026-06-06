@@ -35,6 +35,44 @@ Documentation-only evidence may **never** yield `READY`.
 
 ---
 
+## 0a. Validation semantics (binding rules)
+
+These rules govern how every step in this runbook is invoked and scored. They close
+one execution gap and one verification gap.
+
+**Rule 1 — `--if-present` is for npm scripts only; never for tools.**
+Run all three npm validation steps in the **`npm run <script> --if-present`** form,
+never bare `npm test`/`npm build`:
+```bash
+npm run check --if-present
+npm run test  --if-present
+npm run build --if-present
+```
+Rationale: bare `npm test` with no `test` script returns **exit 1** (a false failure
+that would be misclassified as an *application* failure); `npm run test --if-present`
+skips quietly. This unification prevents a tooling failure from masquerading as an
+application failure. (Does **not** apply to non-npm tools like `python3`, `ruff`,
+`mypy`, `pytest`, or the commander gates — those have no `--if-present` and a missing
+one is a real failure.)
+
+**Rule 2 — a skipped step is `UNVERIFIED`, not `PASS`.**
+When `--if-present` skips a step because the script is absent, the result is an empty
+success (skip), **not** an actual verification. Score it **`UNVERIFIED`**, never
+`PASS`. Merge / activation requires a real `PASS`, or a **documented, justified**
+absence — never a silent skip counted as green. (Same logic as the secrets validator,
+which fails closed rather than passing on absence.)
+
+**Rule 3 — `VERIFIED_ENDPOINT_SMOKE` is an auditable contract, not a label.**
+The string `VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION` may be claimed **only** when
+all of the following are recorded together:
+- an **actual response** from the targeted endpoint (the request reached it),
+- the **expected status code** (200 to the matching token; rejection to the wrong one),
+- **content matching the endpoint contract** (not just any 2xx),
+- a **timestamp** and an **auditable log** of the run.
+A claim without that record is `UNVERIFIED`, regardless of the string.
+
+---
+
 ## Track A — Sovereign agent runtime (this repo)
 
 ### A1. Secrets (owner) — Phase 2 precondition
@@ -70,11 +108,14 @@ Confirm: import OK, secret access OK, model available, safe test inference; reco
 outputs with no sensitive data.
 
 ### A5. Phase 6 — Endpoint smoke + token isolation (the decisive gate)
-Verify, against the live endpoints:
-- Bayyinah and Mihwar each return **HTTP 200** to an authenticated request;
-- each endpoint **rejects the other endpoint's token** (cross-token negative test);
-- logs expose **no** secrets;
-- the only acceptable launch verdict string is `VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION`.
+Satisfy the **`VERIFIED_ENDPOINT_SMOKE` contract (Rule 3 above)** against the live
+endpoints — each element must be recorded, not asserted:
+- Bayyinah and Mihwar each return **HTTP 200** to a request bearing **their own** token;
+- each endpoint **rejects the other endpoint's token** (cross-token negative: expect 401);
+- response **content matches the endpoint contract** (not merely any 2xx);
+- logs expose **no** secrets; the run carries a **timestamp + auditable log**.
+Only with that full record may `VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION` be
+emitted; absent any element the result is `UNVERIFIED`.
 
 ### A6. Phase 7 — Bayyinah PR gate is merge-blocking (owner)
 Confirm branch protection on `main` **requires** the `agent-review` check, so a
