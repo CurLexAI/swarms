@@ -37,7 +37,6 @@ Smoke test (requires Modal auth):
 
 from __future__ import annotations
 
-import hmac
 import os
 import re
 import sys as _sys
@@ -54,7 +53,7 @@ _AGENTS_DIR = str(_Path(__file__).resolve().parent)
 if _AGENTS_DIR not in _sys.path:
     _sys.path.insert(0, _AGENTS_DIR)
 
-from runtime_security import require_qdrant_auth  # noqa: E402
+from runtime_security import require_qdrant_auth, verify_bearer_token  # noqa: E402
 
 # ── Modal app (separate from curlexai-agents) ────────────────────────────────
 
@@ -130,17 +129,17 @@ def _qdrant_client():  # type: ignore[return]  # qdrant_client not available at 
 
 
 def _verify_bearer_token(authorization: Optional[str], *, token_env: str) -> None:
-    expected = os.environ.get(token_env, "")
-    if not expected:
-        raise HTTPException(status_code=503, detail=f"{token_env.lower()}_missing")
-    if not authorization:
-        raise HTTPException(status_code=401, detail="missing_authorization")
-    # HTTP auth scheme is case-insensitive (RFC 7235) — matches modal_app.py pattern
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(status_code=401, detail="invalid_authorization_scheme")
-    if not hmac.compare_digest(token, expected):
-        raise HTTPException(status_code=401, detail="invalid_token")
+    """Validate endpoint-specific RAG Bearer tokens with shared auth logic.
+
+    Args:
+        authorization: Raw ``Authorization`` header value.
+        token_env: Environment variable name for the exact endpoint token.
+
+    Raises:
+        HTTPException: If the endpoint-specific token is missing or invalid.
+    """
+
+    verify_bearer_token(authorization, token_env=token_env)
 
 
 # ── Ingestor class (holds bge-m3 warm across calls) ─────────────────────────
