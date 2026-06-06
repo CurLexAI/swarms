@@ -12,7 +12,7 @@ on:
         description: "Run Modal smoke entrypoints"
         required: false
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read
@@ -74,6 +74,10 @@ jobs:
             exit 0
           fi
           modal token set --token-id "$MODAL_TOKEN_ID" --token-secret "$MODAL_TOKEN_SECRET"
+          # Baseline once secrets are present but nothing live ran yet. Later
+          # steps override this with VERIFIED_MODAL_DEPLOYED / _CLI_ONLY /
+          # _ENDPOINT_SMOKE_AND_TOKEN_ISOLATION when they actually execute.
+          echo "FINAL_STATUS=VERIFIED_PREFLIGHT_ONLY" >> "$GITHUB_ENV"
 
       - name: Deploy Modal app (optional)
         if: ${{ env.FINAL_STATUS != 'UNVERIFIED_SECRET_MISSING' && inputs.deploy_modal }}
@@ -126,4 +130,26 @@ jobs:
           status="${FINAL_STATUS:-BLOCKED_MODAL_FAILURE}"
           echo "## Modal runtime activation verdict" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "$status" >> "$GITHUB_STEP_SUMMARY"
+          echo "FINAL_STATUS=$status" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          # Only a real live endpoint smoke counts as activation verified.
+          case "$status" in
+            VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION)
+              echo "Activation verified: Bayyinah + Mihwar endpoints are live and token isolation holds." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            VERIFIED_PREFLIGHT_ONLY)
+              echo "Preflight only. This run did NOT deploy Modal and did NOT smoke endpoints. Not an activation." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            VERIFIED_MODAL_DEPLOYED)
+              echo "Deployed to Modal, but endpoints were NOT smoke-tested. Not activation verified." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            VERIFIED_MODAL_CLI_ONLY)
+              echo "Modal CLI entrypoints ran, but live endpoints were NOT verified. Not activation verified." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            UNVERIFIED_SECRET_MISSING)
+              echo "Secrets missing or not bound to the production environment. Nothing was contacted." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "Blocked or unknown. Review the step logs." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+          esac
