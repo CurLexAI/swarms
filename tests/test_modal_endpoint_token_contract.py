@@ -232,6 +232,7 @@ def test_modal_endpoint_tokens_reject_cross_endpoint_bearers(
 ) -> None:
     """Bayyinah and Mihwar must reject each other's endpoint token."""
 
+    pytest.importorskip("fastapi")  # verify_bearer_token imports fastapi lazily
     module = _load_runtime_security_module()
     monkeypatch.setenv("BAYYINAH_API_TOKEN", "bayyinah-only-token")
     monkeypatch.setenv("MIHWAR_API_TOKEN", "mihwar-only-token")
@@ -251,6 +252,7 @@ def test_rag_endpoint_tokens_reject_cross_endpoint_bearers(
 ) -> None:
     """RAG ingest and verify endpoints must reject each other's token."""
 
+    pytest.importorskip("fastapi")  # verify_bearer_token imports fastapi lazily
     module = _load_runtime_security_module()
     monkeypatch.setenv("RAG_INGEST_API_TOKEN", "rag-ingest-only-token")
     monkeypatch.setenv("RAG_VERIFY_API_TOKEN", "rag-verify-only-token")
