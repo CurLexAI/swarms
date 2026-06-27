@@ -222,5 +222,69 @@ class McpServerAegisIntegrationTests(unittest.TestCase):
         self.assertIn("prompt_injection_blocked", response["result"]["content"][0]["text"])
 
 
+class BuildPromptTests(unittest.TestCase):
+    def test_task_only(self) -> None:
+        result = mcp_server._build_prompt({"task": "Fix the bug"})
+        self.assertEqual(result, "Fix the bug")
+
+    def test_task_and_code(self) -> None:
+        result = mcp_server._build_prompt({"task": "Refactor", "code": "x = 1"})
+        self.assertIn("Refactor", result)
+        self.assertIn("Code:\nx = 1", result)
+
+    def test_code_only(self) -> None:
+        result = mcp_server._build_prompt({"code": "x = 1"})
+        self.assertIn("Code:\nx = 1", result)
+
+    def test_empty_returns_empty(self) -> None:
+        self.assertEqual(mcp_server._build_prompt({}), "")
+
+    def test_context_included(self) -> None:
+        result = mcp_server._build_prompt({"task": "Do it", "context": "extra info"})
+        self.assertIn("Context:\nextra info", result)
+
+    def test_birds_included(self) -> None:
+        enriched = {
+            "task": "Review",
+            "role": "swarm_review",
+            "birds": [
+                {"id": "falcon", "checks": ["security_review"]},
+                {"id": "hawk", "checks": ["type_safety"]},
+            ],
+        }
+        result = mcp_server._build_prompt(enriched)
+        self.assertIn("Swarm role: swarm_review", result)
+        self.assertIn("falcon, hawk", result)
+        self.assertIn("security_review, type_safety", result)
+
+
+class FormatSwarmSectionTests(unittest.TestCase):
+    def test_formats_birds(self) -> None:
+        enriched = {
+            "role": "swarm_design",
+            "birds": [{"id": "owl", "checks": ["architecture"]}],
+        }
+        result = mcp_server._format_swarm_section(enriched)
+        self.assertIn("Swarm role: swarm_design", result)
+        self.assertIn("Birds: owl", result)
+        self.assertIn("Checks: architecture", result)
+
+    def test_missing_role_defaults(self) -> None:
+        enriched = {"birds": [{"id": "eagle", "checks": []}]}
+        result = mcp_server._format_swarm_section(enriched)
+        self.assertIn("Swarm role: unknown", result)
+
+
+class OllamaModelForTests(unittest.TestCase):
+    def test_mihwar_default(self) -> None:
+        self.assertEqual(mcp_server._ollama_model_for("mihwar_generate"), "deepseek-coder-v2:16b")
+
+    def test_bayyinah_default(self) -> None:
+        self.assertEqual(mcp_server._ollama_model_for("bayyinah_review"), "qwen2.5-coder:32b")
+
+    def test_unknown_tool_default(self) -> None:
+        self.assertEqual(mcp_server._ollama_model_for("unknown_tool"), "qwen2.5-coder:32b")
+
+
 if __name__ == "__main__":
     unittest.main()
