@@ -32,9 +32,9 @@ def choose_route(profile: TaskProfile) -> ModelRoute:
 
     if profile.kind in {TaskKind.CODING, TaskKind.CODE_REVIEW, TaskKind.AGENT_CREATION}:
         return ModelRoute(
-            provider="modal_vllm",
+            provider="local_ollama",
             model="mihwar" if profile.kind != TaskKind.CODE_REVIEW else "bayyinah",
-            reason="Sovereign coding path uses Modal/vLLM agents with Bayyinah validation for sensitive output.",
+            reason="Sovereign coding path uses local Ollama agents with Bayyinah validation for sensitive output.",
             requires_reviewer=profile.kind != TaskKind.CODE_REVIEW,
             reviewer_agent_id="bayyinah" if profile.kind != TaskKind.CODE_REVIEW else None,
         )

@@ -1,30 +1,26 @@
 # SPDX-License-Identifier: MIT
 # Licensed under MIT
-"""MCP server exposing Mihwar and Bayyinah Modal endpoints as MCP tools.
+"""MCP server exposing Mihwar and Bayyinah agents as MCP tools via local Ollama.
 
 This server speaks the Model Context Protocol over stdio and forwards
-tool calls to the Modal-hosted private agents. The tools are MCP-exposed
+tool calls to a local Ollama instance. The tools are MCP-exposed
 surfaces, consumable by any MCP-compatible client: GitHub Copilot,
-Claude Desktop, Cursor, Continue, or a direct stdio peer. "Copilot" is a
-UI label for one such client and is not a distinct runtime: every client
-hits the same JSON-RPC surface defined below.
+Claude Desktop, Cursor, Continue, or a direct stdio peer.
 
-Aegis sits at this MCP boundary before any Modal call. It filters tool
+Aegis sits at this MCP boundary before any call. It filters tool
 discovery by caller role, blocks prompt-injection style tool-call inputs,
 and emits sanitized Qal'a audit records for discovery and call decisions.
-
-It reads endpoints and tokens from environment variables sourced from
-the invoking client's environment (Copilot environment secrets, GitHub
-Actions secrets, or a local `.env` injected via the MCP host).
 
 Usage (stdio):
     python -m agents.mcp.server
 
 Required env:
-    MIHWAR_ENDPOINT
-    BAYYINAH_ENDPOINT
-    MIHWAR_API_TOKEN
-    BAYYINAH_API_TOKEN
+    (none — Ollama runs locally with no auth)
+
+Optional env:
+    OLLAMA_BASE_URL         default: http://localhost:11434
+    OLLAMA_MIHWAR_MODEL     default: deepseek-coder-v2:16b
+    OLLAMA_BAYYINAH_MODEL   default: qwen2.5-coder:32b
 
 Optional Aegis env:
     AEGIS_MCP_ROLE     default caller role (default: operator)
@@ -206,23 +202,6 @@ def _filter_birds(pool: list[dict[str, Any]], focus: list[str]) -> list[dict[str
     return selected or pool
 
 
-def _endpoint_and_token_for(tool_name: str) -> tuple[str, str, str, str]:
-    if tool_name in ("mihwar_generate", "free_birds_design"):
-        return (
-            os.environ.get("MIHWAR_ENDPOINT", ""),
-            "MIHWAR_ENDPOINT",
-            os.environ.get("MIHWAR_API_TOKEN", ""),
-            "MIHWAR_API_TOKEN",
-        )
-    if tool_name in ("bayyinah_review", "free_birds_review"):
-        return (
-            os.environ.get("BAYYINAH_ENDPOINT", ""),
-            "BAYYINAH_ENDPOINT",
-            os.environ.get("BAYYINAH_API_TOKEN", ""),
-            "BAYYINAH_API_TOKEN",
-        )
-    return "", "", "", ""
-
 
 def _enrich_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if tool_name == "free_birds_review":
@@ -246,36 +225,72 @@ def _enrich_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, An
     return arguments
 
 
-def _call_modal(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    endpoint, endpoint_env_name, token, token_env_name = _endpoint_and_token_for(tool_name)
-    if not endpoint:
-        raise RuntimeError(f"{endpoint_env_name} is not configured.")
-    if not token:
-        raise RuntimeError(f"{token_env_name} is not configured.")
+_OLLAMA_MODEL_MAP: dict[str, tuple[str, str]] = {
+    "mihwar_generate": ("OLLAMA_MIHWAR_MODEL", "deepseek-coder-v2:16b"),
+    "free_birds_design": ("OLLAMA_MIHWAR_MODEL", "deepseek-coder-v2:16b"),
+    "bayyinah_review": ("OLLAMA_BAYYINAH_MODEL", "qwen2.5-coder:32b"),
+    "free_birds_review": ("OLLAMA_BAYYINAH_MODEL", "qwen2.5-coder:32b"),
+}
 
+
+def _ollama_model_for(tool_name: str) -> str:
+    env_key, default = _OLLAMA_MODEL_MAP.get(tool_name, ("", "qwen2.5-coder:32b"))
+    return os.environ.get(env_key, default) if env_key else default
+
+
+def _format_swarm_section(enriched: dict[str, Any]) -> str:
+    birds = enriched.get("birds", [])
+    bird_ids = [b["id"] for b in birds]
+    checks = [c for b in birds for c in b.get("checks", [])]
+    return (
+        f"Swarm role: {enriched.get('role', 'unknown')}\n"
+        f"Birds: {', '.join(bird_ids)}\n"
+        f"Checks: {', '.join(checks)}"
+    )
+
+
+def _build_prompt(enriched: dict[str, Any]) -> str:
+    sections = {
+        "task": enriched.get("task", ""),
+        "code": enriched.get("code", ""),
+        "context": enriched.get("context", ""),
+    }
+    parts = []
+    if sections["task"]:
+        parts.append(sections["task"])
+    if sections["code"]:
+        parts.append(f"Code:\n{sections['code']}")
+    if sections["context"]:
+        parts.append(f"Context:\n{sections['context']}")
+    if enriched.get("birds"):
+        parts.append(_format_swarm_section(enriched))
+    return "\n\n".join(parts) if parts else ""
+
+
+def _call_local_ollama(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
     enriched = _enrich_arguments(tool_name, dict(arguments))
-    # Modal endpoints in .agents/modal_app.py authenticate via Authorization:
-    # Bearer header (`_verify_bearer_token`); body `token` field is ignored
-    # and an unauthenticated request returns 401 missing_authorization.
-    # Keep this aligned with .agents/pr_review.py and .agents/providers/
-    # modal_provider.py: header is the single transport across the repo.
-    data = json.dumps(enriched).encode("utf-8")
+    model = _ollama_model_for(tool_name)
+    prompt = _build_prompt(enriched)
+
+    data = json.dumps({"model": model, "prompt": prompt, "stream": False}).encode("utf-8")
     req = urllib.request.Request(
-        endpoint,
+        f"{base_url}/api/generate",
         data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        },
+        headers={"Content-Type": "application/json"},
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=180) as response:
+        with urllib.request.urlopen(req, timeout=300) as response:
             body = response.read().decode("utf-8")
     except (urllib.error.URLError, TimeoutError) as exc:
-        raise RuntimeError(f"Modal endpoint request failed for {tool_name}.") from exc
+        raise RuntimeError(
+            f"Local Ollama request failed for {tool_name}. "
+            f"Ensure Ollama is running at {base_url}."
+        ) from exc
 
-    return json.loads(body)
+    result = json.loads(body)
+    return {"response": result.get("response", ""), "model": model, "provider": "local_ollama"}
 
 
 def _send(message: dict[str, Any]) -> None:
@@ -352,7 +367,7 @@ def _handle(request: dict[str, Any]) -> None:
             )
             return
         try:
-            output = _call_modal(tool_name, arguments)
+            output = _call_local_ollama(tool_name, arguments)
         except Exception as exc:
             _result(
                 request_id,
