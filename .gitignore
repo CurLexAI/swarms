@@ -85,3 +85,16 @@ coverage/
 gitleaks-report.json
 trufflehog-report.json
 
+# Local model/runtime artifacts
+.ollama/
+*.gguf
+models/
+qdrant_data/
+*.qdrant
+logs/
+
+# Local-only helper files
+local_serve.py
+modal_app.py
+archive/
+qarar-copilot-app/node_modules/
