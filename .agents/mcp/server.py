@@ -243,7 +243,7 @@ def _enrich_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, An
 
 
 def _call_local_ollama(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
     enriched = _enrich_arguments(tool_name, dict(arguments))
 
     model = "qwen2.5-coder:32b"
@@ -254,7 +254,17 @@ def _call_local_ollama(tool_name: str, arguments: dict[str, Any]) -> dict[str, A
 
     task = enriched.get("task", enriched.get("code", ""))
     context = enriched.get("context", "")
-    prompt = f"{task}\n\nContext:\n{context}" if context else task
+    parts = [task]
+    if context:
+        parts.append(f"Context:\n{context}")
+    birds = enriched.get("birds")
+    if birds:
+        bird_ids = [b["id"] for b in birds]
+        checks = [c for b in birds for c in b.get("checks", [])]
+        parts.append(f"Swarm role: {enriched.get('role', 'unknown')}")
+        parts.append(f"Birds: {', '.join(bird_ids)}")
+        parts.append(f"Checks: {', '.join(checks)}")
+    prompt = "\n\n".join(parts)
 
     payload = {
         "model": model,

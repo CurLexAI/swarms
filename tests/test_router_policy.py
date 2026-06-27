@@ -161,19 +161,19 @@ class ChooseRouteTests(unittest.TestCase):
 
     def test_coding_routes_to_modal_mihwar(self) -> None:
         route = choose_route(_profile(kind=TaskKind.CODING, risk="high"))
-        self.assertEqual(route.provider, "modal_vllm")
+        self.assertEqual(route.provider, "local_ollama")
         self.assertEqual(route.model, "mihwar")
         self.assertTrue(route.requires_reviewer)
 
     def test_code_review_routes_to_modal_bayyinah_no_reviewer(self) -> None:
         route = choose_route(_profile(kind=TaskKind.CODE_REVIEW, risk="high"))
-        self.assertEqual(route.provider, "modal_vllm")
+        self.assertEqual(route.provider, "local_ollama")
         self.assertEqual(route.model, "bayyinah")
         self.assertFalse(route.requires_reviewer)
 
     def test_agent_creation_routes_to_modal(self) -> None:
         route = choose_route(_profile(kind=TaskKind.AGENT_CREATION, risk="high"))
-        self.assertEqual(route.provider, "modal_vllm")
+        self.assertEqual(route.provider, "local_ollama")
         self.assertEqual(route.model, "mihwar")
         self.assertTrue(route.requires_reviewer)
 
