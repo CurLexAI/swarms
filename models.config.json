@@ -6,12 +6,13 @@
   "routing_policy": {
     "sensitive_data": "sovereign_only",
     "non_sensitive_data": "allow_external_after_redaction",
-    "fallback_order": ["modal_vllm", "local_ollama", "local_llama_cpp"]
+    "fallback_order": ["local_ollama", "local_llama_cpp"]
   },
 
   "providers": {
     "modal_vllm": {
-      "enabled": true,
+      "enabled": false,
+      "status": "DISABLED_SOVEREIGN_POLICY",
       "requires_secrets": ["MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET", "MIHWAR_ENDPOINT", "BAYYINAH_ENDPOINT"],
       "agents": {
         "mihwar": {
@@ -70,11 +71,11 @@
   },
 
   "task_routing": {
-    "coding": { "primary": "modal_vllm.mihwar", "reviewer": "modal_vllm.bayyinah" },
-    "code_review": { "primary": "modal_vllm.bayyinah", "reviewer": null },
-    "critical_arabic_legal": { "primary": "anthropic", "reviewer": "modal_vllm.bayyinah" },
+    "coding": { "primary": "local_ollama", "reviewer": "local_ollama" },
+    "code_review": { "primary": "local_ollama", "reviewer": null },
+    "critical_arabic_legal": { "primary": "anthropic", "reviewer": "local_ollama" },
     "fast_draft": { "primary": "openai", "reviewer": null },
-    "long_context": { "primary": "anthropic", "reviewer": "modal_vllm.bayyinah" },
+    "long_context": { "primary": "anthropic", "reviewer": "local_ollama" },
     "offline_fallback": { "primary": "local_ollama", "reviewer": null }
   },
 
