@@ -160,11 +160,11 @@ class AegisGatewayTests(unittest.TestCase):
 class McpServerAegisIntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
         self._gateway = mcp_server.GATEWAY
-        self._call_modal = mcp_server._call_modal
+        self._call_local_ollama = mcp_server._call_local_ollama
 
     def tearDown(self) -> None:
         mcp_server.GATEWAY = self._gateway
-        mcp_server._call_modal = self._call_modal
+        mcp_server._call_local_ollama = self._call_local_ollama
 
     def test_tools_list_uses_aegis_filter(self) -> None:
         sink = RecordingSink()
@@ -195,9 +195,9 @@ class McpServerAegisIntegrationTests(unittest.TestCase):
         mcp_server.GATEWAY = AegisMcpGateway(TOOLS, audit_sink=sink, tenant_id="tenant-A")
 
         def _fail_dispatch(_tool_name: str, _arguments: dict[str, Any]) -> dict[str, Any]:
-            raise AssertionError("Modal dispatch must not run for blocked requests")
+            raise AssertionError("Ollama dispatch must not run for blocked requests")
 
-        mcp_server._call_modal = _fail_dispatch
+        mcp_server._call_local_ollama = _fail_dispatch
         request = {
             "jsonrpc": "2.0",
             "id": 11,
