@@ -1,0 +1,66 @@
+{
+  "mcp_version": "1.0",
+  "name": "bayyina-mcp",
+  "connectors": {
+    "github": {
+      "type": "git",
+      "scopes": ["repo", "workflow", "pull_requests"],
+      "notes": "Read/write PRs, comments, run Actions"
+    },
+    "browser": {
+      "type": "web",
+      "capabilities": ["search", "scrape", "summarize"]
+    },
+    "google_drive": {
+      "type": "storage",
+      "capabilities": ["read", "download", "ocr"]
+    },
+    "one_drive": {
+      "type": "storage",
+      "capabilities": ["read", "download", "ocr"]
+    },
+    "gmail": {
+      "type": "email",
+      "capabilities": ["read", "send", "label"]
+    },
+    "outlook": {
+      "type": "email",
+      "capabilities": ["read", "send", "calendar"]
+    },
+    "calendar": {
+      "type": "calendar",
+      "providers": ["google_calendar", "outlook_calendar"]
+    },
+    "postgresql": {
+      "type": "database",
+      "capabilities": ["query", "write", "schema_inspect"]
+    },
+    "s3": {
+      "type": "object_storage",
+      "capabilities": ["read", "write", "list"]
+    },
+    "qdrant": {
+      "type": "vector_store",
+      "capabilities": ["upsert", "search", "collections"],
+      "endpoint_env": "QDRANT_URL"
+    },
+    "ollama": {
+      "type": "llm_provider",
+      "capabilities": ["chat", "completions", "embeddings"],
+      "endpoint_env": "OLLAMA_BASE_URL"
+    },
+    "virustotal": {
+      "type": "security",
+      "capabilities": ["file_scan", "url_scan"]
+    },
+    "shodan": {
+      "type": "security",
+      "capabilities": ["ip_lookup", "service_scan"]
+    }
+  },
+  "security": {
+    "secrets_storage": "vault",
+    "auth_flow": "hub_jwt",
+    "rbac": true
+  }
+}

@@ -1,0 +1,49 @@
+name: CI Local
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: pip install -r requirements-agent.txt
+
+      - name: Syntax check agents
+        run: python3 -m py_compile .agents/*.py
+
+      - name: Python tests
+        run: python3 -m pytest -q tests/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Node deps
+        run: npm ci
+
+      - name: Node tests
+        run: npm test
+
+      - name: ADR-0001 boundary gate
+        run: bash scripts/commander/adr-0001-boundary-gate.sh .
+
+      - name: Agent presence gate
+        run: bash scripts/commander/agent-presence-gate.sh .

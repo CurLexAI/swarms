@@ -1,0 +1,73 @@
+# skills.yaml — Master skills registry for Bayyinah / Mihwar / Qarar
+# ====================================================================
+# Defines the capability surface available to sovereign agents.
+# Referenced by the router and agent profiles for task matching.
+version: "1.0"
+meta:
+  name: "bayyina-skills"
+  owner: "CurLexAI"
+  created: "2026-06-27"
+
+core_skills:
+  rag_pro:
+    description: "Hybrid retrieval (vector + keyword), multi-hop, re-ranking, chunking"
+    components:
+      - embeddings: "BAAI/bge-m3"
+      - vector_store: "qdrant:1.12.6"
+      - chunk_size: 1024
+      - reranker: "qwen-rerank"
+  tool_calling:
+    description: "Function calling, JSON-schema tool contracts, safe execution"
+    components:
+      - protocol: "MCP"
+      - sandbox: "firecracker|pyodide"
+  planning:
+    description: "Task decomposition, sub-agent orchestration, reflection"
+    components:
+      - planner_models: ["deepseek-r1-32b", "qwen2.5-72b"]
+  memory:
+    description: "Short-term session memory and long-term vector memory"
+    components:
+      - short_term: "in-memory LRU"
+      - long_term: "qdrant collections"
+  guard_mesh:
+    description: "Runtime policy enforcement, prompt-injection detection, code scanning"
+    components:
+      - static_scanner: "codebert"
+      - runtime_policy: "typescript-runtime-policy"
+
+multimodal:
+  vision:
+    description: "OCR, document parsing, layout analysis"
+    components:
+      - model: "qwen-vl"
+      - ocr: "tesseract|vision-ocr"
+  voice:
+    description: "STT and TTS with Arabic support"
+    components:
+      - stt: "whisper"
+      - tts: "meta-tts"
+
+domain_skills:
+  devops_agent:
+    description: "Docker/K8s automation, infra diagnostics"
+    components:
+      - connectors: ["docker", "kubernetes", "prometheus"]
+  data_analyst:
+    description: "CSV/SQL analysis, charts, reporting"
+    components:
+      - libs: ["pandas", "plotly"]
+
+plugins:
+  code_review:
+    description: "Automated PR analysis and security suggestions"
+  documentation:
+    description: "Auto-doc generation and diagrams"
+  automation:
+    description: "Workflow orchestration and scheduled tasks"
+
+policies:
+  default:
+    allow_tool_use: false
+    require_rbac: true
+    logging: "ledger"
