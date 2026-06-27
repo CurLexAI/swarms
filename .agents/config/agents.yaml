@@ -1,7 +1,19 @@
 # CurLexAI Coding Agents — Model Assignment by Capability
 # =========================================================
-# Two private coding agents. Models assigned by verified benchmark strength.
+# Sovereign coding agents + local Ollama provider support.
 # Source: HumanEval / EvalPlus / LiveCodeBench rankings (open-source tier).
+
+default_provider: "local_ollama"
+
+local_providers:
+  local_ollama:
+    type: "ollama"
+    base_url_env: "OLLAMA_BASE_URL"
+    models:
+      coder_large: "qwen2.5-coder:32b"
+      coder_small: "qwen2.5-coder:7b"
+      general: "qwen3.6:latest"
+      local_identity: "allam-7b"
 
 agents:
 
@@ -133,6 +145,45 @@ agents:
       - "Dependency risk assessment"
       - "Validating Mihwar's generated code"
 
+  # ── Agent 3: ROUTER ──────────────────────────────────────────────────────
+  router:
+    display_name: "Qarar Router — قرار"
+    tier: 0
+    capability: "router"
+    module: "router.model_router"
+    description: "Task classifier and model router"
+    policies: ["default"]
+
+  # ── Agent 4: SEARCH AGENT ──────────────────────────────────────────────────
+  search_agent:
+    display_name: "Search Agent — وكيل البحث"
+    tier: 2
+    capability: "retrieval"
+    module: "validators.qala_input_gate"
+    description: "RAG retrieval agent"
+    provider: "local_ollama"
+    rag: true
+
+  # ── Agent 5: CODE AGENT ────────────────────────────────────────────────────
+  code_agent:
+    display_name: "Code Agent — وكيل الكود"
+    tier: 2
+    capability: "code_execution"
+    module: "providers.modal_provider"
+    description: "Code generation and execution agent"
+    provider: "local_ollama"
+    sandbox: "firecracker"
+
+  # ── Agent 6: AUDIT AGENT ───────────────────────────────────────────────────
+  audit_agent:
+    display_name: "Audit Agent — وكيل التدقيق"
+    tier: 2
+    capability: "audit"
+    module: "validators.qala_audit_sink"
+    description: "Policy enforcement and ledger append"
+    provider: "local_ollama"
+    requires_signing_key_env: "LEDGER_KEY_PATH"
+
 # ── Collaboration Protocol ─────────────────────────────────────────────────
 # Default workflow for new coding tasks:
 #
@@ -153,3 +204,21 @@ collaboration:
     - "database schema changes"
     - "public API contract changes"
     - "any CRITICAL finding unresolved after 3 cycles"
+
+# ── Swarms ─────────────────────────────────────────────────────────────────
+swarms:
+  sama-swarm:
+    name: "سرب سما — SAMA Swarm"
+    agents: [router, search_agent, code_agent, audit_agent]
+    description: "Proof-of-concept swarm for SAMA regulatory tasks."
+
+  falcon-pulse:
+    name: "نبض الصقر — Falcon Pulse"
+    agents: [router, search_agent, audit_agent]
+    description: "Lightweight retrieval + audit swarm."
+
+# ── Logging ────────────────────────────────────────────────────────────────
+logging:
+  ledger:
+    enabled: true
+    path_env: "LEDGER_PATH"
