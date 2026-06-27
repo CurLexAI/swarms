@@ -1,7 +1,7 @@
 {
   "trustFallbackLib": {
     "src": "https://cdn.example.com/trust/fallback-lib.js",
-    "integrity": "sha384-ywpyLD6gBwdOofJewvXSuEH8UZHNwBs2e2G8hO9WlWAMz51QaJs2uheKtBJncro2",
+    "integrity": "sha384-/g41AOtr/Me1AWMyGqPjZplU68C7F25IEerfHky0FT2dA3A+Q6iM5dp9QJNSO7iK",
     "crossorigin": "anonymous"
   }
 }
