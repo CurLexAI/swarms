@@ -7,6 +7,7 @@ export class AuditService {
   };
 
   private static readonly taskStatusStore = new Map<string, string>();
+  private static readonly taskSeqStore = new Map<string, number>();
 
   static async logSecurityViolation(userId: string, agentId: string, reason: string, details: Record<string, unknown> = {}) {
     await auditLogger.write({
@@ -41,11 +42,14 @@ export class AuditService {
     }
 
     AuditService.taskStatusStore.set(taskId, status);
+    const seq = (AuditService.taskSeqStore.get(taskId) ?? 0) + 1;
+    AuditService.taskSeqStore.set(taskId, seq);
 
     auditLogger.writeDeferred({
       event: "agent_task_status",
       taskId,
       status,
+      lifecycle_seq: seq,
       result
     });
   }
@@ -58,9 +62,11 @@ export class AuditService {
     metadata?: Record<string, unknown>;
   }) {
     AuditService.taskStatusStore.set(entry.taskId, "PENDING");
+    AuditService.taskSeqStore.set(entry.taskId, 0);
     auditLogger.writeDeferred({
       event: "agent_task_init",
       status: "PENDING",
+      lifecycle_seq: 0,
       timestamp: new Date().toISOString(),
       ...entry,
     });
