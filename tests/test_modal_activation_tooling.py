@@ -103,7 +103,7 @@ class AgentPresenceGateTests(unittest.TestCase):
         result = _run(["bash", str(PRESENCE_GATE)], _env_without_secrets())
         detail = result.stdout + result.stderr
         self.assertEqual(result.returncode, 0, detail)
-        self.assertIn("configured_agent_count=2", result.stdout)
+        self.assertIn("configured_agent_count=6", result.stdout)
         self.assertIn("SECRET_MISSING", result.stdout)
         self.assertNotIn("[FAIL]", result.stdout)
 
