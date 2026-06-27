@@ -9,6 +9,7 @@ own environment flags.
 """
 
 from .anthropic_provider import AnthropicProvider
+from .huggingface_provider import HuggingFaceProvider
 from .local_llama_cpp import LocalLlamaCppProvider
 from .local_ollama import LocalOllamaProvider
 from .modal_provider import ModalProvider
@@ -22,6 +23,7 @@ __all__ = [
     "ModalProvider",
     "OpenAIProvider",
     "AnthropicProvider",
+    "HuggingFaceProvider",
     "LocalOllamaProvider",
     "LocalLlamaCppProvider",
 ]

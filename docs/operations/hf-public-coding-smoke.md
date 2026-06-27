@@ -2,8 +2,9 @@
 
 ## Purpose
 
-Verifies that a public-only synthetic coding task can reach a Hugging Face-hosted
-coding model via the Inference Router and receive a coherent response.
+Verifies that a public-only synthetic coding task can reach Hugging Face-hosted
+coding models via the Inference Router and receive coherent responses from the
+approved Mihwar/Bayyinah model ids.
 
 This is **not** a proof of Mihwar, Bayyinah, Modal, MCP, or production agent readiness.
 
@@ -12,7 +13,7 @@ This is **not** a proof of Mihwar, Bayyinah, Modal, MCP, or production agent rea
 The only success marker for this workflow is:
 
 ```text
-VERIFIED_HF_PUBLIC_SMOKE
+VERIFIED_HF_PUBLIC_SMOKE agents=mihwar,bayyinah
 ```
 
 `VERIFIED_HF_PUBLIC_SMOKE` must not be confused with `VERIFIED_ENDPOINT_SMOKE`.
@@ -24,8 +25,9 @@ endpoint smoke.
 **Allowed:**
 - Synthetic public code snippets only (`tests/fixtures/synthetic_public_task.json`)
 - Style, type, correctness, and basic security observations
-- Read-only Hugging Face token (`HF_READ_TOKEN` — scoped to inference, no write access)
-- Model override via `HF_MODEL` Actions variable (defaults to `deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct:fastest`)
+- Read-only Hugging Face token (`HF_TOKEN`, with legacy `HF_READ_TOKEN` fallback)
+- Model overrides via `MIHWAR_HF_MODEL_ID` and `BAYYINAH_HF_MODEL_ID`
+- Optional Hugging Face provider suffixes via `MIHWAR_HF_PROVIDER` and `BAYYINAH_HF_PROVIDER`
 
 **Forbidden:**
 - Customer or client code
@@ -49,13 +51,17 @@ completions. It is **not** the legacy `api-inference.huggingface.co/models/…` 
 
 | Secret | Scope | Where configured |
 |--------|-------|-----------------|
-| `HF_READ_TOKEN` | HF read / inference | GitHub Actions environment `HF_SMOKE` |
+| `HF_TOKEN` | HF read / inference | GitHub Actions environment `HF_SMOKE` or repository secret |
+| `HF_READ_TOKEN` | Legacy HF read / inference fallback | GitHub Actions environment `HF_SMOKE` |
 
 ## Optional variable
 
 | Variable | Default |
 |----------|---------|
-| `HF_MODEL` | `deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct:fastest` |
+| `MIHWAR_HF_MODEL_ID` | `deepseek-ai/DeepSeek-Coder-V2-Instruct` |
+| `BAYYINAH_HF_MODEL_ID` | `Qwen/Qwen2.5-Coder-32B-Instruct` |
+| `MIHWAR_HF_PROVIDER` | empty (Hugging Face router chooses/defaults) |
+| `BAYYINAH_HF_PROVIDER` | empty (Hugging Face router chooses/defaults) |
 
 ## Fixture safety
 
