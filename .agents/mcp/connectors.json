@@ -1,6 +1,6 @@
 {
   "mcp_version": "1.0",
-  "name": "bayyina-mcp",
+  "name": "bayyinah-mcp",
   "connectors": {
     "github": {
       "type": "git",

@@ -4,7 +4,7 @@
 # Referenced by the router and agent profiles for task matching.
 version: "1.0"
 meta:
-  name: "bayyina-skills"
+  name: "bayyinah-skills"
   owner: "CurLexAI"
   created: "2026-06-27"
 

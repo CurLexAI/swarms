@@ -144,7 +144,7 @@ agents:
     display_name: "Qarar Router — قرار"
     tier: 0
     capability: "router"
-    module: ".agents.router.router"
+    module: "router.model_router"
     description: "Task classifier and model router"
     policies: ["default"]
 
@@ -153,7 +153,7 @@ agents:
     display_name: "Search Agent — وكيل البحث"
     tier: 2
     capability: "retrieval"
-    module: "agents.search_agent"
+    module: "validators.qala_input_gate"
     description: "RAG retrieval agent"
     provider: "local_ollama"
     rag: true
@@ -163,7 +163,7 @@ agents:
     display_name: "Code Agent — وكيل الكود"
     tier: 2
     capability: "code_execution"
-    module: "agents.code_agent"
+    module: "providers.modal_provider"
     description: "Code generation and execution agent"
     provider: "local_ollama"
     sandbox: "firecracker"
@@ -173,7 +173,7 @@ agents:
     display_name: "Audit Agent — وكيل التدقيق"
     tier: 2
     capability: "audit"
-    module: "agents.audit_agent"
+    module: "validators.qala_audit_sink"
     description: "Policy enforcement and ledger append"
     provider: "local_ollama"
     requires_signing_key_env: "LEDGER_KEY_PATH"
