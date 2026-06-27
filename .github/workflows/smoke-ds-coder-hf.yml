@@ -31,6 +31,10 @@ jobs:
 
       - name: Run public-only Hugging Face smoke
         env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_READ_TOKEN: ${{ secrets.HF_READ_TOKEN }}
-          HF_MODEL: ${{ vars.HF_MODEL || 'deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct:fastest' }}
+          MIHWAR_HF_MODEL_ID: ${{ vars.MIHWAR_HF_MODEL_ID || 'deepseek-ai/DeepSeek-Coder-V2-Instruct' }}
+          BAYYINAH_HF_MODEL_ID: ${{ vars.BAYYINAH_HF_MODEL_ID || 'Qwen/Qwen2.5-Coder-32B-Instruct' }}
+          MIHWAR_HF_PROVIDER: ${{ vars.MIHWAR_HF_PROVIDER }}
+          BAYYINAH_HF_PROVIDER: ${{ vars.BAYYINAH_HF_PROVIDER }}
         run: python scripts/hf_public_coding_smoke.py

@@ -16,10 +16,21 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 HF_ROUTER_URL = "https://router.huggingface.co/v1/chat/completions"
-DEFAULT_MODEL = "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct:fastest"
+MODEL_CONFIGS = (
+    (
+        "mihwar",
+        "MIHWAR_HF_MODEL_ID",
+        "MIHWAR_HF_PROVIDER",
+        "deepseek-ai/DeepSeek-Coder-V2-Instruct",
+    ),
+    (
+        "bayyinah",
+        "BAYYINAH_HF_MODEL_ID",
+        "BAYYINAH_HF_PROVIDER",
+        "Qwen/Qwen2.5-Coder-32B-Instruct",
+    ),
+)
 
 FORBIDDEN_PATTERNS = (
     "sk-",
@@ -42,6 +53,8 @@ FORBIDDEN_PATTERNS = (
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
+    import yaml
+
     with path.open("r", encoding="utf-8") as handle:
         data = yaml.safe_load(handle)
     if not isinstance(data, dict):
@@ -64,14 +77,24 @@ def assert_public_fixture(task: dict[str, Any]) -> None:
             raise RuntimeError(f"Synthetic fixture contains forbidden term: {pattern}")
 
 
-def call_hf(token: str, model: str, task: dict[str, Any], max_tokens: int) -> str:
+def model_id(env_name: str, provider_env_name: str, default: str) -> str:
+    model = os.environ.get(env_name, default).strip() or default
+    provider = os.environ.get(provider_env_name, "").strip()
+    if provider and ":" not in model:
+        return f"{model}:{provider}"
+    return model
+
+
+def call_hf(
+    token: str, model: str, task: dict[str, Any], max_tokens: int, agent: str
+) -> str:
     body = {
         "model": model,
         "messages": [
             {
                 "role": "system",
                 "content": (
-                    "You are a safe code reviewer. "
+                    f"You are the {agent} coding agent. "
                     "Only discuss style, type hints, correctness, or basic security. "
                     "Do not mention legal, customer, confidential, or secret material."
                 ),
@@ -143,15 +166,15 @@ def check_response(text: str, allowlist: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    token = os.environ.get("HF_READ_TOKEN", "").strip()
+    token = os.environ.get("HF_TOKEN", "").strip() or os.environ.get(
+        "HF_READ_TOKEN", ""
+    ).strip()
     if not token:
         # Missing secret is not a code defect: degrade to SKIPPED, never to a
         # false pass. Matches agent-review.yml's SKIPPED_UNVERIFIED convention.
-        print("HF_READ_TOKEN is not configured — skipping live call.")
+        print("HF_TOKEN is not configured — skipping live calls.")
         print("SKIPPED_UNVERIFIED")
         return 0
-
-    model = os.environ.get("HF_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
 
     allowlist = load_yaml(Path(".github/smoke_allowlist.yml"))
     max_tokens = int(allowlist.get("smoke", {}).get("max_tokens", 150))
@@ -160,13 +183,24 @@ def main() -> int:
     assert_public_fixture(task)
 
     print("HF public coding smoke: starting")
-    print(f"model: {model}")
 
-    response = call_hf(token=token, model=model, task=task, max_tokens=max_tokens)
-    check_response(response, allowlist)
+    verified: list[str] = []
+    for agent, env_name, provider_env_name, default in MODEL_CONFIGS:
+        model = model_id(env_name, provider_env_name, default)
+        print(f"agent: {agent}")
+        print(f"model: {model}")
+        response = call_hf(
+            token=token,
+            model=model,
+            task=task,
+            max_tokens=max_tokens,
+            agent=agent,
+        )
+        check_response(response, allowlist)
+        print(f"{agent}_response_preview:", response[:220].replace("\n", " "))
+        verified.append(agent)
 
-    print("response_preview:", response[:220].replace("\n", " "))
-    print("VERIFIED_HF_PUBLIC_SMOKE")
+    print(f"VERIFIED_HF_PUBLIC_SMOKE agents={','.join(verified)}")
     return 0
 
 
