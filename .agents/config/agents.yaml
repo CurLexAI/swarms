@@ -129,16 +129,6 @@ agents:
       - "Dependency risk assessment"
       - "Validating Mihwar's generated code"
 
-# ── Collaboration Protocol ─────────────────────────────────────────────────
-# Default workflow for new coding tasks:
-#
-#   1. Mihwar receives the task
-#   2. Mihwar generates the plan + implementation
-#   3. Bayyinah receives Mihwar's output for review
-#   4. If Bayyinah returns REQUEST_CHANGES → Mihwar revises
-#   5. Max 3 revision cycles before escalating to human
-#   6. Human approves final output
-
   # ── Agent 3: ROUTER ──────────────────────────────────────────────────────
   router:
     display_name: "Qarar Router — قرار"
@@ -179,6 +169,15 @@ agents:
     requires_signing_key_env: "LEDGER_KEY_PATH"
 
 # ── Collaboration Protocol ─────────────────────────────────────────────────
+# Default workflow for new coding tasks:
+#
+#   1. Mihwar receives the task
+#   2. Mihwar generates the plan + implementation
+#   3. Bayyinah receives Mihwar's output for review
+#   4. If Bayyinah returns REQUEST_CHANGES → Mihwar revises
+#   5. Max 3 revision cycles before escalating to human
+#   6. Human approves final output
+
 collaboration:
   max_revision_cycles: 3
   escalation_on_cycle_limit: true
