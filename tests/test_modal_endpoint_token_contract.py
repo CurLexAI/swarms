@@ -134,12 +134,11 @@ def test_mcp_server_reads_endpoint_specific_tokens() -> None:
 
 
 def test_modal_provider_reads_endpoint_specific_tokens() -> None:
-    """Provider adapter must not fall back to the legacy shared token."""
+    """Provider adapter is disabled by sovereign policy — no token wiring needed."""
 
     source = _read(".agents/providers/modal_provider.py")
 
-    assert 'return "BAYYINAH_API_TOKEN"' in source
-    assert 'return "MIHWAR_API_TOKEN"' in source
+    assert "SECURITY_POLICY: modal_vllm provider is disabled" in source
     assert f'os.environ.get("{LEGACY_SHARED_TOKEN_ENV}", "")' not in source
     assert f'"{LEGACY_SHARED_TOKEN_ENV} is not configured."' not in source
 
