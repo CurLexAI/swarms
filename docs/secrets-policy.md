@@ -12,6 +12,7 @@ boundaries only — no secret values are stored here.**
 | `MIHWAR_ENDPOINT`     | Organization (LexPrime) — Selected repos: `CurLexAI/swarms`, `LexPrim/Qarar` | `.github/workflows/agent-review.yml` → mihwar step   | Mihwar fix-suggest run |
 | `BAYYINAH_API_TOKEN` | Organization (LexPrime) — Selected repos: `CurLexAI/swarms`, `LexPrim/Qarar` | Bayyinah workflow step; `.agents/pr_review.py`       | Authenticating to Bayyinah Modal endpoint |
 | `MIHWAR_API_TOKEN`    | Organization (LexPrime) — Selected repos: `CurLexAI/swarms`, `LexPrim/Qarar` | Mihwar workflow step; `.agents/pr_review.py`         | Authenticating to Mihwar Modal endpoint |
+| `HF_TOKEN`            | Repository or organization secret — selected backend-only repos | `.agents/providers/huggingface_provider.py`; `scripts/hf_public_coding_smoke.py` | Hugging Face Inference Providers calls for approved Mihwar/Bayyinah model smoke or manually enabled backend execution |
 | `GITHUB_TOKEN`        | GitHub-managed                                         | `.agents/pr_review.py` (post review comments)        | Provided automatically by Actions |
 
 `AGENT_API_TOKEN` is deprecated for the Modal endpoint contract. Do not use it for Bayyinah or Mihwar endpoint authorization unless a separate legacy-only runtime has been explicitly approved and documented; the hardened Modal app uses endpoint-specific tokens by default.
@@ -101,6 +102,7 @@ is reachable.
 | `MIHWAR_API_TOKEN`    | 90 days          | PENDING  |
 | `BAYYINAH_ENDPOINT` | On endpoint move | PENDING  |
 | `MIHWAR_ENDPOINT`   | On endpoint move | PENDING  |
+| `HF_TOKEN`          | 90 days          | PENDING  |
 | `MODAL_TOKEN`       | 90 days          | PENDING  |
 | `RENDER_API_TOKEN`  | 90 days          | PENDING  |
 | `CLOUDFLARE_API_TOKEN` | 90 days       | PENDING  |

@@ -56,12 +56,12 @@ jobs:
           set -euo pipefail
           modal deploy .agents/ingest_test.py 2>&1 | tee modal_deploy.log
           endpoint=$(python - <<'PY'
-import re
-text=open('modal_deploy.log','r',encoding='utf-8',errors='ignore').read()
-match=re.findall(r'https://[^\s]*\.modal\.run', text)
-print(match[-1] if match else '')
-PY
-)
+          import re
+          text=open('modal_deploy.log','r',encoding='utf-8',errors='ignore').read()
+          match=re.findall(r'https://[^\s]*\.modal\.run', text)
+          print(match[-1] if match else '')
+          PY
+          )
           if [ -z "$endpoint" ]; then
             echo "FAILED_AT_PHASE_DEPLOY: endpoint not found" | tee -a "$GITHUB_STEP_SUMMARY"
             exit 1
@@ -85,28 +85,28 @@ PY
         run: |
           set -euo pipefail
           python - <<'PY'
-import json,sys
-path='ingestion_response.json'
-try:
-    data=json.load(open(path,'r',encoding='utf-8'))
-except Exception as e:
-    print(f'FAILED_AT_PHASE_RESPONSE_PARSE: {e}')
-    sys.exit(1)
-collection=((data.get('qdrant') or {}).get('collection') if isinstance(data,dict) else None)
-count=((data.get('qdrant') or {}).get('point_count') if isinstance(data,dict) else None)
-query=((data.get('semantic_search') or {}).get('query') if isinstance(data,dict) else None)
-if collection!='qarar_regulatory_test':
-    print('FAILED_AT_PHASE_QDRANT_COLLECTION')
-    sys.exit(1)
-if not isinstance(count,int) or count < 3:
-    print('FAILED_AT_PHASE_QDRANT_POINT_COUNT')
-    sys.exit(1)
-if query!='نقل البيانات الشخصية خارج المملكة':
-    print('FAILED_AT_PHASE_SEMANTIC_QUERY')
-    sys.exit(1)
-open('step_verdict.txt','w',encoding='utf-8').write('INGESTION_VERIFIED_END_TO_END\n')
-print('INGESTION_VERIFIED_END_TO_END')
-PY
+          import json,sys
+          path='ingestion_response.json'
+          try:
+              data=json.load(open(path,'r',encoding='utf-8'))
+          except Exception as e:
+              print(f'FAILED_AT_PHASE_RESPONSE_PARSE: {e}')
+              sys.exit(1)
+          collection=((data.get('qdrant') or {}).get('collection') if isinstance(data,dict) else None)
+          count=((data.get('qdrant') or {}).get('point_count') if isinstance(data,dict) else None)
+          query=((data.get('semantic_search') or {}).get('query') if isinstance(data,dict) else None)
+          if collection!='qarar_regulatory_test':
+              print('FAILED_AT_PHASE_QDRANT_COLLECTION')
+              sys.exit(1)
+          if not isinstance(count,int) or count < 3:
+              print('FAILED_AT_PHASE_QDRANT_POINT_COUNT')
+              sys.exit(1)
+          if query!='نقل البيانات الشخصية خارج المملكة':
+              print('FAILED_AT_PHASE_SEMANTIC_QUERY')
+              sys.exit(1)
+          open('step_verdict.txt','w',encoding='utf-8').write('INGESTION_VERIFIED_END_TO_END\n')
+          print('INGESTION_VERIFIED_END_TO_END')
+          PY
 
       - name: Upload evidence artifacts
         if: always()
