@@ -238,27 +238,33 @@ def _ollama_model_for(tool_name: str) -> str:
     return os.environ.get(env_key, default) if env_key else default
 
 
+def _format_swarm_section(enriched: dict[str, Any]) -> str:
+    birds = enriched.get("birds", [])
+    bird_ids = [b["id"] for b in birds]
+    checks = [c for b in birds for c in b.get("checks", [])]
+    return (
+        f"Swarm role: {enriched.get('role', 'unknown')}\n"
+        f"Birds: {', '.join(bird_ids)}\n"
+        f"Checks: {', '.join(checks)}"
+    )
+
+
 def _build_prompt(enriched: dict[str, Any]) -> str:
-    task = enriched.get("task", "")
-    code = enriched.get("code", "")
+    sections = {
+        "task": enriched.get("task", ""),
+        "code": enriched.get("code", ""),
+        "context": enriched.get("context", ""),
+    }
     parts = []
-    if task:
-        parts.append(task)
-    if code:
-        parts.append(f"Code:\n{code}")
-    if not parts:
-        parts.append("")
-    context = enriched.get("context", "")
-    if context:
-        parts.append(f"Context:\n{context}")
-    birds = enriched.get("birds")
-    if birds:
-        bird_ids = [b["id"] for b in birds]
-        checks = [c for b in birds for c in b.get("checks", [])]
-        parts.append(f"Swarm role: {enriched.get('role', 'unknown')}")
-        parts.append(f"Birds: {', '.join(bird_ids)}")
-        parts.append(f"Checks: {', '.join(checks)}")
-    return "\n\n".join(parts)
+    if sections["task"]:
+        parts.append(sections["task"])
+    if sections["code"]:
+        parts.append(f"Code:\n{sections['code']}")
+    if sections["context"]:
+        parts.append(f"Context:\n{sections['context']}")
+    if enriched.get("birds"):
+        parts.append(_format_swarm_section(enriched))
+    return "\n\n".join(parts) if parts else ""
 
 
 def _call_local_ollama(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
