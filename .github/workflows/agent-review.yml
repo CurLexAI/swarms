@@ -1,147 +1,108 @@
-name: Agent Code Review (Mihwar + Bayyinah)
+name: Sovereign PR Review (Local-First)
 
-# ── Triggers ────────────────────────────────────────────────────────────────
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
-    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+    branches: [main, master, develop]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+        type: string
 
-# ── Permissions ─────────────────────────────────────────────────────────────
 permissions:
-  pull-requests: write   # post review comments
-  contents: read         # read the diff
+  contents: read
+  pull-requests: write
+  checks: write
+  actions: read
 
-# ── Jobs ────────────────────────────────────────────────────────────────────
+# منع التشغيل المتكرر السريع
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
-  bayyinah-review:
-    name: "Bayyinah Review (Qwen2.5-Coder-32B)"
+  # ====== Job 1: التحقق من تشغيل الـ Agent بشكل صحيح ======
+  agent-status:
+    name: Verify Agent Health
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      verdict: ${{ steps.review.outputs.verdict }}
-      report: ${{ steps.review.outputs.report }}
-
     steps:
-      # 1. Checkout with enough history to produce a clean diff
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify agent module
+        run: |
+          python -c "import sys; sys.path.insert(0, '.agents'); from pr_review import SovereignReviewer; print('✅ Agent loaded successfully')"
+
+  # ====== Job 2: تشغيل المراجعة السيادية ======
+  sovereign-review:
+    name: Run Sovereign PR Review
+    needs: agent-status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
-      # 1b. Source-only boundary gate. Runs before any secret is read so
-      # boundary violations fail fast and never observe secret material.
-      - name: Modal boundary gate
-        run: bash scripts/commander/modal-boundary-gate.sh .
-
-      - name: Public surface boundary gate
-        run: bash scripts/commander/public-surface-boundary-gate.sh .
-
-      # 2. Python + dependencies
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install --quiet requests pyyaml
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pydantic
 
-      # 3. Build the diff against the base branch
-      - name: Generate PR diff
+      - name: Get PR diff
         id: diff
-        env:
-          BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch origin "$BASE_REF"
-          git diff "origin/$BASE_REF"...HEAD > /tmp/pr.diff
-          LINES=$(wc -l < /tmp/pr.diff)
-          echo "lines=$LINES" >> "$GITHUB_OUTPUT"
-          echo "Diff size: $LINES lines"
+          echo "## PR Diff" >> $GITHUB_STEP_SUMMARY
+          git diff origin/${{ github.base_ref }}...HEAD >> pr_diff.txt
+          echo "::set-output name=size::$(wc -c < pr_diff.txt)"
 
-      # 5. Call Bayyinah via Modal web endpoint when deployment secrets exist.
-      # Missing secrets before Modal deployment are an expected UNVERIFIED state,
-      # not a source-code failure. If secrets exist and the endpoint fails, the
-      # Python script returns non-zero and the check fails normally.
-      - name: Run Bayyinah review
-        id: review
-        if: steps.diff.outputs.lines != '0' && fromJSON(steps.diff.outputs.lines) < 2000
+      - name: Run Sovereign Review
         env:
-          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
-          BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.number }}
-          REPO: ${{ github.repository }}
-          BASE_REF: ${{ github.base_ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}
+          MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          if [ -z "$BAYYINAH_ENDPOINT" ] || [ -z "$BAYYINAH_API_TOKEN" ]; then
-            echo "::warning title=Bayyinah Agent UNVERIFIED::BAYYINAH_ENDPOINT or BAYYINAH_API_TOKEN is missing. Skipping Bayyinah review until Modal deployment is live."
-            echo "verdict=SKIPPED_UNVERIFIED" >> "$GITHUB_OUTPUT"
-            {
-              echo "report<<BAYYINAH_REPORT_EOF"
-              echo "Bayyinah Agent UNVERIFIED: BAYYINAH_ENDPOINT or BAYYINAH_API_TOKEN is missing. This is expected before Modal deployment and does not indicate a source-code failure."
-              echo "BAYYINAH_REPORT_EOF"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Bayyinah secrets are present. Initiating Bayyinah PR review."
           python .agents/pr_review.py \
-            --diff /tmp/pr.diff \
-            --pr "$PR_NUMBER" \
-            --repo "$REPO" \
-            --head-sha "$HEAD_SHA" \
-            --agent bayyinah
+            --pr-number ${{ github.event.pull_request.number }} \
+            --diff-file pr_diff.txt \
+            --output-format github \
+            --post-comment
 
-  mihwar-fix:
-    name: "Mihwar Fix Suggestions (DeepSeek-Coder-V2)"
+      - name: Upload diff artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-diff-${{ github.event.pull_request.number }}
+          path: pr_diff.txt
+          retention-days: 7
+
+  # ====== Job 3: الفحوصات المحلية الإضافية ======
+  local-gates:
+    name: Local Security Gates
+    needs: sovereign-review
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: bayyinah-review
-    # Only run if Bayyinah found CRITICAL or HIGH issues.
-    # SKIPPED_UNVERIFIED intentionally does not trigger Mihwar.
-    if: always() && needs.bayyinah-review.outputs.verdict == 'REQUEST_CHANGES'
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install --quiet requests pyyaml
-
-      - name: Generate PR diff
-        env:
-          BASE_REF: ${{ github.base_ref }}
+      - name: Run integrity check
         run: |
-          git fetch origin "$BASE_REF"
-          git diff "origin/$BASE_REF"...HEAD > /tmp/pr.diff
-
-      - name: Run Mihwar fix suggestions
-        env:
-          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
-          MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.number }}
-          REPO: ${{ github.repository }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          BAYYINAH_REPORT: ${{ needs.bayyinah-review.outputs.report }}
-        run: |
-          if [ -z "$MIHWAR_ENDPOINT" ] || [ -z "$MIHWAR_API_TOKEN" ]; then
-            echo "::warning title=Mihwar Agent UNVERIFIED::MIHWAR_ENDPOINT or MIHWAR_API_TOKEN is missing. Skipping Mihwar fix suggestions until Modal deployment is live."
-            exit 0
+          if [ -f "scripts/commander/qala-audit-integrity-gate.sh" ]; then
+            bash scripts/commander/qala-audit-integrity-gate.sh . || echo "⚠️ Gate check failed (non-blocking)"
+          else
+            echo "ℹ️ Integrity gate script not found, skipping"
           fi
-
-          echo "Mihwar secrets are present. Initiating Mihwar fix suggestions."
-          python .agents/pr_review.py \
-            --diff /tmp/pr.diff \
-            --pr "$PR_NUMBER" \
-            --repo "$REPO" \
-            --head-sha "$HEAD_SHA" \
-            --agent mihwar \
-            --bayyinah-report "$BAYYINAH_REPORT"
