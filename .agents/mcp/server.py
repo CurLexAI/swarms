@@ -239,7 +239,15 @@ def _ollama_model_for(tool_name: str) -> str:
 
 
 def _build_prompt(enriched: dict[str, Any]) -> str:
-    parts = [enriched.get("task", enriched.get("code", ""))]
+    task = enriched.get("task", "")
+    code = enriched.get("code", "")
+    parts = []
+    if task:
+        parts.append(task)
+    if code:
+        parts.append(f"Code:\n{code}")
+    if not parts:
+        parts.append("")
     context = enriched.get("context", "")
     if context:
         parts.append(f"Context:\n{context}")

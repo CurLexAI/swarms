@@ -34,7 +34,7 @@ def build_execution_plan(task: str, tenant_id: str | None = None) -> ExecutionPl
     if profile.kind == TaskKind.LEGAL_ANALYSIS:
         steps.append("legal_claim_discipline")
 
-    primary_agent_id = route.model if route.provider == "modal_vllm" else "qarar-router"
+    primary_agent_id = route.model if route.provider in ("modal_vllm", "local_ollama") else "qarar-router"
 
     return ExecutionPlan(
         primary_agent_id=primary_agent_id,
