@@ -5,12 +5,12 @@ set -euo pipefail
 GITHUB_REPO="${GITHUB_REPO:-CurLexAI/swarms}"
 WORKFLOW_FILE="${WORKFLOW_FILE:-modal-runtime-auto-activation.yml}"
 REF_BRANCH="${REF_BRANCH:-main}"
-OLLAMA_URL="${OLLAMA_URL:-http://127.0.0.1:11434}"
+OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
 MODEL_NAME="${MODEL_NAME:-qwen2.5:0.5b}"
 RETRY_SLEEP="${RETRY_SLEEP:-5}"
 MAX_POLL_MINUTES="${MAX_POLL_MINUTES:-10}"
 # Optional: modal deploy command (set MODAL_DEPLOY_CMD env to override)
-MODAL_DEPLOY_CMD="${MODAL_DEPLOY_CMD:-modal deploy}"
+MODAL_DEPLOY_CMD="${MODAL_DEPLOY_CMD:-modal deploy .agents/modal_app.py}"
 
 # Secrets required for unattended smoke (repo-level or runtime-smoke env)
 REQUIRED_SECRETS=(BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN)
@@ -18,11 +18,25 @@ REQUIRED_SECRETS=(BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_AP
 # ----------------- HELPERS -----------------
 err() { echo "ERROR: $*" >&2; exit 1; }
 info() { echo "INFO: $*"; }
+job_field() {
+  local jobs_json="$1"
+  local job_name="$2"
+  local field="$3"
+  echo "$jobs_json" | jq -r --arg job "$job_name" --arg field "$field" \
+    '.jobs[]? | select(.name == $job) | .[$field] // empty' | tail -n1
+}
+step_conclusion() {
+  local jobs_json="$1"
+  local job_name="$2"
+  local step_name="$3"
+  echo "$jobs_json" | jq -r --arg job "$job_name" --arg step "$step_name" \
+    '.jobs[]? | select(.name == $job) | .steps[]? | select(.name == $step) | .conclusion // empty' | tail -n1
+}
 
 # ----------------- PRECHECKS -----------------
 command -v gh >/dev/null 2>&1 || err "gh CLI not found. ثبت gh وسجّل الدخول (gh auth login)."
 command -v curl >/dev/null 2>&1 || err "curl غير موجود."
-command -v jq >/dev/null 2>&1 || info "jq غير مثبت؛ المخرجات ستكون نصية."
+command -v jq >/dev/null 2>&1 || err "jq CLI not found. ثبّت jq لأن السكربت يعتمد عليه لتحليل مخرجات gh."
 
 # Ensure gh auth
 if ! gh auth status >/dev/null 2>&1; then
@@ -32,29 +46,25 @@ fi
 # ----------------- 1) تحقق من Ollama ووجود النموذج -----------------
 info "التحقق من Ollama على $OLLAMA_URL ..."
 set +e
-models_json="$(curl -sS --max-time 10 "${OLLAMA_URL}/v1/models" 2>/dev/null || true)"
+models_json="$(curl -sS --max-time 10 "${OLLAMA_URL}/v1/models" 2>/dev/null)"
 curl_rc=$?
 set -e
 if [[ $curl_rc -ne 0 || -z "$models_json" ]]; then
   err "تعذر الوصول إلى Ollama على ${OLLAMA_URL}. شغّل 'ollama serve' ثم أعد المحاولة."
 fi
 
-if command -v jq >/dev/null 2>&1; then
-  if echo "$models_json" | jq -e --arg m "$MODEL_NAME" 'index($m) | . >= 0' >/dev/null 2>&1; then
-    info "النموذج $MODEL_NAME موجود في Ollama."
-  else
-    info "النموذج $MODEL_NAME غير موجود. النماذج المتاحة:"
-    echo "$models_json" | jq .
-    info "إذا كان النموذج مفقودًا، حمّله إلى Ollama أو عدّل MODEL_NAME."
-  fi
+if echo "$models_json" | jq -e --arg m "$MODEL_NAME" 'any(.data[]?; .id == $m)' >/dev/null 2>&1; then
+  info "النموذج $MODEL_NAME موجود في Ollama."
 else
-  echo "$models_json"
+  info "النموذج $MODEL_NAME غير موجود. النماذج المتاحة:"
+  echo "$models_json" | jq .
+  info "إذا كان النموذج مفقودًا، حمّله إلى Ollama أو عدّل MODEL_NAME."
 fi
 
 # ----------------- 2) تأكد من وجود الأسرار في المستودع (أو أنشئها) -----------------
 info "التحقق من أسرار المستودع المطلوبة..."
 for s in "${REQUIRED_SECRETS[@]}"; do
-  if gh secret list --repo "$GITHUB_REPO" 2>/dev/null | grep -q "^$s$"; then
+  if gh secret list --repo "$GITHUB_REPO" --json name --jq '.[].name' 2>/dev/null | grep -Fxq "$s"; then
     info "Secret $s موجود في $GITHUB_REPO."
   else
     info "Secret $s غير موجود في $GITHUB_REPO."
@@ -91,45 +101,69 @@ fi
 
 # ----------------- 4) شغّل الـ workflow: أولاً unattended smoke (بدون ACTIVATE) ثم (اختياري) ACTIVATE deploy -----------------
 info "Dispatch: تشغيل smoke unattended (push/schedule يعتمدان على إعدادات workflow)."
-gh workflow run "$WORKFLOW_FILE" --repo "$GITHUB_REPO" --ref "$REF_BRANCH"
-info "تم إرسال طلب smoke unattended. الآن سننتظر ظهور run يحتوي FINAL_STATUS=VERIFIED_ENDPOINT_SMOKE."
+dispatch_time="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+gh workflow run "$WORKFLOW_FILE" --repo "$GITHUB_REPO" --ref "$REF_BRANCH" -f confirm=SMOKE
+info "تم إرسال طلب smoke unattended. الآن سننتظر نتيجة endpoint-smoke-verification عبر GitHub Actions API."
 
-# Polling: نبحث عن أحدث run للـ workflow ونفحص الـ logs حتى يظهر FINAL_STATUS أو ينتهي الوقت
+# Polling: نبحث عن run الخاص بالـ workflow ونفحص حالة jobs/steps حتى ينتهي الوقت
 end_time=$(( $(date +%s) + MAX_POLL_MINUTES*60 ))
 info "مراقبة آخر run لمدة أقصاها ${MAX_POLL_MINUTES} دقيقة..."
 
 while true; do
   # احصل آخر run id للـ workflow
-  run_info="$(gh run list --repo "$GITHUB_REPO" --workflow "$WORKFLOW_FILE" --limit 1 --json databaseId,event,conclusion,createdAt 2>/dev/null || true)"
+  run_info="$(gh run list --repo "$GITHUB_REPO" --workflow "$WORKFLOW_FILE" --event workflow_dispatch --branch "$REF_BRANCH" --limit 10 --json databaseId,event,status,conclusion,createdAt 2>/dev/null || true)"
   if [[ -z "$run_info" ]]; then
     info "لم يتم العثور على run بعد. الانتظار ${RETRY_SLEEP}s..."
     sleep "$RETRY_SLEEP"
   else
-    run_id="$(echo "$run_info" | jq -r '.[0].databaseId')"
-    run_conclusion="$(echo "$run_info" | jq -r '.[0].conclusion')"
-    run_event="$(echo "$run_info" | jq -r '.[0].event')"
-    info "أحدث run: id=$run_id event=$run_event conclusion=$run_conclusion"
-    if [[ "$run_id" != "null" && -n "$run_id" ]]; then
-      # جلب الـ logs والبحث عن FINAL_STATUS
-      info "جلب logs للـ run $run_id ..."
-      # gh run view <id> --log يطبع logs؛ نبحث عن FINAL_STATUS
-      if gh run view "$run_id" --repo "$GITHUB_REPO" --log 2>/dev/null | grep -q "FINAL_STATUS="; then
-        final_line="$(gh run view "$run_id" --repo "$GITHUB_REPO" --log 2>/dev/null | grep "FINAL_STATUS=" | tail -n1)"
-        info "Found: $final_line"
-        if echo "$final_line" | grep -q "VERIFIED_ENDPOINT_SMOKE"; then
+    run="$(echo "$run_info" | jq -c --arg since "$dispatch_time" \
+      '((map(select(.createdAt >= $since)) | sort_by(.createdAt) | last) // {})')"
+    run_id="$(echo "$run" | jq -r '.databaseId // empty')"
+    run_status="$(echo "$run" | jq -r '.status // "unknown"')"
+    run_conclusion="$(echo "$run" | jq -r '.conclusion // ""')"
+    run_event="$(echo "$run" | jq -r '.event // ""')"
+    info "أحدث run: id=$run_id event=$run_event status=$run_status conclusion=${run_conclusion:-pending}"
+    if [[ "$run_id" == "null" || -z "$run_id" ]]; then
+      info "لم يظهر run المرسل بعد. الانتظار ${RETRY_SLEEP}s..."
+    else
+      jobs_json="$(gh api "repos/${GITHUB_REPO}/actions/runs/${run_id}/jobs" 2>/dev/null || true)"
+      if [[ -z "$jobs_json" ]]; then
+        info "لم تظهر jobs للـ run بعد. الانتظار ${RETRY_SLEEP}s..."
+        sleep "$RETRY_SLEEP"
+        continue
+      fi
+
+      preflight_conclusion="$(job_field "$jobs_json" "activation-preflight" "conclusion")"
+      smoke_status="$(job_field "$jobs_json" "endpoint-smoke-verification" "status")"
+      smoke_conclusion="$(job_field "$jobs_json" "endpoint-smoke-verification" "conclusion")"
+      secret_step="$(step_conclusion "$jobs_json" "endpoint-smoke-verification" "Check endpoint smoke secrets")"
+      endpoint_step="$(step_conclusion "$jobs_json" "endpoint-smoke-verification" "Run endpoint smoke")"
+      summary_step="$(step_conclusion "$jobs_json" "endpoint-smoke-verification" "Verification summary")"
+
+      info "preflight=${preflight_conclusion:-pending} smoke_status=${smoke_status:-pending} smoke=${smoke_conclusion:-pending} secrets=${secret_step:-pending} endpoint=${endpoint_step:-pending} summary=${summary_step:-pending}"
+
+      if [[ "$preflight_conclusion" == "failure" || "$preflight_conclusion" == "cancelled" || "$preflight_conclusion" == "timed_out" ]]; then
+        err "Preflight فشل قبل تشغيل endpoint smoke. راجع run $run_id."
+      fi
+
+      if [[ "$smoke_status" == "completed" ]]; then
+        if [[ "$smoke_conclusion" == "success" && "$endpoint_step" == "success" ]]; then
           echo "FINAL_STATUS=VERIFIED_ENDPOINT_SMOKE"
           info "التحقق ناجح: الوكلاء والنماذج live."
           exit 0
-        else
-          info "حالة نهائية مختلفة: $final_line"
-          # إذا كانت UNVERIFIED_SECRET_MISSING أو UNVERIFIED_HTTP_* نخرج برمز خطأ
-          if echo "$final_line" | grep -qE "UNVERIFIED_"; then
-            err "Smoke انتهى بحالة غير VERIFIED: $final_line"
-          fi
         fi
-      else
-        info "لم يُكتب FINAL_STATUS بعد في logs. الانتظار ${RETRY_SLEEP}s..."
+        if [[ "$smoke_conclusion" == "success" && "$endpoint_step" == "skipped" ]]; then
+          err "FINAL_STATUS=UNVERIFIED_SECRET_MISSING: أسرار endpoint smoke غير مكتملة في $GITHUB_REPO."
+        fi
+        if [[ "$summary_step" == "failure" || "$smoke_conclusion" == "failure" ]]; then
+          err "FINAL_STATUS=BLOCKED_MODAL_FAILURE: endpoint smoke فشل في run $run_id."
+        fi
+        if [[ "$smoke_conclusion" == "skipped" ]]; then
+          err "Smoke job skipped؛ تأكد من أن confirm=SMOKE وأن preflight مر بنجاح في run $run_id."
+        fi
       fi
+
+      info "الـ run لا يزال قيد التنفيذ. الانتظار ${RETRY_SLEEP}s..."
     fi
   fi
 
@@ -142,4 +176,4 @@ done
 # ----------------- 5) (اختياري) شغّل الـ deploy المحمي عبر workflow_dispatch مع ACTIVATE -----------------
 # ملاحظة: هذا الجزء لن يُنفّذ تلقائيًا في نفس run أعلاه؛ نفّذه يدويًا عند التأكد من readiness.
 # مثال:
-# gh workflow run "$WORKFLOW_FILE" --repo "$GITHUB_REPO" --ref "$REF_BRANCH" -f ACTIVATE=ACTIVATE
+# gh workflow run "$WORKFLOW_FILE" --repo "$GITHUB_REPO" --ref "$REF_BRANCH" -f confirm=ACTIVATE
