@@ -26,6 +26,7 @@ required secret is absent. Map `entry-NN` back to a name via the order below.
 | `MODAL_TOKEN_ID` | ✅ | Modal deploy | Modal auth id |
 | `MODAL_TOKEN_SECRET` | ✅ | Modal deploy | Modal auth secret |
 | `HF_READ_TOKEN` | ⬜ | Local gates | Public HF coding-model smoke (PUBLIC egress only) |
+| `HF_TOKEN` | ⬜ | HF inference | Hugging Face Inference Providers token for manually enabled Mihwar/Bayyinah backend execution |
 | `RENDER_DEPLOY_HOOK_URL` | ⬜ | Edge deploy | Render production deploy hook (manual, gated) |
 | `SONAR_TOKEN` | ⬜ | Local gates | SonarCloud analysis (non-blocking) |
 | `ANTHROPIC_API_KEY` | ⬜ | Optional | External AI — only if explicitly authorized (prohibition #4) |

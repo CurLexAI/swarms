@@ -33,6 +33,14 @@ agents:
       timeout_seconds: 300
       keep_warm: 1
 
+    huggingface:
+      mode_env: "HF_INTEGRATION_MODE"
+      token_env: "HF_TOKEN"
+      base_url_env: "HF_INFERENCE_BASE_URL"
+      model_env: "MIHWAR_HF_MODEL_ID"
+      provider_env: "MIHWAR_HF_PROVIDER"
+      default_model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
+
     inference:
       engine: "vllm"
       max_tokens: 8192
@@ -86,6 +94,14 @@ agents:
       concurrency_limit: 4
       timeout_seconds: 120
       keep_warm: 1
+
+    huggingface:
+      mode_env: "HF_INTEGRATION_MODE"
+      token_env: "HF_TOKEN"
+      base_url_env: "HF_INFERENCE_BASE_URL"
+      model_env: "BAYYINAH_HF_MODEL_ID"
+      provider_env: "BAYYINAH_HF_PROVIDER"
+      default_model: "Qwen/Qwen2.5-Coder-32B-Instruct"
 
     inference:
       engine: "vllm"
