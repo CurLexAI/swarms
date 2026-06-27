@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Model routing configuration for CurLexAI/swarms. Reference file — canonical source of truth remains .agents/config/agents.yaml.",
+  "version": "1.0.0",
+
+  "routing_policy": {
+    "sensitive_data": "sovereign_only",
+    "non_sensitive_data": "allow_external_after_redaction",
+    "fallback_order": ["modal_vllm", "local_ollama", "local_llama_cpp"]
+  },
+
+  "providers": {
+    "modal_vllm": {
+      "enabled": true,
+      "requires_secrets": ["MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET", "MIHWAR_ENDPOINT", "BAYYINAH_ENDPOINT"],
+      "agents": {
+        "mihwar": {
+          "model_id": "deepseek-ai/DeepSeek-Coder-V2-Instruct",
+          "gpu": "A100-80GB",
+          "gpu_count": 2,
+          "tasks": ["architecture", "code_generation", "refactoring", "api_design"]
+        },
+        "bayyinah": {
+          "model_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+          "gpu": "A100-80GB",
+          "gpu_count": 1,
+          "tasks": ["code_review", "validation", "security_audit"]
+        }
+      }
+    },
+
+    "local_ollama": {
+      "enabled": true,
+      "base_url_env": "OLLAMA_BASE_URL",
+      "base_url_default": "http://localhost:11434",
+      "requires_secrets": [],
+      "recommended_models": [
+        "qwen2.5-coder:32b",
+        "deepseek-coder-v2:16b",
+        "codellama:34b"
+      ],
+      "notes": "Offline-first sovereign fallback. No egress."
+    },
+
+    "local_llama_cpp": {
+      "enabled": true,
+      "base_url_env": "LLAMA_CPP_URL",
+      "base_url_default": "http://localhost:8080",
+      "requires_secrets": [],
+      "recommended_models": [
+        "Qwen2.5-Coder-32B-Instruct-GGUF",
+        "DeepSeek-Coder-V2-Lite-Instruct-GGUF"
+      ],
+      "notes": "Direct GGUF inference. No Python deps needed."
+    },
+
+    "openai": {
+      "enabled": true,
+      "requires_secrets": ["OPENAI_API_KEY"],
+      "allowed_tasks": ["fast_draft", "multimodal"],
+      "data_policy": "non_sensitive_only_after_pii_redaction"
+    },
+
+    "anthropic": {
+      "enabled": true,
+      "requires_secrets": ["ANTHROPIC_API_KEY"],
+      "allowed_tasks": ["long_context_analysis", "critical_reasoning", "arabic_legal"],
+      "data_policy": "non_sensitive_only_after_pii_redaction"
+    }
+  },
+
+  "task_routing": {
+    "coding": { "primary": "modal_vllm.mihwar", "reviewer": "modal_vllm.bayyinah" },
+    "code_review": { "primary": "modal_vllm.bayyinah", "reviewer": null },
+    "critical_arabic_legal": { "primary": "anthropic", "reviewer": "modal_vllm.bayyinah" },
+    "fast_draft": { "primary": "openai", "reviewer": null },
+    "long_context": { "primary": "anthropic", "reviewer": "modal_vllm.bayyinah" },
+    "offline_fallback": { "primary": "local_ollama", "reviewer": null }
+  },
+
+  "data_classification": {
+    "sovereign_only_triggers": [
+      "contains_pii",
+      "contains_financial_data",
+      "contains_legal_arabic",
+      "classification_critical",
+      "classification_high"
+    ],
+    "redaction_required_before_external": true,
+    "redaction_engine": "qala_ksa_pii"
+  }
+}
