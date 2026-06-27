@@ -242,19 +242,22 @@ def _enrich_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, An
     return arguments
 
 
-def _call_local_ollama(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
-    enriched = _enrich_arguments(tool_name, dict(arguments))
+_OLLAMA_MODEL_MAP: dict[str, tuple[str, str]] = {
+    "mihwar_generate": ("OLLAMA_MIHWAR_MODEL", "deepseek-coder-v2:16b"),
+    "free_birds_design": ("OLLAMA_MIHWAR_MODEL", "deepseek-coder-v2:16b"),
+    "bayyinah_review": ("OLLAMA_BAYYINAH_MODEL", "qwen2.5-coder:32b"),
+    "free_birds_review": ("OLLAMA_BAYYINAH_MODEL", "qwen2.5-coder:32b"),
+}
 
-    model = "qwen2.5-coder:32b"
-    if tool_name in ("mihwar_generate", "free_birds_design"):
-        model = os.environ.get("OLLAMA_MIHWAR_MODEL", "deepseek-coder-v2:16b")
-    elif tool_name in ("bayyinah_review", "free_birds_review"):
-        model = os.environ.get("OLLAMA_BAYYINAH_MODEL", "qwen2.5-coder:32b")
 
-    task = enriched.get("task", enriched.get("code", ""))
+def _ollama_model_for(tool_name: str) -> str:
+    env_key, default = _OLLAMA_MODEL_MAP.get(tool_name, ("", "qwen2.5-coder:32b"))
+    return os.environ.get(env_key, default) if env_key else default
+
+
+def _build_prompt(enriched: dict[str, Any]) -> str:
+    parts = [enriched.get("task", enriched.get("code", ""))]
     context = enriched.get("context", "")
-    parts = [task]
     if context:
         parts.append(f"Context:\n{context}")
     birds = enriched.get("birds")
@@ -264,14 +267,16 @@ def _call_local_ollama(tool_name: str, arguments: dict[str, Any]) -> dict[str, A
         parts.append(f"Swarm role: {enriched.get('role', 'unknown')}")
         parts.append(f"Birds: {', '.join(bird_ids)}")
         parts.append(f"Checks: {', '.join(checks)}")
-    prompt = "\n\n".join(parts)
+    return "\n\n".join(parts)
 
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-    }
-    data = json.dumps(payload).encode("utf-8")
+
+def _call_local_ollama(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    enriched = _enrich_arguments(tool_name, dict(arguments))
+    model = _ollama_model_for(tool_name)
+    prompt = _build_prompt(enriched)
+
+    data = json.dumps({"model": model, "prompt": prompt, "stream": False}).encode("utf-8")
     req = urllib.request.Request(
         f"{base_url}/api/generate",
         data=data,
