@@ -48,16 +48,24 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "20"
-      - name: Validate Vercel secret presence
+      - name: Check Vercel preview configuration
+        id: vercel_config
         run: |
-          test -n "$VERCEL_TOKEN"
-          test -n "$VERCEL_ORG_ID"
-          test -n "$VERCEL_PROJECT_ID"
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN:-}" ] || [ -z "${VERCEL_ORG_ID:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Vercel preview skipped::Configure VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID to enable preview deployments."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Pull Vercel preview environment
+        if: steps.vercel_config.outputs.enabled == 'true'
         run: npx --yes vercel@latest pull --yes --environment=preview --token "$VERCEL_TOKEN"
       - name: Build Vercel preview artifact
+        if: steps.vercel_config.outputs.enabled == 'true'
         run: npx --yes vercel@latest build --token "$VERCEL_TOKEN"
       - name: Deploy Vercel preview artifact
+        if: steps.vercel_config.outputs.enabled == 'true'
         run: npx --yes vercel@latest deploy --prebuilt --token "$VERCEL_TOKEN"
 
   production:
