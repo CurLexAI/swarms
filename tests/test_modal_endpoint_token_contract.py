@@ -123,12 +123,11 @@ def test_local_modal_smoke_uses_endpoint_specific_tokens() -> None:
 
 
 def test_mcp_server_reads_endpoint_specific_tokens() -> None:
-    """MCP dispatch must choose the token that matches the target endpoint."""
+    """MCP server now uses local Ollama — no Modal tokens needed."""
 
     source = _read(".agents/mcp/server.py")
 
-    assert 'os.environ.get("BAYYINAH_API_TOKEN", "")' in source
-    assert 'os.environ.get("MIHWAR_API_TOKEN", "")' in source
+    assert "_call_local_ollama" in source
     assert f'os.environ.get("{LEGACY_SHARED_TOKEN_ENV}", "")' not in source
     assert f'"{LEGACY_SHARED_TOKEN_ENV} is not configured."' not in source
 

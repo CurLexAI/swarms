@@ -202,23 +202,6 @@ def _filter_birds(pool: list[dict[str, Any]], focus: list[str]) -> list[dict[str
     return selected or pool
 
 
-def _endpoint_and_token_for(tool_name: str) -> tuple[str, str, str, str]:
-    if tool_name in ("mihwar_generate", "free_birds_design"):
-        return (
-            os.environ.get("MIHWAR_ENDPOINT", ""),
-            "MIHWAR_ENDPOINT",
-            os.environ.get("MIHWAR_API_TOKEN", ""),
-            "MIHWAR_API_TOKEN",
-        )
-    if tool_name in ("bayyinah_review", "free_birds_review"):
-        return (
-            os.environ.get("BAYYINAH_ENDPOINT", ""),
-            "BAYYINAH_ENDPOINT",
-            os.environ.get("BAYYINAH_API_TOKEN", ""),
-            "BAYYINAH_API_TOKEN",
-        )
-    return "", "", "", ""
-
 
 def _enrich_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if tool_name == "free_birds_review":
