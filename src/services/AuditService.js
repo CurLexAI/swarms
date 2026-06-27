@@ -5,6 +5,7 @@ export class AuditService {
         RUNNING: new Set(["COMPLETED", "FAILED"]),
     };
     static taskStatusStore = new Map();
+    static taskSeqStore = new Map();
     static async logSecurityViolation(userId, agentId, reason, details = {}) {
         await auditLogger.write({
             event: "security",
@@ -34,18 +35,23 @@ export class AuditService {
             throw new Error(`Invalid task status transition: ${currentStatus} -> ${status}`);
         }
         AuditService.taskStatusStore.set(taskId, status);
+        const seq = (AuditService.taskSeqStore.get(taskId) ?? 0) + 1;
+        AuditService.taskSeqStore.set(taskId, seq);
         auditLogger.writeDeferred({
             event: "agent_task_status",
             taskId,
             status,
+            lifecycle_seq: seq,
             result
         });
     }
     static async createTask(entry) {
         AuditService.taskStatusStore.set(entry.taskId, "PENDING");
+        AuditService.taskSeqStore.set(entry.taskId, 0);
         auditLogger.writeDeferred({
             event: "agent_task_init",
             status: "PENDING",
+            lifecycle_seq: 0,
             timestamp: new Date().toISOString(),
             ...entry,
         });
