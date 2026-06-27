@@ -83,6 +83,15 @@ def test_copilot_setup_installs_dev_dependencies_and_avoids_live_integrations() 
     assert "npm test --if-present" in text
 
 
+def test_frontend_sri_workflow_uses_lockfile_install() -> None:
+    """Ensure the SRI workflow uses the committed lockfile-based Node install path."""
+
+    text = read_workflow("frontend-sri.yml")
+
+    assert "npm ci --include=dev --ignore-scripts" in text
+    assert (REPO_ROOT / "package-lock.json").is_file()
+
+
 def test_swarm_presence_monitor_no_network_json_is_nonblocking() -> None:
     """Ensure no-network presence evidence stays JSON-serializable and check-friendly."""
 

@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
-      - run: npm ci --ignore-scripts
+      - run: npm ci --include=dev --ignore-scripts
       - run: npm run integrity:frontend
       - run: npm run check:cdn-sri
       - run: npm run test:cdn-sri
