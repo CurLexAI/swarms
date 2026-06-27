@@ -160,11 +160,11 @@ class AegisGatewayTests(unittest.TestCase):
 class McpServerAegisIntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
         self._gateway = mcp_server.GATEWAY
-        self._call_modal = mcp_server._call_modal
+        self._call_local_ollama = mcp_server._call_local_ollama
 
     def tearDown(self) -> None:
         mcp_server.GATEWAY = self._gateway
-        mcp_server._call_modal = self._call_modal
+        mcp_server._call_local_ollama = self._call_local_ollama
 
     def test_tools_list_uses_aegis_filter(self) -> None:
         sink = RecordingSink()
@@ -195,9 +195,9 @@ class McpServerAegisIntegrationTests(unittest.TestCase):
         mcp_server.GATEWAY = AegisMcpGateway(TOOLS, audit_sink=sink, tenant_id="tenant-A")
 
         def _fail_dispatch(_tool_name: str, _arguments: dict[str, Any]) -> dict[str, Any]:
-            raise AssertionError("Modal dispatch must not run for blocked requests")
+            raise AssertionError("Ollama dispatch must not run for blocked requests")
 
-        mcp_server._call_modal = _fail_dispatch
+        mcp_server._call_local_ollama = _fail_dispatch
         request = {
             "jsonrpc": "2.0",
             "id": 11,
@@ -220,6 +220,70 @@ class McpServerAegisIntegrationTests(unittest.TestCase):
         response = _jsonrpc_result(stdout.getvalue())
         self.assertTrue(response["result"]["isError"])
         self.assertIn("prompt_injection_blocked", response["result"]["content"][0]["text"])
+
+
+class BuildPromptTests(unittest.TestCase):
+    def test_task_only(self) -> None:
+        result = mcp_server._build_prompt({"task": "Fix the bug"})
+        self.assertEqual(result, "Fix the bug")
+
+    def test_task_and_code(self) -> None:
+        result = mcp_server._build_prompt({"task": "Refactor", "code": "x = 1"})
+        self.assertIn("Refactor", result)
+        self.assertIn("Code:\nx = 1", result)
+
+    def test_code_only(self) -> None:
+        result = mcp_server._build_prompt({"code": "x = 1"})
+        self.assertIn("Code:\nx = 1", result)
+
+    def test_empty_returns_empty(self) -> None:
+        self.assertEqual(mcp_server._build_prompt({}), "")
+
+    def test_context_included(self) -> None:
+        result = mcp_server._build_prompt({"task": "Do it", "context": "extra info"})
+        self.assertIn("Context:\nextra info", result)
+
+    def test_birds_included(self) -> None:
+        enriched = {
+            "task": "Review",
+            "role": "swarm_review",
+            "birds": [
+                {"id": "falcon", "checks": ["security_review"]},
+                {"id": "hawk", "checks": ["type_safety"]},
+            ],
+        }
+        result = mcp_server._build_prompt(enriched)
+        self.assertIn("Swarm role: swarm_review", result)
+        self.assertIn("falcon, hawk", result)
+        self.assertIn("security_review, type_safety", result)
+
+
+class FormatSwarmSectionTests(unittest.TestCase):
+    def test_formats_birds(self) -> None:
+        enriched = {
+            "role": "swarm_design",
+            "birds": [{"id": "owl", "checks": ["architecture"]}],
+        }
+        result = mcp_server._format_swarm_section(enriched)
+        self.assertIn("Swarm role: swarm_design", result)
+        self.assertIn("Birds: owl", result)
+        self.assertIn("Checks: architecture", result)
+
+    def test_missing_role_defaults(self) -> None:
+        enriched = {"birds": [{"id": "eagle", "checks": []}]}
+        result = mcp_server._format_swarm_section(enriched)
+        self.assertIn("Swarm role: unknown", result)
+
+
+class OllamaModelForTests(unittest.TestCase):
+    def test_mihwar_default(self) -> None:
+        self.assertEqual(mcp_server._ollama_model_for("mihwar_generate"), "deepseek-coder-v2:16b")
+
+    def test_bayyinah_default(self) -> None:
+        self.assertEqual(mcp_server._ollama_model_for("bayyinah_review"), "qwen2.5-coder:32b")
+
+    def test_unknown_tool_default(self) -> None:
+        self.assertEqual(mcp_server._ollama_model_for("unknown_tool"), "qwen2.5-coder:32b")
 
 
 if __name__ == "__main__":
