@@ -121,9 +121,9 @@ From `tests/test_full_pipeline.py`:
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/protocol-adapter.ts` | 2 | 3 | 5 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/index.ts` | 1 | 4 | 5 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/tool-adapter.ts` | 1 | 4 | 5 |
+| `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts` | 4 | 0 | 4 |
 | `src/policy/runtime-policy.ts` | 4 | 0 | 4 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts` | 4 | 0 | 4 |
-| `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts` | 4 | 0 | 4 |
 | `.agents/mcp/modal-mcp/src/server.ts` | 0 | 4 | 4 |
 | `.agents/mcp/modal-mcp/src/types.ts` | 3 | 0 | 3 |
 | `src/utils/auditLogger.js` | 3 | 0 | 3 |

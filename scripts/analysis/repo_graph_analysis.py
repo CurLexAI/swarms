@@ -30,7 +30,7 @@ import os
 import re
 from collections import defaultdict, deque
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 # Directories that never contain first-party source we want to graph.
 EXCLUDED_DIRS = {
@@ -48,6 +48,9 @@ EXCLUDED_DIRS = {
 
 TS_EXTS = (".ts", ".tsx", ".js", ".mjs", ".cjs", ".jsx")
 
+# DFS node colours for cycle detection.
+WHITE, GREY, BLACK = 0, 1, 2
+
 
 # --------------------------------------------------------------------------- #
 # Graph container
@@ -56,9 +59,9 @@ class Graph:
     """A tiny directed graph keyed by node label (repo-relative path)."""
 
     def __init__(self) -> None:
-        self.nodes: Set[str] = set()
-        self.out: Dict[str, Set[str]] = defaultdict(set)
-        self.inc: Dict[str, Set[str]] = defaultdict(set)
+        self.nodes: set = set()
+        self.out: Dict[str, set] = defaultdict(set)
+        self.inc: Dict[str, set] = defaultdict(set)
 
     def add_node(self, n: str) -> None:
         self.nodes.add(n)
@@ -73,98 +76,88 @@ class Graph:
         self.out[a].add(b)
         self.inc[b].add(a)
 
-    # -- algorithms -------------------------------------------------------- #
+    # -- cycle detection --------------------------------------------------- #
     def detect_cycles(self) -> List[List[str]]:
-        """DFS-based cycle detection.
+        """DFS-based cycle detection via white/grey/black colouring.
 
-        Uses the classic white/grey/black colouring. When DFS reaches a node
-        currently on the recursion stack (grey) we have found a back edge and
-        reconstruct the cycle from the stack.
+        Reaching a node currently on the recursion stack (grey) is a back edge,
+        so we reconstruct the cycle from the stack.
         """
-        WHITE, GREY, BLACK = 0, 1, 2
-        color: Dict[str, int] = {n: WHITE for n in self.nodes}
+        color = {n: WHITE for n in self.nodes}
         stack: List[str] = []
         cycles: List[List[str]] = []
-        seen_signatures: Set[frozenset] = set()
-
-        def dfs(u: str) -> None:
-            color[u] = GREY
-            stack.append(u)
-            for v in sorted(self.out[u]):
-                if color[v] == GREY:
-                    idx = stack.index(v)
-                    cycle = stack[idx:] + [v]
-                    sig = frozenset(cycle[:-1])
-                    if sig not in seen_signatures:
-                        seen_signatures.add(sig)
-                        cycles.append(cycle)
-                elif color[v] == WHITE:
-                    dfs(v)
-            stack.pop()
-            color[u] = BLACK
-
+        seen: set = set()
         for n in sorted(self.nodes):
             if color[n] == WHITE:
-                dfs(n)
+                self._cycle_visit(n, color, stack, cycles, seen)
         return cycles
 
+    def _cycle_visit(self, u, color, stack, cycles, seen) -> None:
+        color[u] = GREY
+        stack.append(u)
+        for v in sorted(self.out[u]):
+            if color[v] == WHITE:
+                self._cycle_visit(v, color, stack, cycles, seen)
+            elif color[v] == GREY:
+                self._record_cycle(stack, v, cycles, seen)
+        stack.pop()
+        color[u] = BLACK
+
+    @staticmethod
+    def _record_cycle(stack, v, cycles, seen) -> None:
+        cycle = stack[stack.index(v):] + [v]
+        sig = frozenset(cycle[:-1])
+        if sig not in seen:
+            seen.add(sig)
+            cycles.append(cycle)
+
+    # -- topological sort -------------------------------------------------- #
     def topological_sort(self) -> Tuple[Optional[List[str]], List[str]]:
         """Kahn's algorithm. Returns (order, remaining).
 
-        ``order`` is a valid build/load order if the graph is acyclic. If a
-        cycle exists, ``order`` is None and ``remaining`` lists the nodes that
-        could never reach in-degree zero (i.e. tangled in cycles).
-
-        Edge a -> b means "a imports b", so b must be built before a. We emit
-        dependencies first by ordering on in-degree of the *reversed* graph.
+        Edge a -> b means "a imports b", so dependencies (out-degree zero) are
+        emitted first. If a cycle exists, ``order`` is None and ``remaining``
+        lists the nodes that never reach out-degree zero.
         """
-        indeg: Dict[str, int] = {n: 0 for n in self.nodes}
-        for n in self.nodes:
-            for m in self.out[n]:
-                indeg[m] += 0  # ensure key exists
-        # We want dependencies (things with no outgoing imports) first.
-        outdeg: Dict[str, int] = {n: len(self.out[n]) for n in self.nodes}
+        outdeg = {n: len(self.out[n]) for n in self.nodes}
         queue = deque(sorted(n for n in self.nodes if outdeg[n] == 0))
         order: List[str] = []
-        outdeg = dict(outdeg)
         while queue:
             u = queue.popleft()
             order.append(u)
-            for p in sorted(self.inc[u]):
-                outdeg[p] -= 1
-                if outdeg[p] == 0:
-                    queue.append(p)
+            self._relax_importers(u, outdeg, queue)
         if len(order) == len(self.nodes):
             return order, []
-        remaining = sorted(n for n in self.nodes if n not in set(order))
-        return None, remaining
+        placed = set(order)
+        return None, sorted(n for n in self.nodes if n not in placed)
 
+    def _relax_importers(self, u, outdeg, queue) -> None:
+        for p in sorted(self.inc[u]):
+            outdeg[p] -= 1
+            if outdeg[p] == 0:
+                queue.append(p)
+
+    # -- connected components ---------------------------------------------- #
     def connected_components(self) -> List[List[str]]:
         """Weakly connected components via BFS on the undirected projection."""
-        adj: Dict[str, Set[str]] = defaultdict(set)
+        adj = self._undirected_adj()
+        visited: set = set()
+        components: List[List[str]] = []
+        for start in sorted(self.nodes):
+            if start not in visited:
+                components.append(_bfs_undirected(start, adj, visited))
+        components.sort(key=len, reverse=True)
+        return components
+
+    def _undirected_adj(self) -> Dict[str, set]:
+        adj: Dict[str, set] = defaultdict(set)
         for n in self.nodes:
             for m in self.out[n]:
                 adj[n].add(m)
                 adj[m].add(n)
-        visited: Set[str] = set()
-        components: List[List[str]] = []
-        for start in sorted(self.nodes):
-            if start in visited:
-                continue
-            comp: List[str] = []
-            q = deque([start])
-            visited.add(start)
-            while q:
-                u = q.popleft()
-                comp.append(u)
-                for v in sorted(adj[u]):
-                    if v not in visited:
-                        visited.add(v)
-                        q.append(v)
-            components.append(sorted(comp))
-        components.sort(key=len, reverse=True)
-        return components
+        return adj
 
+    # -- traversal & centrality ------------------------------------------- #
     def bfs(self, root: str, max_depth: int = 6) -> List[Tuple[str, int]]:
         """BFS traversal of the dependency fan-out from ``root``."""
         if root not in self.nodes:
@@ -175,13 +168,15 @@ class Graph:
         while q:
             u, d = q.popleft()
             order.append((u, d))
-            if d >= max_depth:
-                continue
-            for v in sorted(self.out[u]):
-                if v not in visited:
-                    visited.add(v)
-                    q.append((v, d + 1))
+            if d < max_depth:
+                self._enqueue_children(u, d, visited, q)
         return order
+
+    def _enqueue_children(self, u, d, visited, q) -> None:
+        for v in sorted(self.out[u]):
+            if v not in visited:
+                visited.add(v)
+                q.append((v, d + 1))
 
     def degree_table(self) -> List[Tuple[str, int, int]]:
         """Return (node, in_degree, out_degree) sorted by total degree desc."""
@@ -190,112 +185,140 @@ class Graph:
         return rows
 
 
+def _bfs_undirected(start, adj, visited) -> List[str]:
+    comp: List[str] = []
+    q = deque([start])
+    visited.add(start)
+    while q:
+        u = q.popleft()
+        comp.append(u)
+        for v in sorted(adj[u]):
+            if v not in visited:
+                visited.add(v)
+                q.append(v)
+    return sorted(comp)
+
+
 # --------------------------------------------------------------------------- #
 # Discovery
 # --------------------------------------------------------------------------- #
 def is_excluded(path: Path, root: Path) -> bool:
     rel = path.relative_to(root).as_posix()
-    parts = set(rel.split("/"))
-    if parts & EXCLUDED_DIRS:
+    if set(rel.split("/")) & EXCLUDED_DIRS:
         return True
-    for ex in EXCLUDED_DIRS:
-        if "/" in ex and rel.startswith(ex + "/"):
-            return True
-    return False
+    return any("/" in ex and rel.startswith(ex + "/") for ex in EXCLUDED_DIRS)
 
 
 def discover(root: Path, exts: Iterable[str]) -> List[Path]:
+    suffixes = tuple(exts)
     out: List[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIRS]
-        for fn in filenames:
-            if fn.endswith(tuple(exts)):
-                p = Path(dirpath) / fn
-                if not is_excluded(p, root):
-                    out.append(p)
+        out.extend(_collect_files(dirpath, filenames, suffixes, root))
     return sorted(out)
+
+
+def _collect_files(dirpath, filenames, suffixes, root) -> List[Path]:
+    found: List[Path] = []
+    for fn in filenames:
+        if not fn.endswith(suffixes):
+            continue
+        p = Path(dirpath) / fn
+        if not is_excluded(p, root):
+            found.append(p)
+    return found
 
 
 # --------------------------------------------------------------------------- #
 # Python resolution
 # --------------------------------------------------------------------------- #
-def build_python_graph(root: Path) -> Tuple[Graph, Dict[str, str]]:
-    files = discover(root, (".py",))
-    rels = [f.relative_to(root).as_posix() for f in files]
-    relset = set(rels)
+def _build_module_index(rels: List[str]) -> Dict[str, str]:
+    """Map every dotted-name suffix of each file path to that file.
 
-    # Map dotted module path -> file for absolute import resolution. We index by
-    # the file's directory chain so that e.g. "router.model_router" and
-    # ".agents.router.model_router" both resolve.
-    module_index: Dict[str, str] = {}
+    Lets both ``router.model_router`` and ``.agents.router.model_router``
+    resolve to the same module file.
+    """
+    index: Dict[str, str] = {}
     for rel in rels:
-        no_ext = rel[:-3]  # strip .py
-        parts = no_ext.split("/")
-        # Register every suffix of the path as a candidate dotted name.
+        parts = rel[:-3].split("/")  # strip .py
         for i in range(len(parts)):
-            dotted = ".".join(parts[i:])
-            module_index.setdefault(dotted, rel)
+            index.setdefault(".".join(parts[i:]), rel)
         if parts[-1] == "__init__":
-            pkg = ".".join(parts[:-1])
             for i in range(len(parts) - 1):
-                dotted = ".".join(parts[i:-1])
-                module_index.setdefault(dotted, rel)
+                index.setdefault(".".join(parts[i:-1]), rel)
+    return index
 
-    g = Graph()
-    for rel in rels:
-        g.add_node(rel)
 
-    def resolve_relative(cur_rel: str, level: int, module: Optional[str]) -> Optional[str]:
-        cur_parts = cur_rel[:-3].split("/")
-        # current package directory parts (drop the module filename)
-        base = cur_parts[:-1]
-        # each extra level goes one directory up
+class _PyResolver:
+    """Resolve Python import statements to repo-relative file paths."""
+
+    def __init__(self, rels: List[str]) -> None:
+        self.relset = set(rels)
+        self.module_index = _build_module_index(rels)
+
+    def from_import(self, cur_rel: str, node: ast.ImportFrom) -> Optional[str]:
+        if node.level and node.level > 0:
+            return self._relative(cur_rel, node.level, node.module)
+        if node.module:
+            return self.absolute(node.module)
+        return None
+
+    def _relative(self, cur_rel: str, level: int, module: Optional[str]) -> Optional[str]:
+        base = cur_rel[:-3].split("/")[:-1]  # package dir of current module
         up = level - 1
         if up > len(base):
             return None
-        base = base[: len(base) - up] if up else base
-        target_parts = list(base)
+        target_parts = base[: len(base) - up] if up else list(base)
         if module:
-            target_parts += module.split(".")
-        cand_module = "/".join(target_parts) + ".py"
-        cand_pkg = "/".join(target_parts) + "/__init__.py"
-        if cand_module in relset:
-            return cand_module
-        if cand_pkg in relset:
-            return cand_pkg
+            target_parts = target_parts + module.split(".")
+        joined = "/".join(target_parts)
+        for cand in (joined + ".py", joined + "/__init__.py"):
+            if cand in self.relset:
+                return cand
         return None
 
-    def resolve_absolute(module: str) -> Optional[str]:
-        if module in module_index:
-            return module_index[module]
-        # try progressively shorter prefixes (pkg.mod.sub -> pkg.mod)
+    def absolute(self, module: str) -> Optional[str]:
         parts = module.split(".")
         for i in range(len(parts), 0, -1):
             cand = ".".join(parts[:i])
-            if cand in module_index:
-                return module_index[cand]
+            if cand in self.module_index:
+                return self.module_index[cand]
         return None
 
+
+def _py_targets(tree: ast.AST, rel: str, resolver: _PyResolver) -> List[str]:
+    targets: List[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            target = resolver.from_import(rel, node)
+            if target:
+                targets.append(target)
+        elif isinstance(node, ast.Import):
+            targets.extend(t for t in (resolver.absolute(a.name) for a in node.names) if t)
+    return targets
+
+
+def _safe_parse(path: Path) -> Optional[ast.AST]:
+    try:
+        return ast.parse(path.read_text(encoding="utf-8", errors="replace"), filename=str(path))
+    except SyntaxError:
+        return None
+
+
+def build_python_graph(root: Path) -> Tuple[Graph, Dict[str, str]]:
+    files = discover(root, (".py",))
+    rels = [f.relative_to(root).as_posix() for f in files]
+    resolver = _PyResolver(rels)
+    g = Graph()
+    for rel in rels:
+        g.add_node(rel)
     for f, rel in zip(files, rels):
-        try:
-            tree = ast.parse(f.read_text(encoding="utf-8", errors="replace"), filename=str(f))
-        except SyntaxError:
+        tree = _safe_parse(f)
+        if tree is None:
             continue
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom):
-                target = None
-                if node.level and node.level > 0:
-                    target = resolve_relative(rel, node.level, node.module)
-                elif node.module:
-                    target = resolve_absolute(node.module)
-                if target:
-                    g.add_edge(rel, target)
-            elif isinstance(node, ast.Import):
-                for alias in node.names:
-                    target = resolve_absolute(alias.name)
-                    if target:
-                        g.add_edge(rel, target)
-    return g, module_index
+        for target in _py_targets(tree, rel, resolver):
+            g.add_edge(rel, target)
+    return g, resolver.module_index
 
 
 # --------------------------------------------------------------------------- #
@@ -310,171 +333,213 @@ IMPORT_RE = re.compile(
 )
 
 
+def _ts_candidates(cur_rel: str, spec: str) -> List[str]:
+    base = Path(cur_rel).parent
+    target = os.path.normpath((base / spec).as_posix()).replace("\\", "/")
+    cands = [target]
+    for ext in TS_EXTS:
+        if target.endswith(ext):
+            stem = target[: -len(ext)]
+            cands += [stem + e for e in TS_EXTS]
+    for ext in TS_EXTS:
+        cands.append(target + ext)
+        cands.append((Path(target) / "index").as_posix() + ext)
+    if target.endswith(".js"):  # ESM convention: .js specifier -> .ts source
+        cands += [target[:-3] + ".ts", target[:-3] + ".tsx"]
+    return cands
+
+
+class _TsResolver:
+    """Resolve relative TS/JS specifiers to repo-relative file paths."""
+
+    def __init__(self, rels: List[str]) -> None:
+        self.relset = set(rels)
+
+    def resolve(self, cur_rel: str, spec: str) -> Optional[str]:
+        if not spec.startswith("."):
+            return None  # external package, skip
+        for cand in _ts_candidates(cur_rel, spec):
+            if cand in self.relset:
+                return cand
+        return None
+
+
+def _ts_targets(path: Path, rel: str, resolver: _TsResolver) -> List[str]:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    targets: List[str] = []
+    for m in IMPORT_RE.finditer(text):
+        spec = m.group("a") or m.group("b") or m.group("c") or m.group("d")
+        target = resolver.resolve(rel, spec) if spec else None
+        if target:
+            targets.append(target)
+    return targets
+
+
 def build_ts_graph(root: Path) -> Graph:
     files = discover(root, TS_EXTS)
     rels = [f.relative_to(root).as_posix() for f in files]
-    relset = set(rels)
+    resolver = _TsResolver(rels)
     g = Graph()
     for rel in rels:
         g.add_node(rel)
-
-    def resolve(cur_rel: str, spec: str) -> Optional[str]:
-        if not spec.startswith("."):
-            return None  # external package, skip
-        base = Path(cur_rel).parent
-        target = (base / spec).as_posix()
-        target = os.path.normpath(target).replace("\\", "/")
-        candidates = [target]
-        # strip a trailing extension that may have been written explicitly
-        for ext in TS_EXTS:
-            if target.endswith(ext):
-                stem = target[: -len(ext)]
-                candidates += [stem + e for e in TS_EXTS]
-        # bare specifier -> try each extension and index files
-        for ext in TS_EXTS:
-            candidates.append(target + ext)
-            candidates.append((Path(target) / "index").as_posix() + ext)
-        # .js specifier often maps to a .ts source (ESM convention)
-        if target.endswith(".js"):
-            candidates.append(target[:-3] + ".ts")
-            candidates.append(target[:-3] + ".tsx")
-        for c in candidates:
-            if c in relset:
-                return c
-        return None
-
     for f, rel in zip(files, rels):
-        text = f.read_text(encoding="utf-8", errors="replace")
-        for m in IMPORT_RE.finditer(text):
-            spec = m.group("a") or m.group("b") or m.group("c") or m.group("d")
-            if not spec:
-                continue
-            target = resolve(rel, spec)
-            if target:
-                g.add_edge(rel, target)
+        for target in _ts_targets(f, rel, resolver):
+            g.add_edge(rel, target)
     return g
 
 
 # --------------------------------------------------------------------------- #
-# Reporting
+# Analysis + reporting
 # --------------------------------------------------------------------------- #
-def analyze(g: Graph, label: str, bfs_roots: int = 1) -> dict:
-    cycles = g.detect_cycles()
+def analyze(g: Graph, label: str, bfs_roots: int = 2) -> dict:
     order, remaining = g.topological_sort()
-    components = g.connected_components()
-    degrees = g.degree_table()
-    isolated = [n for n in g.nodes if not g.out[n] and not g.inc[n]]
-    leaves = sorted(n for n in g.nodes if g.out[n] and not g.inc[n])  # not imported by anyone
-
-    # Pick BFS roots by out-degree: a high fan-out node best illustrates how
-    # dependencies propagate downstream through the project.
+    isolated = sorted(n for n in g.nodes if not g.out[n] and not g.inc[n])
+    # Pick BFS roots by out-degree: high fan-out best illustrates propagation.
     by_outdeg = sorted(g.nodes, key=lambda n: (len(g.out[n]), len(g.inc[n])), reverse=True)
     roots = [n for n in by_outdeg if g.out[n]][:bfs_roots]
-    bfs_runs = {r: g.bfs(r) for r in roots}
-
     return {
         "label": label,
         "node_count": len(g.nodes),
         "edge_count": sum(len(v) for v in g.out.values()),
-        "cycles": cycles,
+        "cycles": g.detect_cycles(),
         "topo_order": order,
         "topo_remaining": remaining,
-        "components": components,
-        "degrees": degrees,
-        "isolated": sorted(isolated),
-        "entry_points": leaves,
-        "bfs": bfs_runs,
+        "components": g.connected_components(),
+        "degrees": g.degree_table(),
+        "isolated": isolated,
+        "bfs": {r: g.bfs(r) for r in roots},
     }
 
 
-def fmt_section(res: dict) -> str:
-    L = res["label"]
-    lines: List[str] = []
-    a = lines.append
-    a(f"## {L} dependency graph\n")
-    a(f"- Nodes (files): **{res['node_count']}**")
-    a(f"- Edges (import relations): **{res['edge_count']}**")
-    a(f"- Weakly connected components: **{len(res['components'])}**")
-    a(f"- Circular dependencies detected: **{len(res['cycles'])}**\n")
+def _fmt_header(res: dict) -> str:
+    return "\n".join([
+        f"## {res['label']} dependency graph\n",
+        f"- Nodes (files): **{res['node_count']}**",
+        f"- Edges (import relations): **{res['edge_count']}**",
+        f"- Weakly connected components: **{len(res['components'])}**",
+        f"- Circular dependencies detected: **{len(res['cycles'])}**\n",
+    ])
 
-    a("### Most central modules (degree centrality)\n")
-    a("| Module | In (imported by) | Out (imports) | Total |")
-    a("|---|---|---|---|")
-    for n, ind, outd in res["degrees"][:12]:
-        a(f"| `{n}` | {ind} | {outd} | {ind + outd} |")
-    a("")
 
-    a("### Circular dependencies (DFS cycle detection)\n")
+def _fmt_centrality(res: dict) -> str:
+    lines = [
+        "### Most central modules (degree centrality)\n",
+        "| Module | In (imported by) | Out (imports) | Total |",
+        "|---|---|---|---|",
+    ]
+    lines += [f"| `{n}` | {ind} | {outd} | {ind + outd} |" for n, ind, outd in res["degrees"][:12]]
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _fmt_cycles(res: dict) -> str:
+    lines = ["### Circular dependencies (DFS cycle detection)\n"]
     if not res["cycles"]:
-        a("None found — the dependency graph is a DAG.\n")
-    else:
-        for i, cyc in enumerate(res["cycles"], 1):
-            a(f"{i}. " + " → ".join(f"`{c}`" for c in cyc))
-        a("")
+        lines.append("None found — the dependency graph is a DAG.\n")
+        return "\n".join(lines)
+    lines += [f"{i}. " + " → ".join(f"`{c}`" for c in cyc) for i, cyc in enumerate(res["cycles"], 1)]
+    lines.append("")
+    return "\n".join(lines)
 
-    a("### Build / load order (topological sort)\n")
+
+def _fmt_topo(res: dict) -> str:
+    lines = ["### Build / load order (topological sort)\n"]
     if res["topo_order"] is None:
-        a("Not possible — cycles present. Tangled nodes:")
-        for n in res["topo_remaining"]:
-            a(f"  - `{n}`")
-        a("")
-    else:
-        a("Acyclic. First 20 in valid dependency-first order:")
-        for n in res["topo_order"][:20]:
-            a(f"  - `{n}`")
-        a("")
+        lines.append("Not possible — cycles present. Tangled nodes:")
+        lines += [f"  - `{n}`" for n in res["topo_remaining"]]
+        lines.append("")
+        return "\n".join(lines)
+    lines.append("Acyclic. First 20 in valid dependency-first order:")
+    lines += [f"  - `{n}`" for n in res["topo_order"][:20]]
+    lines.append("")
+    return "\n".join(lines)
 
-    a("### Isolated / orphaned files (connected components)\n")
+
+def _fmt_components(res: dict) -> str:
+    lines = ["### Isolated / orphaned files (connected components)\n"]
     if res["isolated"]:
-        a("Files with **no** intra-repo import edges (in or out):")
-        for n in res["isolated"]:
-            a(f"  - `{n}`")
+        lines.append("Files with **no** intra-repo import edges (in or out):")
+        lines += [f"  - `{n}`" for n in res["isolated"]]
     else:
-        a("No fully isolated files.")
-    a("")
+        lines.append("No fully isolated files.")
+    lines.append("")
     small = [c for c in res["components"] if 1 < len(c) <= 3]
     if small:
-        a("Small detached clusters (2–3 files, weakly connected to nothing else):")
-        for c in small:
-            a("  - " + ", ".join(f"`{x}`" for x in c))
-        a("")
-
-    a("### Dependency fan-out (BFS traversal)\n")
-    for root, run in res["bfs"].items():
-        a(f"From `{root}`:")
-        by_depth: Dict[int, List[str]] = defaultdict(list)
-        for node, d in run:
-            by_depth[d].append(node)
-        for d in sorted(by_depth):
-            if d == 0:
-                continue
-            a(f"  - depth {d}: " + ", ".join(f"`{x}`" for x in by_depth[d]))
-        a("")
+        lines.append("Small detached clusters (2–3 files, weakly connected to nothing else):")
+        lines += ["  - " + ", ".join(f"`{x}`" for x in c) for c in small]
+        lines.append("")
     return "\n".join(lines)
+
+
+def _fmt_bfs_depths(run: List[Tuple[str, int]]) -> List[str]:
+    by_depth: Dict[int, List[str]] = defaultdict(list)
+    for node, d in run:
+        by_depth[d].append(node)
+    return [
+        f"  - depth {d}: " + ", ".join(f"`{x}`" for x in by_depth[d])
+        for d in sorted(by_depth)
+        if d != 0
+    ]
+
+
+def _fmt_bfs(res: dict) -> str:
+    lines = ["### Dependency fan-out (BFS traversal)\n"]
+    for root, run in res["bfs"].items():
+        lines.append(f"From `{root}`:")
+        lines += _fmt_bfs_depths(run)
+        lines.append("")
+    return "\n".join(lines)
+
+
+def fmt_section(res: dict) -> str:
+    return "\n".join([
+        _fmt_header(res),
+        _fmt_centrality(res),
+        _fmt_cycles(res),
+        _fmt_topo(res),
+        _fmt_components(res),
+        _fmt_bfs(res),
+    ])
+
+
+def _to_json(py_res: dict, ts_res: dict) -> str:
+    def clean(r: dict) -> dict:
+        r = dict(r)
+        r["degrees"] = r["degrees"][:25]
+        return r
+
+    return json.dumps({"python": clean(py_res), "typescript": clean(ts_res)}, indent=2)
+
+
+def _safe_root(raw: Optional[str]) -> Path:
+    """Resolve and validate the analysis root.
+
+    Defaults to the repository root inferred from this script's location so the
+    tool works from any cwd. A user-supplied ``--root`` is expanded and resolved
+    through ``realpath`` (collapsing symlinks) and must be an existing directory
+    before any filesystem walk touches it.
+    """
+    default = Path(__file__).resolve().parents[2]
+    candidate = Path(raw).expanduser() if raw else default
+    real = Path(os.path.realpath(candidate))
+    if not real.is_dir():
+        raise SystemExit(f"error: root is not a directory: {real}")
+    return real
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", default=".", help="repository root")
+    ap.add_argument("--root", default=None, help="repository root (default: inferred from script location)")
     ap.add_argument("--json", action="store_true", help="emit JSON instead of markdown")
     ap.add_argument("--bfs-roots", type=int, default=2)
     args = ap.parse_args()
-    root = Path(args.root).resolve()
+    root = _safe_root(args.root)
 
-    py = build_python_graph(root)[0]
-    ts = build_ts_graph(root)
-
-    py_res = analyze(py, "Python", bfs_roots=args.bfs_roots)
-    ts_res = analyze(ts, "TypeScript/JavaScript", bfs_roots=args.bfs_roots)
+    py_res = analyze(build_python_graph(root)[0], "Python", args.bfs_roots)
+    ts_res = analyze(build_ts_graph(root), "TypeScript/JavaScript", args.bfs_roots)
 
     if args.json:
-        def clean(r: dict) -> dict:
-            r = dict(r)
-            r["degrees"] = r["degrees"][:25]
-            r["bfs"] = {k: v for k, v in r["bfs"].items()}
-            return r
-
-        print(json.dumps({"python": clean(py_res), "typescript": clean(ts_res)}, indent=2))
+        print(_to_json(py_res, ts_res))
         return 0
 
     print("# Repository Dependency Graph Analysis\n")
