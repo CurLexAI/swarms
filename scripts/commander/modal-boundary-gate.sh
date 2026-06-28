@@ -122,6 +122,23 @@ for v in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN; 
   fi
 done
 
+# ── 5b. No committed Modal endpoint URLs in any .env.example or config examples ─
+# Example files are tracked in Git; a real *.modal.run URL committed there is a
+# Modal-boundary violation regardless of the directory (secrets-boundary + modal-boundary).
+ENV_EXAMPLE_HITS="$(
+  grep -RIn \
+       --exclude-dir=.git --exclude-dir=node_modules \
+       --include='*.env.example' --include='.env.example' \
+       --include='*.env.swarms.example' \
+       'https\?://[^[:space:]]*.modal\.run' . 2>/dev/null || true
+)"
+if [[ -n "$ENV_EXAMPLE_HITS" ]]; then
+  printf '%s\n' "$ENV_EXAMPLE_HITS"
+  fail "MODAL_URL_LEAK_ENV_EXAMPLE: committed *.modal.run URL in a tracked example/config file"
+else
+  ok "no *.modal.run URL committed in tracked example files"
+fi
+
 # ── 6. Workflow uses `secrets.*` indirection (never hardcoded URLs) ──────────
 WF=.github/workflows/agent-review.yml
 if [[ -f "$WF" ]]; then
