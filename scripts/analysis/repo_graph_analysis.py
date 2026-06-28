@@ -30,6 +30,7 @@ import ast
 import json
 import os
 import re
+import sys
 from collections import defaultdict, deque
 from pathlib import Path
 from typing import Any, Deque, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
@@ -296,7 +297,12 @@ class _PyResolver:
         return None
 
     def absolute(self, module: str) -> Optional[str]:
+        # A stdlib/third-party top-level name (e.g. ``import types``) must not
+        # masquerade as an intra-repo edge just because a local module shares
+        # its basename (``.agents/providers/types.py``). Skip stdlib roots.
         parts = module.split(".")
+        if parts[0] in sys.stdlib_module_names:
+            return None
         for i in range(len(parts), 0, -1):
             cand = ".".join(parts[:i])
             if cand in self.module_index:

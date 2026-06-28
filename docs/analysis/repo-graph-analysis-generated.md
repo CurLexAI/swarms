@@ -5,17 +5,17 @@ Root: `swarms`  ·  analysis is read-only, stdlib-only.
 ## Python dependency graph
 
 - Nodes (files): **98**
-- Edges (import relations): **89**
-- Weakly connected components: **40**
+- Edges (import relations): **84**
+- Weakly connected components: **45**
 - Circular dependencies detected: **0**
 
 ### Most central modules (degree centrality)
 
 | Module | In (imported by) | Out (imports) | Total |
 |---|---|---|---|
-| `tests/_agents_loader.py` | 12 | 1 | 13 |
-| `.agents/providers/types.py` | 12 | 0 | 12 |
+| `tests/_agents_loader.py` | 12 | 0 | 12 |
 | `src/policy/sovereign/audited_router.py` | 6 | 2 | 8 |
+| `.agents/providers/types.py` | 7 | 0 | 7 |
 | `sama_ingestion_swarm/agent_parser.py` | 3 | 4 | 7 |
 | `.agents/providers/__init__.py` | 0 | 7 | 7 |
 | `.agents/router/types.py` | 6 | 0 | 6 |
@@ -80,12 +80,16 @@ Files with **no** intra-repo import edges (in or out):
   - `src/policy/sovereign/__init__.py`
   - `src/policy/sovereign/providers/__init__.py`
   - `tests/test_adr_0001_boundary_gate.py`
+  - `tests/test_aegis_mcp_gateway.py`
   - `tests/test_gateway_stub.py`
   - `tests/test_integration_workflow_gates.py`
   - `tests/test_integrations_control_plane_gates.py`
   - `tests/test_modal_activation_tooling.py`
   - `tests/test_modal_boundary_gate.py`
+  - `tests/test_modal_endpoint_token_contract.py`
   - `tests/test_qala_egress_residency_gate.py`
+  - `tests/test_qarar_api_server.py`
+  - `tests/test_qarar_api_server_security.py`
   - `tests/test_sovereign_security_controls.py`
 
 Small detached clusters (2–3 files, weakly connected to nothing else):
@@ -122,11 +126,11 @@ From `tests/test_full_pipeline.py`:
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/tool-adapter.ts` | 1 | 4 | 5 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/index.ts` | 1 | 4 | 5 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts` | 4 | 0 | 4 |
-| `src/policy/runtime-policy.ts` | 4 | 0 | 4 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts` | 4 | 0 | 4 |
+| `src/policy/runtime-policy.ts` | 4 | 0 | 4 |
 | `.agents/mcp/modal-mcp/src/server.ts` | 0 | 4 | 4 |
-| `src/utils/auditLogger.js` | 3 | 0 | 3 |
 | `.agents/mcp/modal-mcp/src/types.ts` | 3 | 0 | 3 |
+| `src/utils/auditLogger.js` | 3 | 0 | 3 |
 
 ### Circular dependencies (DFS cycle detection)
 
