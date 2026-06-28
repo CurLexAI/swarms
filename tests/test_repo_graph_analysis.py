@@ -10,11 +10,21 @@ centrality) depend on.
 
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
+from pathlib import Path
+
 from scripts.analysis.repo_graph_analysis import (
     Graph,
     _PyResolver,
     _ts_candidates,
+    _to_json,
+    analyze,
+    build_python_graph,
 )
+
+_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "analysis" / "repo_graph_analysis.py"
 
 
 def _graph(edges: list[tuple[str, str]]) -> Graph:
@@ -105,8 +115,74 @@ def test_py_resolver_matches_full_dotted_path() -> None:
 
 
 def test_ts_candidates_prefer_ts_source_over_js_companion() -> None:
+    # A TS importer of a .js specifier should resolve to the .ts source.
     cands = _ts_candidates("src/services/adapter.ts", "./AuditService.js")
     ts = "src/services/AuditService.ts"
     js = "src/services/AuditService.js"
     assert ts in cands and js in cands
     assert cands.index(ts) < cands.index(js)
+
+
+def test_ts_candidates_js_importer_keeps_js_target() -> None:
+    # A real .js importer must keep its .js target (no redirect to .ts).
+    cands = _ts_candidates("src/services/adapter.js", "./AuditService.js")
+    ts = "src/services/AuditService.ts"
+    js = "src/services/AuditService.js"
+    assert cands.index(js) < cands.index(ts)
+
+
+def test_degree_table_breaks_ties_by_name() -> None:
+    # x and y both have in=1/out=0; the tie must resolve by name, not hash order.
+    g = _graph([("z", "x"), ("a", "y")])
+    rows = g.degree_table()
+    tied = [n for n, indeg, outdeg in rows if (indeg, outdeg) == (1, 0)]
+    assert tied == ["x", "y"]
+
+
+def _write(path: Path, body: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+
+
+def test_build_python_graph_over_fixture(tmp_path: Path) -> None:
+    # End-to-end: real file parsing -> graph, including a relative-import cycle,
+    # a one-way edge, and a stdlib import that must NOT become an edge.
+    _write(tmp_path / "pkg" / "__init__.py", "")
+    _write(tmp_path / "pkg" / "a.py", "from .b import thing\n")
+    _write(tmp_path / "pkg" / "b.py", "from .a import other\n")  # a <-> b cycle
+    _write(tmp_path / "pkg" / "c.py", "import os\nfrom .a import z\n")  # os ignored
+
+    g, _index = build_python_graph(tmp_path)
+
+    assert {"pkg/a.py", "pkg/b.py", "pkg/c.py", "pkg/__init__.py"} <= g.nodes
+    assert "pkg/b.py" in g.out["pkg/a.py"]
+    assert "pkg/a.py" in g.out["pkg/b.py"]
+    assert "pkg/a.py" in g.out["pkg/c.py"]
+    # ``import os`` must not fabricate an intra-repo edge.
+    assert all(not t.startswith("os") for t in g.out["pkg/c.py"])
+    assert len(g.detect_cycles()) == 1
+
+
+def test_analyze_and_to_json_shape(tmp_path: Path) -> None:
+    _write(tmp_path / "m" / "leaf.py", "x = 1\n")
+    _write(tmp_path / "m" / "user.py", "from .leaf import x\n")
+    g, _index = build_python_graph(tmp_path)
+    res = analyze(g, "Python")
+    payload = json.loads(_to_json(res, res))
+    assert set(payload) == {"python", "typescript"}
+    assert payload["python"]["node_count"] == len(g.nodes)
+    assert payload["python"]["cycles"] == []
+
+
+def test_cli_json_output_is_valid() -> None:
+    # Protects the PR's "valid JSON" claim by exercising the real CLI entry point.
+    proc = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    payload = json.loads(proc.stdout)
+    for eco in ("python", "typescript"):
+        assert payload[eco]["node_count"] > 0
+        assert isinstance(payload[eco]["cycles"], list)
