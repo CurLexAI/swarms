@@ -1,16 +1,33 @@
-name: Greetings
+# Greetings workflow intentionally disabled.
+#
+# The original workflow ran on `pull_request_target` with
+# `issues: write` and `pull-requests: write`. The message bodies were
+# the default placeholder text and were never customized, so the
+# workflow provided no operational value while exposing a known
+# pwn-request attack surface (untrusted PR head with write tokens).
+#
+# This file is kept as a placeholder-disabled workflow so that:
+#   1. The pwn-request surface is eliminated (no trigger, no perms).
+#   2. The historical path is preserved for traceability until a
+#      follow-up commit removes the file with the GitHub UI or git CLI.
+#
+# Refs: SECURITY_TRIAGE finding C-01.
+#
+# DO NOT add steps, permissions, or non-manual triggers to this file.
+# If you need a greetings workflow, open a new PR with a new file and
+# explicit review.
 
-on: [pull_request_target, issues]
+name: Greetings (disabled)
+
+on:
+  workflow_dispatch:
+
+permissions: {}
 
 jobs:
-  greeting:
+  noop:
+    if: false
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      pull-requests: write
     steps:
-    - uses: actions/first-interaction@v1
-      with:
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
-        issue-message: "Message that will be displayed on users' first issue"
-        pr-message: "Message that will be displayed on users' first pull request"
+      - name: No-op
+        run: 'echo "This workflow is intentionally disabled."'
