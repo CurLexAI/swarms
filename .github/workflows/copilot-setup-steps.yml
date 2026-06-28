@@ -1,3 +1,19 @@
+# Copilot Setup & Mihwar Compliance Environment
+#
+# Sovereign agent bootstrap for CurLexAI/swarms.
+# Aligned with ADR-0001 (swarms boundary), AGENTS.md (pinning policy),
+# and NCA ECC / CSCC default-deny posture.
+#
+# Hard rules enforced here:
+#   1. permissions: {} at workflow level, scoped grants per job.
+#   2. All third-party actions pinned to commit SHA, not tag.
+#   3. No PyPI install of an upstream package named `swarms`
+#      (dependency-confusion guard). Local repo install only.
+#   4. MIHWAR/BAYYINAH endpoints are NOT aliased to local Ollama.
+#      Local Ollama is its own runtime, distinct from sovereign
+#      Modal runtimes Mihwar and Bayyinah.
+#   5. Boundary gate is fail-closed.
+
 name: "Copilot Setup & Mihwar Compliance Environment"
 
 on:
@@ -6,71 +22,172 @@ on:
     paths:
       - .github/workflows/copilot-setup-steps.yml
 
+# Workflow-level default-deny. Jobs must opt in.
+permissions: {}
+
 env:
   ALLOW_EXTERNAL_AI: "false"
-  MIHWAR_ENDPOINT: "http://localhost:11434"
-  BAYYINAH_ENDPOINT: "http://localhost:11434"
-
-permissions:
-  contents: read
+  # Local sandbox runtime for development / smoke. NOT the sovereign agents.
+  OLLAMA_LOCAL_ENDPOINT: "http://localhost:11434"
+  OLLAMA_LOCAL_TEST_MODEL: "qwen2.5:0.5b"
+  # Sovereign agent endpoints stay sourced from organization secrets only.
+  # We do NOT alias them to localhost here. If a real Modal endpoint is
+  # required during this setup workflow, expose it via repo/org secret
+  # and reference it as ${{ secrets.MIHWAR_ENDPOINT }} in a separate job.
 
 jobs:
   copilot-setup-steps:
-    name: Sovereign Copilot setup steps
+    name: copilot-setup-steps
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    # Scoped, least-privilege grants only.
+    permissions:
+      contents: read
+
     services:
       ollama:
         image: ollama/ollama:latest
         ports:
           - 11434:11434
+        options: >-
+          --name ollama-service
+          --network-alias ollama
+          --health-cmd "ollama --version || exit 1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - name: Setup Python 3.11
+        # actions/setup-python v5.3.0
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
           python-version: "3.11"
           cache: "pip"
           cache-dependency-path: requirements-agent.txt
 
-      - name: Install Python dependencies
+      - name: Install repo Python dependencies (no upstream `swarms` package)
         run: |
-          python3 -m pip install --upgrade pip
-          test -f requirements-agent.txt && python3 -m pip install -r requirements-agent.txt || true
-          python3 -m pip install pytest pyyaml
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          if [ -f requirements-agent.txt ]; then
+            pip install -r requirements-agent.txt
+          elif [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            echo "::error::No requirements file found. Refusing to install ad-hoc."
+            exit 1
+          fi
+          # Validation-only tooling, pinned.
+          pip install \
+            "pytest==8.3.3" \
+            "pyyaml==6.0.2"
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Reject upstream `swarms` package if present (dependency-confusion guard)
+        run: |
+          set -euo pipefail
+          if pip show swarms >/dev/null 2>&1; then
+            echo "::error::Upstream PyPI package 'swarms' detected in environment."
+            echo "::error::This repo is CurLexAI/swarms (sovereign). External package with same name is a dependency-confusion risk."
+            echo "::error::Remove it from requirements and use local module imports only."
+            exit 1
+          fi
+          echo "OK -- no upstream 'swarms' package installed."
+
+      - name: Setup Node.js 20
+        # actions/setup-node v4.1.0
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
         with:
           node-version: "20"
           cache: "npm"
 
       - name: Install Node dependencies
-        run: npm ci --include=dev
-
-      - name: Wait for Ollama service
         run: |
-          for i in $(seq 1 15); do
-            curl -sf http://localhost:11434/ && break
-            echo "Waiting for Ollama ($i/15)..."
-            sleep 4
+          set -euo pipefail
+          npm ci --include=dev
+
+      - name: Wait for Ollama service to become healthy
+        run: |
+          set -euo pipefail
+          echo "Waiting for Ollama on ${OLLAMA_LOCAL_ENDPOINT} ..."
+          for i in $(seq 1 30); do
+            if curl -fsS "${OLLAMA_LOCAL_ENDPOINT}/api/tags" >/dev/null; then
+              echo "Ollama is up."
+              exit 0
+            fi
+            sleep 2
           done
+          echo "::error::Ollama did not become healthy in 60s."
+          exit 1
 
-      - name: Pull lightweight smoke model
+      - name: Pull local Ollama sandbox model (non-sovereign)
         run: |
-          curl -s -X POST http://localhost:11434/api/pull \
-            -H 'Content-Type: application/json' \
-            -d '{"name":"qwen2.5:0.5b"}' || true
+          set -euo pipefail
+          echo "Pulling ${OLLAMA_LOCAL_TEST_MODEL} into local sandbox only."
+          echo "This model is for local smoke tests. It is NOT Mihwar and NOT Bayyinah."
+          curl -fsS -X POST "${OLLAMA_LOCAL_ENDPOINT}/api/pull" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"${OLLAMA_LOCAL_TEST_MODEL}\"}" \
+            --max-time 300
 
-      - name: Inject architecture directive
+      - name: Inject ADR-0001 + architecture directive into Copilot context (fail-closed)
         run: |
-          cat ARCHITECTURE_DIRECTIVE.md || true
-          cat docs/decisions/ADR-0001-swarms-boundary.md || true
+          set -euo pipefail
+          DIRECTIVE="ARCHITECTURE_DIRECTIVE.md"
+          ADR="docs/decisions/ADR-0001-swarms-boundary.md"
 
-      - name: Run ADR-0001 boundary gate
-        run: bash scripts/commander/adr-0001-boundary-gate.sh . || true
+          if [ ! -f "${DIRECTIVE}" ]; then
+            echo "::error::Missing required file: ${DIRECTIVE}"
+            exit 1
+          fi
+          if [ ! -f "${ADR}" ]; then
+            echo "::error::Missing required file: ${ADR}"
+            exit 1
+          fi
 
-      - name: Readiness echo
-        run: echo "Copilot sovereign environment ready — ALLOW_EXTERNAL_AI=${ALLOW_EXTERNAL_AI}"
+          mkdir -p .copilot
+          {
+            echo "<!-- AUTO-GENERATED by copilot-setup-steps.yml -->"
+            echo "<!-- Do not edit by hand. Source files:"
+            echo "     - ${DIRECTIVE}"
+            echo "     - ${ADR}"
+            echo "-->"
+            echo ""
+            cat "${DIRECTIVE}"
+            echo ""
+            echo "---"
+            echo ""
+            cat "${ADR}"
+          } > .copilot/system_prompt.md
+
+          echo "Generated .copilot/system_prompt.md ($(wc -c < .copilot/system_prompt.md) bytes)."
+
+      - name: Run ADR-0001 boundary gate (CRITICAL, fail-closed)
+        run: |
+          set -euo pipefail
+          GATE="scripts/commander/adr-0001-boundary-gate.sh"
+          if [ ! -f "${GATE}" ]; then
+            echo "::error::Boundary gate script missing: ${GATE}"
+            echo "::error::Refusing to mark environment ready without an enforceable boundary gate."
+            exit 1
+          fi
+          chmod +x "${GATE}"
+          echo "Running ADR-0001 boundary gate ..."
+          "${GATE}" .
+
+      - name: Verify environment readiness
+        run: |
+          set -euo pipefail
+          echo "Python 3.11 ready."
+          echo "Node.js 20 ready."
+          echo "Local Ollama sandbox ready on ${OLLAMA_LOCAL_ENDPOINT} (NOT Mihwar / NOT Bayyinah)."
+          echo "ADR-0001 boundary gate passed."
+          echo "Copilot system prompt written to .copilot/system_prompt.md."
+          echo "Environment is ready within CurLexAI/swarms sovereign boundary."
