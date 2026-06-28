@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Licensed under MIT
 """Repository dependency graph analysis (stdlib-only).
 
 Builds a directed dependency graph from intra-repository import edges and runs
