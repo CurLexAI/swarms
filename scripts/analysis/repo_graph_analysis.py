@@ -18,7 +18,9 @@ differ: Python (resolved with the ``ast`` module) and TypeScript/JavaScript
 
 The tool is intentionally dependency-free (Python standard library only) to
 respect the repository dependency-safety policy. It only reads files; it never
-executes the code it analyzes.
+executes the code it analyzes. The analysis root is fixed to this repository
+(inferred from the script's own location), so no caller-supplied filesystem
+path ever reaches a directory walk.
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ import os
 import re
 from collections import defaultdict, deque
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Deque, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
 # Directories that never contain first-party source we want to graph.
 EXCLUDED_DIRS = {
@@ -59,9 +61,9 @@ class Graph:
     """A tiny directed graph keyed by node label (repo-relative path)."""
 
     def __init__(self) -> None:
-        self.nodes: set = set()
-        self.out: Dict[str, set] = defaultdict(set)
-        self.inc: Dict[str, set] = defaultdict(set)
+        self.nodes: Set[str] = set()
+        self.out: Dict[str, Set[str]] = defaultdict(set)
+        self.inc: Dict[str, Set[str]] = defaultdict(set)
 
     def add_node(self, n: str) -> None:
         self.nodes.add(n)
@@ -76,42 +78,10 @@ class Graph:
         self.out[a].add(b)
         self.inc[b].add(a)
 
-    # -- cycle detection --------------------------------------------------- #
     def detect_cycles(self) -> List[List[str]]:
-        """DFS-based cycle detection via white/grey/black colouring.
+        """DFS-based cycle detection (see :class:`_CycleFinder`)."""
+        return _CycleFinder(self.out, self.nodes).find()
 
-        Reaching a node currently on the recursion stack (grey) is a back edge,
-        so we reconstruct the cycle from the stack.
-        """
-        color = {n: WHITE for n in self.nodes}
-        stack: List[str] = []
-        cycles: List[List[str]] = []
-        seen: set = set()
-        for n in sorted(self.nodes):
-            if color[n] == WHITE:
-                self._cycle_visit(n, color, stack, cycles, seen)
-        return cycles
-
-    def _cycle_visit(self, u, color, stack, cycles, seen) -> None:
-        color[u] = GREY
-        stack.append(u)
-        for v in sorted(self.out[u]):
-            if color[v] == WHITE:
-                self._cycle_visit(v, color, stack, cycles, seen)
-            elif color[v] == GREY:
-                self._record_cycle(stack, v, cycles, seen)
-        stack.pop()
-        color[u] = BLACK
-
-    @staticmethod
-    def _record_cycle(stack, v, cycles, seen) -> None:
-        cycle = stack[stack.index(v):] + [v]
-        sig = frozenset(cycle[:-1])
-        if sig not in seen:
-            seen.add(sig)
-            cycles.append(cycle)
-
-    # -- topological sort -------------------------------------------------- #
     def topological_sort(self) -> Tuple[Optional[List[str]], List[str]]:
         """Kahn's algorithm. Returns (order, remaining).
 
@@ -120,7 +90,7 @@ class Graph:
         lists the nodes that never reach out-degree zero.
         """
         outdeg = {n: len(self.out[n]) for n in self.nodes}
-        queue = deque(sorted(n for n in self.nodes if outdeg[n] == 0))
+        queue: Deque[str] = deque(sorted(n for n in self.nodes if outdeg[n] == 0))
         order: List[str] = []
         while queue:
             u = queue.popleft()
@@ -131,17 +101,16 @@ class Graph:
         placed = set(order)
         return None, sorted(n for n in self.nodes if n not in placed)
 
-    def _relax_importers(self, u, outdeg, queue) -> None:
+    def _relax_importers(self, u: str, outdeg: Dict[str, int], queue: Deque[str]) -> None:
         for p in sorted(self.inc[u]):
             outdeg[p] -= 1
             if outdeg[p] == 0:
                 queue.append(p)
 
-    # -- connected components ---------------------------------------------- #
     def connected_components(self) -> List[List[str]]:
         """Weakly connected components via BFS on the undirected projection."""
         adj = self._undirected_adj()
-        visited: set = set()
+        visited: Set[str] = set()
         components: List[List[str]] = []
         for start in sorted(self.nodes):
             if start not in visited:
@@ -149,21 +118,20 @@ class Graph:
         components.sort(key=len, reverse=True)
         return components
 
-    def _undirected_adj(self) -> Dict[str, set]:
-        adj: Dict[str, set] = defaultdict(set)
+    def _undirected_adj(self) -> Dict[str, Set[str]]:
+        adj: Dict[str, Set[str]] = defaultdict(set)
         for n in self.nodes:
             for m in self.out[n]:
                 adj[n].add(m)
                 adj[m].add(n)
         return adj
 
-    # -- traversal & centrality ------------------------------------------- #
     def bfs(self, root: str, max_depth: int = 6) -> List[Tuple[str, int]]:
         """BFS traversal of the dependency fan-out from ``root``."""
         if root not in self.nodes:
             return []
         visited = {root}
-        q: deque = deque([(root, 0)])
+        q: Deque[Tuple[str, int]] = deque([(root, 0)])
         order: List[Tuple[str, int]] = []
         while q:
             u, d = q.popleft()
@@ -172,7 +140,9 @@ class Graph:
                 self._enqueue_children(u, d, visited, q)
         return order
 
-    def _enqueue_children(self, u, d, visited, q) -> None:
+    def _enqueue_children(
+        self, u: str, d: int, visited: Set[str], q: Deque[Tuple[str, int]]
+    ) -> None:
         for v in sorted(self.out[u]):
             if v not in visited:
                 visited.add(v)
@@ -185,9 +155,52 @@ class Graph:
         return rows
 
 
-def _bfs_undirected(start, adj, visited) -> List[str]:
+class _CycleFinder:
+    """White/grey/black DFS that records each distinct back-edge cycle.
+
+    State (colours, recursion stack, found cycles) lives on the instance so the
+    recursive visit needs no long parameter list.
+    """
+
+    def __init__(self, out: Dict[str, Set[str]], nodes: Set[str]) -> None:
+        self._out = out
+        self._nodes = nodes
+        self._color: Dict[str, int] = {n: WHITE for n in nodes}
+        self._stack: List[str] = []
+        self._cycles: List[List[str]] = []
+        self._seen: Set[FrozenSet[str]] = set()
+
+    def find(self) -> List[List[str]]:
+        for n in sorted(self._nodes):
+            if self._color[n] == WHITE:
+                self._visit(n)
+        return self._cycles
+
+    def _visit(self, u: str) -> None:
+        self._color[u] = GREY
+        self._stack.append(u)
+        for v in sorted(self._out[u]):
+            self._step(v)
+        self._stack.pop()
+        self._color[u] = BLACK
+
+    def _step(self, v: str) -> None:
+        if self._color[v] == WHITE:
+            self._visit(v)
+        elif self._color[v] == GREY:
+            self._record(v)
+
+    def _record(self, v: str) -> None:
+        cycle = self._stack[self._stack.index(v):] + [v]
+        sig = frozenset(cycle[:-1])
+        if sig not in self._seen:
+            self._seen.add(sig)
+            self._cycles.append(cycle)
+
+
+def _bfs_undirected(start: str, adj: Dict[str, Set[str]], visited: Set[str]) -> List[str]:
     comp: List[str] = []
-    q = deque([start])
+    q: Deque[str] = deque([start])
     visited.add(start)
     while q:
         u = q.popleft()
@@ -218,7 +231,9 @@ def discover(root: Path, exts: Iterable[str]) -> List[Path]:
     return sorted(out)
 
 
-def _collect_files(dirpath, filenames, suffixes, root) -> List[Path]:
+def _collect_files(
+    dirpath: str, filenames: List[str], suffixes: Tuple[str, ...], root: Path
+) -> List[Path]:
     found: List[Path] = []
     for fn in filenames:
         if not fn.endswith(suffixes):
@@ -232,20 +247,23 @@ def _collect_files(dirpath, filenames, suffixes, root) -> List[Path]:
 # --------------------------------------------------------------------------- #
 # Python resolution
 # --------------------------------------------------------------------------- #
-def _build_module_index(rels: List[str]) -> Dict[str, str]:
-    """Map every dotted-name suffix of each file path to that file.
+def _index_module(rel: str, index: Dict[str, str]) -> None:
+    """Register every dotted-name suffix of one file path into ``index``."""
+    parts = rel[:-3].split("/")  # strip .py
+    for i in range(len(parts)):
+        index.setdefault(".".join(parts[i:]), rel)
+    if parts[-1] != "__init__":
+        return
+    for i in range(len(parts) - 1):
+        index.setdefault(".".join(parts[i:-1]), rel)
 
-    Lets both ``router.model_router`` and ``.agents.router.model_router``
-    resolve to the same module file.
-    """
+
+def _build_module_index(rels: List[str]) -> Dict[str, str]:
+    """Map dotted module names to files so both ``router.x`` and
+    ``.agents.router.x`` resolve to the same module file."""
     index: Dict[str, str] = {}
     for rel in rels:
-        parts = rel[:-3].split("/")  # strip .py
-        for i in range(len(parts)):
-            index.setdefault(".".join(parts[i:]), rel)
-        if parts[-1] == "__init__":
-            for i in range(len(parts) - 1):
-                index.setdefault(".".join(parts[i:-1]), rel)
+        _index_module(rel, index)
     return index
 
 
@@ -391,7 +409,7 @@ def build_ts_graph(root: Path) -> Graph:
 # --------------------------------------------------------------------------- #
 # Analysis + reporting
 # --------------------------------------------------------------------------- #
-def analyze(g: Graph, label: str, bfs_roots: int = 2) -> dict:
+def analyze(g: Graph, label: str, bfs_roots: int = 2) -> Dict[str, Any]:
     order, remaining = g.topological_sort()
     isolated = sorted(n for n in g.nodes if not g.out[n] and not g.inc[n])
     # Pick BFS roots by out-degree: high fan-out best illustrates propagation.
@@ -411,7 +429,7 @@ def analyze(g: Graph, label: str, bfs_roots: int = 2) -> dict:
     }
 
 
-def _fmt_header(res: dict) -> str:
+def _fmt_header(res: Dict[str, Any]) -> str:
     return "\n".join([
         f"## {res['label']} dependency graph\n",
         f"- Nodes (files): **{res['node_count']}**",
@@ -421,7 +439,7 @@ def _fmt_header(res: dict) -> str:
     ])
 
 
-def _fmt_centrality(res: dict) -> str:
+def _fmt_centrality(res: Dict[str, Any]) -> str:
     lines = [
         "### Most central modules (degree centrality)\n",
         "| Module | In (imported by) | Out (imports) | Total |",
@@ -432,7 +450,7 @@ def _fmt_centrality(res: dict) -> str:
     return "\n".join(lines)
 
 
-def _fmt_cycles(res: dict) -> str:
+def _fmt_cycles(res: Dict[str, Any]) -> str:
     lines = ["### Circular dependencies (DFS cycle detection)\n"]
     if not res["cycles"]:
         lines.append("None found — the dependency graph is a DAG.\n")
@@ -442,7 +460,7 @@ def _fmt_cycles(res: dict) -> str:
     return "\n".join(lines)
 
 
-def _fmt_topo(res: dict) -> str:
+def _fmt_topo(res: Dict[str, Any]) -> str:
     lines = ["### Build / load order (topological sort)\n"]
     if res["topo_order"] is None:
         lines.append("Not possible — cycles present. Tangled nodes:")
@@ -455,7 +473,7 @@ def _fmt_topo(res: dict) -> str:
     return "\n".join(lines)
 
 
-def _fmt_components(res: dict) -> str:
+def _fmt_components(res: Dict[str, Any]) -> str:
     lines = ["### Isolated / orphaned files (connected components)\n"]
     if res["isolated"]:
         lines.append("Files with **no** intra-repo import edges (in or out):")
@@ -482,7 +500,7 @@ def _fmt_bfs_depths(run: List[Tuple[str, int]]) -> List[str]:
     ]
 
 
-def _fmt_bfs(res: dict) -> str:
+def _fmt_bfs(res: Dict[str, Any]) -> str:
     lines = ["### Dependency fan-out (BFS traversal)\n"]
     for root, run in res["bfs"].items():
         lines.append(f"From `{root}`:")
@@ -491,7 +509,7 @@ def _fmt_bfs(res: dict) -> str:
     return "\n".join(lines)
 
 
-def fmt_section(res: dict) -> str:
+def fmt_section(res: Dict[str, Any]) -> str:
     return "\n".join([
         _fmt_header(res),
         _fmt_centrality(res),
@@ -502,38 +520,30 @@ def fmt_section(res: dict) -> str:
     ])
 
 
-def _to_json(py_res: dict, ts_res: dict) -> str:
-    def clean(r: dict) -> dict:
-        r = dict(r)
-        r["degrees"] = r["degrees"][:25]
-        return r
+def _to_json(py_res: Dict[str, Any], ts_res: Dict[str, Any]) -> str:
+    def clean(r: Dict[str, Any]) -> Dict[str, Any]:
+        out = dict(r)
+        out["degrees"] = out["degrees"][:25]
+        return out
 
     return json.dumps({"python": clean(py_res), "typescript": clean(ts_res)}, indent=2)
 
 
-def _safe_root(raw: Optional[str]) -> Path:
-    """Resolve and validate the analysis root.
+def _repo_root() -> Path:
+    """Repository root, inferred from this script's location.
 
-    Defaults to the repository root inferred from this script's location so the
-    tool works from any cwd. A user-supplied ``--root`` is expanded and resolved
-    through ``realpath`` (collapsing symlinks) and must be an existing directory
-    before any filesystem walk touches it.
+    The root is a fixed, trusted constant (not caller input), so no untrusted
+    value ever reaches the directory walk in :func:`discover`.
     """
-    default = Path(__file__).resolve().parents[2]
-    candidate = Path(raw).expanduser() if raw else default
-    real = Path(os.path.realpath(candidate))
-    if not real.is_dir():
-        raise SystemExit(f"error: root is not a directory: {real}")
-    return real
+    return Path(__file__).resolve().parents[2]
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", default=None, help="repository root (default: inferred from script location)")
     ap.add_argument("--json", action="store_true", help="emit JSON instead of markdown")
     ap.add_argument("--bfs-roots", type=int, default=2)
     args = ap.parse_args()
-    root = _safe_root(args.root)
+    root = _repo_root()
 
     py_res = analyze(build_python_graph(root)[0], "Python", args.bfs_roots)
     ts_res = analyze(build_ts_graph(root), "TypeScript/JavaScript", args.bfs_roots)

@@ -224,10 +224,10 @@ DFS إلى عقدة **رمادية** فهذه *حافة خلفية (back edge)* 
 
 ```bash
 # تقرير Markdown
-python3 scripts/analysis/repo_graph_analysis.py --root .
+python3 scripts/analysis/repo_graph_analysis.py
 
 # مُخرَج JSON للأتمتة/البوابات
-python3 scripts/analysis/repo_graph_analysis.py --root . --json
+python3 scripts/analysis/repo_graph_analysis.py --json
 ```
 
 الأداة تعتمد على مكتبة Python القياسية فقط (لا تبعيات خارجية)، وهي **قراءة

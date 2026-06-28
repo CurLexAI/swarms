@@ -119,14 +119,14 @@ From `tests/test_full_pipeline.py`:
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/qarar-sovereign-client.ts` | 2 | 5 | 7 |
 | `sovereign-connectivity-poc/packages/shared/src/index.js` | 6 | 0 | 6 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/protocol-adapter.ts` | 2 | 3 | 5 |
-| `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/index.ts` | 1 | 4 | 5 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/tool-adapter.ts` | 1 | 4 | 5 |
+| `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/index.ts` | 1 | 4 | 5 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts` | 4 | 0 | 4 |
 | `src/policy/runtime-policy.ts` | 4 | 0 | 4 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts` | 4 | 0 | 4 |
 | `.agents/mcp/modal-mcp/src/server.ts` | 0 | 4 | 4 |
-| `.agents/mcp/modal-mcp/src/types.ts` | 3 | 0 | 3 |
 | `src/utils/auditLogger.js` | 3 | 0 | 3 |
+| `.agents/mcp/modal-mcp/src/types.ts` | 3 | 0 | 3 |
 
 ### Circular dependencies (DFS cycle detection)
 
@@ -211,7 +211,8 @@ From `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swa
   - depth 1: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/audit/append-only-file-sink.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/sovereign-output.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/protocol-adapter.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/sovereign-swarms-contract.ts`
   - depth 2: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/security/egress-policy.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts`
 
-From `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/index.ts`:
-  - depth 1: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/protocol-adapter.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/qarar-sovereign-client.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/sovereign-swarms-contract.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/tool-adapter.ts`
-  - depth 2: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/security/egress-policy.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/audit/append-only-file-sink.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/sovereign-output.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts`
+From `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/tool-adapter.ts`:
+  - depth 1: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/qarar-sovereign-client.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/sovereign-swarms-contract.ts`
+  - depth 2: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/audit/append-only-file-sink.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/sovereign-output.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/protocol-adapter.ts`
+  - depth 3: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/security/egress-policy.ts`
 
