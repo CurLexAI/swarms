@@ -113,25 +113,25 @@ From `tests/test_full_pipeline.py`:
 
 - Nodes (files): **100**
 - Edges (import relations): **77**
-- Weakly connected components: **47**
+- Weakly connected components: **46**
 - Circular dependencies detected: **0**
 
 ### Most central modules (degree centrality)
 
 | Module | In (imported by) | Out (imports) | Total |
 |---|---|---|---|
-| `sovereign-connectivity-poc/packages/shared/src/index.ts` | 7 | 0 | 7 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/sovereign-swarms-contract.ts` | 4 | 3 | 7 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/qarar-sovereign-client.ts` | 2 | 5 | 7 |
-| `src/services/AuditService.ts` | 5 | 1 | 6 |
+| `sovereign-connectivity-poc/packages/shared/src/index.ts` | 5 | 0 | 5 |
+| `src/services/AuditService.js` | 4 | 1 | 5 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/protocol-adapter.ts` | 2 | 3 | 5 |
-| `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/tool-adapter.ts` | 1 | 4 | 5 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/index.ts` | 1 | 4 | 5 |
-| `src/policy/runtime-policy.ts` | 4 | 0 | 4 |
-| `src/utils/auditLogger.js` | 4 | 0 | 4 |
+| `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/tool-adapter.ts` | 1 | 4 | 5 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts` | 4 | 0 | 4 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts` | 4 | 0 | 4 |
-| `sovereign-connectivity-poc/packages/policy/src/index.ts` | 3 | 1 | 4 |
+| `src/policy/runtime-policy.ts` | 4 | 0 | 4 |
+| `src/utils/auditLogger.js` | 4 | 0 | 4 |
+| `src/services/unifiedAgentAdapter.js` | 1 | 3 | 4 |
 
 ### Circular dependencies (DFS cycle detection)
 
@@ -174,16 +174,14 @@ Files with **no** intra-repo import edges (in or out):
   - `scripts/validate-launch-evidence.mjs`
   - `sovereign-connectivity-poc/apps/api/src/server.d.ts`
   - `sovereign-connectivity-poc/apps/windows-agent/src/cli.d.ts`
-  - `sovereign-connectivity-poc/packages/policy/src/index.js`
   - `sovereign-connectivity-poc/packages/shared/src/index.d.ts`
-  - `sovereign-connectivity-poc/packages/shared/src/index.js`
   - `sovereign-connectivity-poc/vitest.config.ts`
-  - `src/backend/chatApi.js`
-  - `src/ports/quicknodeRpcPort.js`
+  - `src/backend/chatApi.ts`
+  - `src/ports/quicknodeRpcPort.ts`
   - `src/runners/agentRunner.d.ts`
-  - `src/security/qalaAuditSink.js`
-  - `src/security/qalaKsaPii.js`
-  - `src/security/qalaTrace.js`
+  - `src/security/qalaAuditSink.ts`
+  - `src/security/qalaKsaPii.ts`
+  - `src/security/qalaTrace.ts`
   - `src/security/sovereignCyberRadar.js`
   - `src/security/sovereignCyberRadar.ts`
   - `src/services/huggingface.ts`
@@ -197,15 +195,15 @@ Files with **no** intra-repo import edges (in or out):
   - `tests/sovereignCyberRadar.test.js`
 
 Small detached clusters (2–3 files, weakly connected to nothing else):
-  - `src/backend/chatApi.ts`, `tests/chatApi.test.js`
+  - `src/backend/chatApi.js`, `tests/chatApi.test.js`
   - `src/models/modelRegistry.ts`, `tests/modelRegistry.test.ts`
-  - `src/ports/quicknodeRpcPort.ts`, `tests/quicknodeBoundary.test.js`
+  - `src/ports/quicknodeRpcPort.js`, `tests/quicknodeBoundary.test.js`
   - `src/runners/clientAgentRelay.ts`, `tests/clientModalBoundary.e2e.test.js`
   - `src/security/bayyinahRedactor.ts`, `tests/bayyinahRedactor.test.ts`
   - `src/security/contentSecurityPolicy.ts`, `tests/contentSecurityPolicy.test.js`
-  - `src/security/qalaAuditSink.ts`, `tests/qalaAuditSink.test.js`
-  - `src/security/qalaKsaPii.ts`, `tests/qalaKsaPii.test.js`
-  - `src/security/qalaTrace.ts`, `tests/qalaTrace.test.js`
+  - `src/security/qalaAuditSink.js`, `tests/qalaAuditSink.test.js`
+  - `src/security/qalaKsaPii.js`, `tests/qalaKsaPii.test.js`
+  - `src/security/qalaTrace.js`, `tests/qalaTrace.test.js`
   - `src/services/agentRelayService.ts`, `tests/agentRelayService.test.js`
 
 ### Dependency fan-out (BFS traversal)
@@ -214,8 +212,7 @@ From `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swa
   - depth 1: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/audit/append-only-file-sink.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/sovereign-output.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/protocol-adapter.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/sovereign-swarms-contract.ts`
   - depth 2: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/security/egress-policy.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts`
 
-From `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/tool-adapter.ts`:
-  - depth 1: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/qarar-sovereign-client.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/sovereign-swarms-contract.ts`
-  - depth 2: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/audit/append-only-file-sink.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/sovereign-output.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/protocol-adapter.ts`
-  - depth 3: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/security/egress-policy.ts`
+From `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/index.ts`:
+  - depth 1: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/protocol-adapter.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/qarar-sovereign-client.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/sovereign-swarms-contract.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/tool-adapter.ts`
+  - depth 2: `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/security/egress-policy.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/audit/append-only-file-sink.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/sovereign-output.ts`, `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts`
 

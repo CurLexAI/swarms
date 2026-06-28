@@ -116,7 +116,9 @@ class Graph:
         for start in sorted(self.nodes):
             if start not in visited:
                 components.append(_bfs_undirected(start, adj, visited))
-        components.sort(key=len, reverse=True)
+        # Largest first; equal-size components ordered by their (sorted) members
+        # for a deterministic result independent of hash iteration.
+        components.sort(key=lambda c: (-len(c), c))
         return components
 
     def _undirected_adj(self) -> Dict[str, Set[str]]:
@@ -152,7 +154,9 @@ class Graph:
     def degree_table(self) -> List[Tuple[str, int, int]]:
         """Return (node, in_degree, out_degree) sorted by total degree desc."""
         rows = [(n, len(self.inc[n]), len(self.out[n])) for n in self.nodes]
-        rows.sort(key=lambda r: (r[1] + r[2], r[1]), reverse=True)
+        # Total desc, then in-degree desc, then node name asc for a stable order
+        # independent of set/hash iteration (PYTHONHASHSEED).
+        rows.sort(key=lambda r: (-(r[1] + r[2]), -r[1], r[0]))
         return rows
 
 
@@ -367,8 +371,10 @@ def _ts_candidates(cur_rel: str, spec: str) -> List[str]:
     if matched:
         stem = target[: -len(matched)]
         cands = []
-        if matched in _JS_EXTS:
-            # Prefer the TS source over a compiled JS companion of the same name.
+        # Prefer a TS source over a compiled JS companion only when the importer
+        # is itself TS (NodeNext .js specifiers). A real .js importer must keep
+        # its .js target so genuine runtime edges are not redirected to .ts.
+        if matched in _JS_EXTS and cur_rel.endswith((".ts", ".tsx")):
             cands += [stem + ".ts", stem + ".tsx"]
         cands.append(target)
         cands += [stem + e for e in TS_EXTS]
@@ -427,7 +433,8 @@ def analyze(g: Graph, label: str, bfs_roots: int = 2) -> Dict[str, Any]:
     order, remaining = g.topological_sort()
     isolated = sorted(n for n in g.nodes if not g.out[n] and not g.inc[n])
     # Pick BFS roots by out-degree: high fan-out best illustrates propagation.
-    by_outdeg = sorted(g.nodes, key=lambda n: (len(g.out[n]), len(g.inc[n])), reverse=True)
+    # Node name is the final tie-breaker for a deterministic, hash-seed-stable order.
+    by_outdeg = sorted(g.nodes, key=lambda n: (-len(g.out[n]), -len(g.inc[n]), n))
     roots = [n for n in by_outdeg if g.out[n]][:bfs_roots]
     return {
         "label": label,

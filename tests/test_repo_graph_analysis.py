@@ -105,8 +105,25 @@ def test_py_resolver_matches_full_dotted_path() -> None:
 
 
 def test_ts_candidates_prefer_ts_source_over_js_companion() -> None:
+    # A TS importer of a .js specifier should resolve to the .ts source.
     cands = _ts_candidates("src/services/adapter.ts", "./AuditService.js")
     ts = "src/services/AuditService.ts"
     js = "src/services/AuditService.js"
     assert ts in cands and js in cands
     assert cands.index(ts) < cands.index(js)
+
+
+def test_ts_candidates_js_importer_keeps_js_target() -> None:
+    # A real .js importer must keep its .js target (no redirect to .ts).
+    cands = _ts_candidates("src/services/adapter.js", "./AuditService.js")
+    ts = "src/services/AuditService.ts"
+    js = "src/services/AuditService.js"
+    assert cands.index(js) < cands.index(ts)
+
+
+def test_degree_table_breaks_ties_by_name() -> None:
+    # x and y both have in=1/out=0; the tie must resolve by name, not hash order.
+    g = _graph([("z", "x"), ("a", "y")])
+    rows = g.degree_table()
+    tied = [n for n, indeg, outdeg in rows if (indeg, outdeg) == (1, 0)]
+    assert tied == ["x", "y"]
