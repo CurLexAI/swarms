@@ -299,15 +299,13 @@ class _PyResolver:
     def absolute(self, module: str) -> Optional[str]:
         # A stdlib/third-party top-level name (e.g. ``import types``) must not
         # masquerade as an intra-repo edge just because a local module shares
-        # its basename (``.agents/providers/types.py``). Skip stdlib roots.
-        parts = module.split(".")
-        if parts[0] in sys.stdlib_module_names:
+        # its basename (``.agents/providers/types.py``). Skip stdlib roots, and
+        # match the FULL module path only: truncating (e.g.
+        # ``mcp.server.fastmcp`` -> ``mcp.server``) would wrongly bind a
+        # third-party submodule import to a local file sharing the suffix.
+        if module.split(".")[0] in sys.stdlib_module_names:
             return None
-        for i in range(len(parts), 0, -1):
-            cand = ".".join(parts[:i])
-            if cand in self.module_index:
-                return self.module_index[cand]
-        return None
+        return self.module_index.get(module)
 
 
 def _py_targets(tree: ast.AST, rel: str, resolver: _PyResolver) -> List[str]:
@@ -352,24 +350,34 @@ IMPORT_RE = re.compile(
     r"""(?:import\s[^'"]*?from\s*['"](?P<a>[^'"]+)['"])"""
     r"""|(?:import\s*['"](?P<b>[^'"]+)['"])"""
     r"""|(?:export\s[^'"]*?from\s*['"](?P<c>[^'"]+)['"])"""
-    r"""|(?:require\(\s*['"](?P<d>[^'"]+)['"]\s*\))""",
+    r"""|(?:require\(\s*['"](?P<d>[^'"]+)['"]\s*\))"""
+    r"""|(?:import\(\s*['"](?P<e>[^'"]+)['"]\s*\))""",  # dynamic import()
     re.MULTILINE,
 )
+
+# Extensions that denote a (possibly compiled) JS artifact whose TypeScript
+# source should be preferred when both are present (NodeNext .js specifiers).
+_JS_EXTS = (".js", ".jsx", ".mjs", ".cjs")
 
 
 def _ts_candidates(cur_rel: str, spec: str) -> List[str]:
     base = Path(cur_rel).parent
     target = os.path.normpath((base / spec).as_posix()).replace("\\", "/")
+    matched = next((e for e in TS_EXTS if target.endswith(e)), "")
+    if matched:
+        stem = target[: -len(matched)]
+        cands = []
+        if matched in _JS_EXTS:
+            # Prefer the TS source over a compiled JS companion of the same name.
+            cands += [stem + ".ts", stem + ".tsx"]
+        cands.append(target)
+        cands += [stem + e for e in TS_EXTS]
+        return cands
+    # Bare specifier: try each extension and a directory index.
     cands = [target]
-    for ext in TS_EXTS:
-        if target.endswith(ext):
-            stem = target[: -len(ext)]
-            cands += [stem + e for e in TS_EXTS]
     for ext in TS_EXTS:
         cands.append(target + ext)
         cands.append((Path(target) / "index").as_posix() + ext)
-    if target.endswith(".js"):  # ESM convention: .js specifier -> .ts source
-        cands += [target[:-3] + ".ts", target[:-3] + ".tsx"]
     return cands
 
 
@@ -392,7 +400,7 @@ def _ts_targets(path: Path, rel: str, resolver: _TsResolver) -> List[str]:
     text = path.read_text(encoding="utf-8", errors="replace")
     targets: List[str] = []
     for m in IMPORT_RE.finditer(text):
-        spec = m.group("a") or m.group("b") or m.group("c") or m.group("d")
+        spec = m.group("a") or m.group("b") or m.group("c") or m.group("d") or m.group("e")
         target = resolver.resolve(rel, spec) if spec else None
         if target:
             targets.append(target)

@@ -4,9 +4,9 @@ Root: `swarms`  ·  analysis is read-only, stdlib-only.
 
 ## Python dependency graph
 
-- Nodes (files): **98**
+- Nodes (files): **99**
 - Edges (import relations): **84**
-- Weakly connected components: **45**
+- Weakly connected components: **46**
 - Circular dependencies detected: **0**
 
 ### Most central modules (degree centrality)
@@ -39,6 +39,7 @@ Acyclic. First 20 in valid dependency-first order:
   - `.agents/invoke.py`
   - `.agents/mcp/aegis_gateway.py`
   - `.agents/mcp/qarar_api_server.py`
+  - `.agents/mcp/server_offline.py`
   - `.agents/pr_review.py`
   - `.agents/providers/types.py`
   - `.agents/router/__init__.py`
@@ -52,7 +53,6 @@ Acyclic. First 20 in valid dependency-first order:
   - `modal/qarar_rag_infra.py`
   - `qarar-swarms-sovereign-integration/overlay/integrations/python/qarar_swarms/adapter.py`
   - `scripts/analysis/repo_graph_analysis.py`
-  - `scripts/check-secrets-manifest.py`
 
 ### Isolated / orphaned files (connected components)
 
@@ -61,11 +61,11 @@ Files with **no** intra-repo import edges (in or out):
   - `.agents/gateway/mcp_server.py`
   - `.agents/invoke.py`
   - `.agents/mcp/qarar_api_server.py`
+  - `.agents/mcp/server_offline.py`
   - `.agents/router/__init__.py`
   - `.agents/validate.py`
   - `.agents/validators/sovereign_security_controls.py`
   - `modal/qarar_rag_infra.py`
-  - `scripts/analysis/repo_graph_analysis.py`
   - `scripts/check-secrets-manifest.py`
   - `scripts/commander/copilot-agent-profiles-gate.py`
   - `scripts/commander/swarm-presence-monitor.py`
@@ -94,9 +94,10 @@ Files with **no** intra-repo import edges (in or out):
 
 Small detached clusters (2–3 files, weakly connected to nothing else):
   - `.agents/ingest_test.py`, `.agents/modal_app.py`, `.agents/runtime_security.py`
-  - `.agents/mcp/aegis_gateway.py`, `.agents/mcp/server.py`, `.agents/mcp/server_offline.py`
   - `.agents/adapters/lexprim_bridge.py`, `.agents/adapters/lexprim_bridge_test.py`
+  - `.agents/mcp/aegis_gateway.py`, `.agents/mcp/server.py`
   - `.agents/pr_review.py`, `tests/test_pr_review_modal_relay.py`
+  - `scripts/analysis/repo_graph_analysis.py`, `tests/test_repo_graph_analysis.py`
   - `scripts/command_center_archiver.py`, `tests/test_command_center_archiver.py`
   - `src/agents/security_agent.py`, `tests/test_qarar_security_agent.py`
 
@@ -111,26 +112,26 @@ From `tests/test_full_pipeline.py`:
 ## TypeScript/JavaScript dependency graph
 
 - Nodes (files): **100**
-- Edges (import relations): **72**
-- Weakly connected components: **49**
+- Edges (import relations): **77**
+- Weakly connected components: **47**
 - Circular dependencies detected: **0**
 
 ### Most central modules (degree centrality)
 
 | Module | In (imported by) | Out (imports) | Total |
 |---|---|---|---|
+| `sovereign-connectivity-poc/packages/shared/src/index.ts` | 7 | 0 | 7 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/sovereign-swarms-contract.ts` | 4 | 3 | 7 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/qarar-sovereign-client.ts` | 2 | 5 | 7 |
-| `sovereign-connectivity-poc/packages/shared/src/index.js` | 6 | 0 | 6 |
+| `src/services/AuditService.ts` | 5 | 1 | 6 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/protocol-adapter.ts` | 2 | 3 | 5 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/tool-adapter.ts` | 1 | 4 | 5 |
 | `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/swarms/index.ts` | 1 | 4 | 5 |
-| `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts` | 4 | 0 | 4 |
-| `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts` | 4 | 0 | 4 |
 | `src/policy/runtime-policy.ts` | 4 | 0 | 4 |
-| `.agents/mcp/modal-mcp/src/server.ts` | 0 | 4 | 4 |
-| `.agents/mcp/modal-mcp/src/types.ts` | 3 | 0 | 3 |
-| `src/utils/auditLogger.js` | 3 | 0 | 3 |
+| `src/utils/auditLogger.js` | 4 | 0 | 4 |
+| `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/contracts/data-classification.ts` | 4 | 0 | 4 |
+| `qarar-swarms-sovereign-integration/overlay/qarar/packages/bayyinah/src/core/result.ts` | 4 | 0 | 4 |
+| `sovereign-connectivity-poc/packages/policy/src/index.ts` | 3 | 1 | 4 |
 
 ### Circular dependencies (DFS cycle detection)
 
@@ -173,40 +174,38 @@ Files with **no** intra-repo import edges (in or out):
   - `scripts/validate-launch-evidence.mjs`
   - `sovereign-connectivity-poc/apps/api/src/server.d.ts`
   - `sovereign-connectivity-poc/apps/windows-agent/src/cli.d.ts`
+  - `sovereign-connectivity-poc/packages/policy/src/index.js`
   - `sovereign-connectivity-poc/packages/shared/src/index.d.ts`
+  - `sovereign-connectivity-poc/packages/shared/src/index.js`
   - `sovereign-connectivity-poc/vitest.config.ts`
-  - `src/backend/chatApi.ts`
-  - `src/ports/quicknodeRpcPort.ts`
+  - `src/backend/chatApi.js`
+  - `src/ports/quicknodeRpcPort.js`
   - `src/runners/agentRunner.d.ts`
-  - `src/security/qalaAuditSink.ts`
-  - `src/security/qalaKsaPii.ts`
-  - `src/security/qalaTrace.ts`
+  - `src/security/qalaAuditSink.js`
+  - `src/security/qalaKsaPii.js`
+  - `src/security/qalaTrace.js`
   - `src/security/sovereignCyberRadar.js`
   - `src/security/sovereignCyberRadar.ts`
   - `src/services/huggingface.ts`
   - `src/services/unifiedAgentAdapterErrorUtils.d.ts`
   - `src/utils/auditLogger.d.ts`
   - `src/utils/logger.d.ts`
-  - `tests/auditService.lifecycleSeq.test.js`
   - `tests/cdn-sri-validation.test.js`
   - `tests/controlPlaneSecurityService.test.js`
   - `tests/huggingFaceBoundary.test.js`
   - `tests/modalMcpPolicyGate.test.js`
   - `tests/sovereignCyberRadar.test.js`
-  - `tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js`
-  - `tests/unifiedAgentAdapter.nodeDispatch.integration.test.js`
-  - `tests/unifiedAgentAdapter.test.js`
 
 Small detached clusters (2–3 files, weakly connected to nothing else):
-  - `src/backend/chatApi.js`, `tests/chatApi.test.js`
+  - `src/backend/chatApi.ts`, `tests/chatApi.test.js`
   - `src/models/modelRegistry.ts`, `tests/modelRegistry.test.ts`
-  - `src/ports/quicknodeRpcPort.js`, `tests/quicknodeBoundary.test.js`
+  - `src/ports/quicknodeRpcPort.ts`, `tests/quicknodeBoundary.test.js`
   - `src/runners/clientAgentRelay.ts`, `tests/clientModalBoundary.e2e.test.js`
   - `src/security/bayyinahRedactor.ts`, `tests/bayyinahRedactor.test.ts`
   - `src/security/contentSecurityPolicy.ts`, `tests/contentSecurityPolicy.test.js`
-  - `src/security/qalaAuditSink.js`, `tests/qalaAuditSink.test.js`
-  - `src/security/qalaKsaPii.js`, `tests/qalaKsaPii.test.js`
-  - `src/security/qalaTrace.js`, `tests/qalaTrace.test.js`
+  - `src/security/qalaAuditSink.ts`, `tests/qalaAuditSink.test.js`
+  - `src/security/qalaKsaPii.ts`, `tests/qalaKsaPii.test.js`
+  - `src/security/qalaTrace.ts`, `tests/qalaTrace.test.js`
   - `src/services/agentRelayService.ts`, `tests/agentRelayService.test.js`
 
 ### Dependency fan-out (BFS traversal)
