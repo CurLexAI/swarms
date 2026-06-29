@@ -10,6 +10,7 @@
 
 import {
   evaluateRuntimePolicy,
+  RuntimePolicyError,
   type DataClassification,
   type ProviderId,
   type RuntimePolicyDecision as CanonicalRuntimePolicyDecision,
@@ -32,7 +33,6 @@ export interface RuntimePolicyRequest {
   readonly mode?: RuntimeMode;
   readonly purpose?: RuntimePurpose;
   readonly allowExternalProvider?: boolean;
-  readonly allowModalProvider?: boolean;
   readonly allowNotebookRuntime?: boolean;
 }
 
@@ -58,18 +58,24 @@ export function selectRuntimeProviders(request: RuntimePolicyRequest): RuntimePo
     return blocked("Copilot cloud agent is limited to CI setup only.");
   }
 
-  const canonicalDecision = evaluateRuntimePolicy({
-    classification: request.dataClassification,
-    requiresCodeGeneration: mode === "COPILOT_CLOUD_AGENT",
-    requiresLongContext: mode === "BURST" || mode === "COPILOT_CLOUD_AGENT",
-    humanApprovedCloudEgress:
-      request.allowExternalProvider === true ||
-      (mode === "COPILOT_CLOUD_AGENT" && request.purpose === "CI_SETUP"),
-  });
+  let canonicalDecision: CanonicalRuntimePolicyDecision;
+  try {
+    canonicalDecision = evaluateRuntimePolicy({
+      classification: request.dataClassification,
+      requiresCodeGeneration: mode === "COPILOT_CLOUD_AGENT",
+      requiresLongContext: mode === "BURST" || mode === "COPILOT_CLOUD_AGENT",
+      humanApprovedCloudEgress:
+        request.allowExternalProvider === true ||
+        (mode === "COPILOT_CLOUD_AGENT" && request.purpose === "CI_SETUP"),
+    });
+  } catch (error: unknown) {
+    if (error instanceof RuntimePolicyError && error.code === "NO_ALLOWED_PROVIDER") {
+      return blocked("Canonical local sovereign runtime policy returned no allowed provider.");
+    }
+    throw error;
+  }
 
-  const providers = request.allowModalProvider === true
-    ? canonicalDecision.providerOrder
-    : canonicalDecision.providerOrder.filter((provider) => !provider.startsWith("modal-"));
+  const providers = canonicalDecision.providerOrder;
 
   if (providers.length === 0) {
     return blocked("Canonical runtime policy returned no providers after legacy compatibility filters.");

@@ -62,15 +62,20 @@ const results: CheckResult[] = [
       `restricted providers escaped local boundary: ${decision.providerOrder.join(",")}`,
     );
   }),
-  check("confidential policy excludes external cloud", () => {
-    const decision = evaluateRuntimePolicy({
-      classification: "CONFIDENTIAL",
-      requiresLongContext: true,
-      humanApprovedCloudEgress: true,
-    });
-    assertNoExternalProviders(decision.providerOrder);
+  check("confidential long-context fails closed without local capability", () => {
+    let blocked = false;
+    try {
+      evaluateRuntimePolicy({
+        classification: "CONFIDENTIAL",
+        requiresLongContext: true,
+        humanApprovedCloudEgress: true,
+      });
+    } catch (error) {
+      blocked = error instanceof RuntimePolicyError && error.code === "NO_ALLOWED_PROVIDER";
+    }
+    assert(blocked, "confidential long-context must fail closed in local sovereign only mode");
   }),
-  check("public vision requires human-approved cloud egress", () => {
+  check("public vision fails closed without local vision provider", () => {
     let blocked = false;
     try {
       evaluateRuntimePolicy({ classification: "PUBLIC", requiresVision: true });
@@ -79,15 +84,17 @@ const results: CheckResult[] = [
     }
     assert(blocked, "public vision without human approval must fail closed");
 
-    const approved = evaluateRuntimePolicy({
-      classification: "PUBLIC",
-      requiresVision: true,
-      humanApprovedCloudEgress: true,
-    });
-    assert(
-      approved.providerOrder.length === 1 && approved.providerOrder[0] === "vertex-llama4",
-      `unexpected approved vision providers: ${approved.providerOrder.join(",")}`,
-    );
+    let approvedBlocked = false;
+    try {
+      evaluateRuntimePolicy({
+        classification: "PUBLIC",
+        requiresVision: true,
+        humanApprovedCloudEgress: true,
+      });
+    } catch (error) {
+      approvedBlocked = error instanceof RuntimePolicyError && error.code === "NO_ALLOWED_PROVIDER";
+    }
+    assert(approvedBlocked, "public vision with cloud approval must still fail closed without local vision");
   }),
   check("invalid classification fails closed", () => {
     let blocked = false;
