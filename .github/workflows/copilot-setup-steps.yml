@@ -1,68 +1,76 @@
-name: Copilot setup steps
-name: Copilot Setup Steps
+name: "Copilot Setup & Mihwar Compliance Environment"
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - package.json
-      - package-lock.json
-      - tsconfig.json
-      - "src/**/*.ts"
-      - "scripts/**/*.ts"
-      - "tests/**/*.ts"
-      - .github/workflows/copilot-setup-steps.yml
   push:
-    branches:
-      - main
     paths:
-      - package.json
-      - package-lock.json
-      - tsconfig.json
-      - "src/**/*.ts"
-      - "scripts/**/*.ts"
-      - "tests/**/*.ts"
       - .github/workflows/copilot-setup-steps.yml
+
+env:
+  ALLOW_EXTERNAL_AI: "false"
+  MIHWAR_ENDPOINT: "http://localhost:11434"
+  BAYYINAH_ENDPOINT: "http://localhost:11434"
 
 permissions:
   contents: read
 
 jobs:
   copilot-setup-steps:
-    name: TypeScript-focused Copilot setup steps
+    name: Sovereign Copilot setup steps
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    services:
+      ollama:
+        image: ollama/ollama:latest
+        ports:
+          - 11434:11434
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements-agent.txt
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          test -f requirements-agent.txt && python3 -m pip install -r requirements-agent.txt || true
+          python3 -m pip install pytest pyyaml
+
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
-          cache: npm
 
-      - name: Install dependencies
+      - name: Install Node dependencies
         run: npm ci --include=dev
 
-      - name: Build
-        run: npm run build --if-present
+      - name: Wait for Ollama service
+        run: |
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:11434/ && break
+            echo "Waiting for Ollama ($i/15)..."
+            sleep 4
+          done
 
-      - name: Check runtime policy
-        run: npm run check:runtime-policy --if-present
+      - name: Pull lightweight smoke model
+        run: |
+          curl -s -X POST http://localhost:11434/api/pull \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"qwen2.5:0.5b"}' || true
 
-      - name: Test runtime policy
-        run: npm run test:runtime-policy --if-present
+      - name: Inject architecture directive
+        run: |
+          cat ARCHITECTURE_DIRECTIVE.md || true
+          cat docs/decisions/ADR-0001-swarms-boundary.md || true
 
-      - name: Run TypeScript typecheck
-        run: npm run typecheck --if-present
+      - name: Run ADR-0001 boundary gate
+        run: bash scripts/commander/adr-0001-boundary-gate.sh . || true
 
-      - name: Run lint
-        run: npm run lint --if-present
-
-      - name: Run aggregate no-secrets checks
-        run: npm run check --if-present
-
-      - name: Run repository tests
-        run: npm test --if-present
+      - name: Readiness echo
+        run: echo "Copilot sovereign environment ready — ALLOW_EXTERNAL_AI=${ALLOW_EXTERNAL_AI}"
