@@ -1,0 +1,29 @@
+# Sovereign Audit Evidence
+Command: bash scripts/commander/modal-boundary-gate.sh .
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:06:11Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+[INFO] Modal boundary gate
+[INFO] repo=/home/ubuntu/swarms
+[OK]   no *.modal.run reference in src,public
+[OK]   no Modal SDK import found in client surfaces
+[OK]   server-side relay present (.agents/pr_review.py)
+[OK]   package init present: .agents/router/__init__.py
+[OK]   package init present: .agents/validators/__init__.py
+[WARN] SECRET_MISSING: BAYYINAH_ENDPOINT (expected outside CI/runtime)
+[WARN] SECRET_MISSING: MIHWAR_ENDPOINT (expected outside CI/runtime)
+[WARN] SECRET_MISSING: BAYYINAH_API_TOKEN (expected outside CI/runtime)
+[WARN] SECRET_MISSING: MIHWAR_API_TOKEN (expected outside CI/runtime)
+[OK]   no *.modal.run URL committed in tracked example files
+[OK]   workflow .github/workflows/agent-review.yml has no hardcoded modal URL
+[INFO] ADR-0001 boundary gate
+[INFO] repo=/home/ubuntu/swarms
+[OK]   no autoStart activation flag detected
+[RESULT] PASS
+[OK]   ADR-0001 boundary gate passed
+[WARN] no build artifact directories to scan (skipped)
+[RESULT] PASS
+======================================================================
+EXIT CODE: 0
+RESULT: PASS

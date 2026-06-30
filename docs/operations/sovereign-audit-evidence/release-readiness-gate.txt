@@ -1,0 +1,1807 @@
+# Sovereign Audit Evidence
+Command: bash scripts/commander/release-readiness-gate.sh .
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:04:55Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+=== RELEASE READINESS GATE ===
+repo=/home/ubuntu/swarms
+
+[CHECK] Python syntax compile
+[PASS] Python syntax compile
+
+[CHECK] Agent config validation
+VALIDATION: PASS
+Checked 7 required agent files.
+[PASS] Agent config validation
+
+[CHECK] Agent inventory command
+
+── CurLexAI Coding Agents ──────────────────────────────
+
+  Mihwar — المحور
+  Tier:    1
+  Model:   deepseek-coder-v2:latest
+  Size:    236B (MoE 21B active)
+  Context: 128000 tokens
+  GPU:     A100-80GB x2
+  Tasks:
+    - Architecture and system design
+    - Complex multi-file feature development
+    - Refactoring with behavioral preservation
+    - Task decomposition for Bayyinah
+    - API design and contract definition
+    - Performance-critical implementations
+
+  Bayyinah — البيّنة
+  Tier:    2
+  Model:   qwen2.5-coder:32b
+  Size:    32B
+  Context: 131072 tokens
+  GPU:     A100-80GB x1
+  Tasks:
+    - Code review and bug detection
+    - Security vulnerability scanning
+    - Type safety and contract validation
+    - Test generation for uncovered logic
+    - Prompt injection surface detection
+    - Dependency risk assessment
+    - Validating Mihwar's generated code
+
+  Qarar Router — قرار
+  Tier:    0
+  Model:   ?
+  Size:    ?
+  Context: ? tokens
+  GPU:     ? x1
+  Tasks:
+
+  Search Agent — وكيل البحث
+  Tier:    2
+  Model:   ?
+  Size:    ?
+  Context: ? tokens
+  GPU:     ? x1
+  Tasks:
+
+  Code Agent — وكيل الكود
+  Tier:    2
+  Model:   ?
+  Size:    ?
+  Context: ? tokens
+  GPU:     ? x1
+  Tasks:
+
+  Audit Agent — وكيل التدقيق
+  Tier:    2
+  Model:   ?
+  Size:    ?
+  Context: ? tokens
+  GPU:     ? x1
+  Tasks:
+
+[PASS] Agent inventory command
+
+[CHECK] P0 security test gate
+[P0] Running Bayyinah + Router + Aegis MCP security test gate
+.....................................................................
+----------------------------------------------------------------------
+Ran 69 tests in 0.037s
+
+OK
+[PASS] P0 security test gate
+
+[CHECK] Modal boundary gate
+[INFO] Modal boundary gate
+[INFO] repo=/home/ubuntu/swarms
+[OK]   no *.modal.run reference in src,public
+[OK]   no Modal SDK import found in client surfaces
+[OK]   server-side relay present (.agents/pr_review.py)
+[OK]   package init present: .agents/router/__init__.py
+[OK]   package init present: .agents/validators/__init__.py
+[WARN] SECRET_MISSING: BAYYINAH_ENDPOINT (expected outside CI/runtime)
+[WARN] SECRET_MISSING: MIHWAR_ENDPOINT (expected outside CI/runtime)
+[WARN] SECRET_MISSING: BAYYINAH_API_TOKEN (expected outside CI/runtime)
+[WARN] SECRET_MISSING: MIHWAR_API_TOKEN (expected outside CI/runtime)
+[OK]   no *.modal.run URL committed in tracked example files
+[OK]   workflow .github/workflows/agent-review.yml has no hardcoded modal URL
+[INFO] ADR-0001 boundary gate
+[INFO] repo=/home/ubuntu/swarms
+[OK]   no autoStart activation flag detected
+[RESULT] PASS
+[OK]   ADR-0001 boundary gate passed
+[WARN] no build artifact directories to scan (skipped)
+[RESULT] PASS
+[PASS] Modal boundary gate
+
+[CHECK] ADR-0001 boundary gate
+[INFO] ADR-0001 boundary gate
+[INFO] repo=/home/ubuntu/swarms
+[OK]   no autoStart activation flag detected
+[RESULT] PASS
+[PASS] ADR-0001 boundary gate
+
+[CHECK] Agent presence gate
+[INFO] Parsing configured agents from .agents/config/agents.yaml
+[OK] configured_agent_count=6
+[OK] agent=mihwar display_name=Mihwar — المحور model=deepseek-coder-v2:latest
+[OK] agent=bayyinah display_name=Bayyinah — البيّنة model=qwen2.5-coder:32b
+[OK] agent=router display_name=Qarar Router — قرار model=unknown
+[OK] agent=search_agent display_name=Search Agent — وكيل البحث model=unknown
+[OK] agent=code_agent display_name=Code Agent — وكيل الكود model=unknown
+[OK] agent=audit_agent display_name=Audit Agent — وكيل التدقيق model=unknown
+[INFO] Inspecting workflow gates in .github/workflows/agent-review.yml
+[WARN] Mihwar gate condition not found
+[WARN] SECRET_MISSING: BAYYINAH_ENDPOINT or BAYYINAH_API_TOKEN
+[WARN] SECRET_MISSING: MIHWAR_ENDPOINT or MIHWAR_API_TOKEN
+[INFO] gate completed
+[PASS] Agent presence gate
+
+[CHECK] Strict swarm presence monitor
+
+> curlexai-swarms@1.0.0 check:swarms-presence:strict
+> python3 scripts/commander/swarm-presence-monitor.py --repo-root . --strict
+
+{
+  "checks": [
+    {
+      "detail": "required control files exist",
+      "evidence": {
+        "count": 8
+      },
+      "name": "static repository controls",
+      "status": "VERIFIED"
+    },
+    {
+      "detail": "boundary, modal, agent-presence, and aegis gates are present",
+      "evidence": {},
+      "name": "static validation gates",
+      "status": "VERIFIED"
+    },
+    {
+      "detail": "running inside a Git worktree",
+      "evidence": {},
+      "name": "git worktree identity",
+      "status": "VERIFIED"
+    },
+    {
+      "detail": "GITHUB_TOKEN/GH_TOKEN not configured",
+      "evidence": {},
+      "name": "GitHub repository metadata",
+      "status": "HOLD"
+    },
+    {
+      "detail": "MCP_SERVER_URL/MCP_HEALTH_URL not configured",
+      "evidence": {},
+      "name": "MCP health",
+      "status": "HOLD"
+    },
+    {
+      "detail": "ENTRA_TENANT_ID/AZURE_TENANT_ID not configured",
+      "evidence": {},
+      "name": "Microsoft Entra metadata",
+      "status": "HOLD"
+    }
+  ],
+  "exitCode": 1,
+  "generatedAt": "2026-06-30T19:04:56.732176+00:00",
+  "repo": "CurLexAI/swarms",
+  "strict": true,
+  "summary": {
+    "FAILED": 0,
+    "HOLD": 3,
+    "SKIPPED_UNVERIFIED": 0,
+    "VERIFIED": 3
+  }
+}
+[FAIL] Strict swarm presence monitor
+
+[CHECK] Codex commander gate
+[INFO] Codex Commander gate
+[INFO] repo=/home/ubuntu/swarms
+[OK] git repository detected
+[INFO] branch=devin/1782846262-sovereign-audit
+[INFO] head=d64ac70cdb366d2d1733b9261cc442a6b56f6e78
+[OK] AGENTS.md present
+[OK] .agents/config/agents.yaml present
+[OK] GitHub Copilot custom agent profiles present
+[OK] no direct Modal URL reference found in common public/client paths
+[OK] package.json present
+[WARN] BAYYINAH_ENDPOINT=UNSET
+[WARN] MIHWAR_ENDPOINT=UNSET
+[WARN] BAYYINAH_API_TOKEN=UNSET
+[WARN] MIHWAR_API_TOKEN=UNSET
+[RESULT] PASS
+[PASS] Codex commander gate
+
+[CHECK] Qal'a audit integrity gate
+[qala-audit-integrity-gate] VERIFY: TypeScript/Node Qala audit chain
+TAP version 13
+# Subtest: first record chains from GENESIS
+ok 1 - first record chains from GENESIS
+  ---
+  duration_ms: 1.761725
+  ...
+# Subtest: subsequent records chain correctly
+ok 2 - subsequent records chain correctly
+  ---
+  duration_ms: 0.4412
+  ...
+# Subtest: verifyChain passes for a clean log
+ok 3 - verifyChain passes for a clean log
+  ---
+  duration_ms: 0.616187
+  ...
+# Subtest: modifying a payload breaks the chain
+ok 4 - modifying a payload breaks the chain
+  ---
+  duration_ms: 0.436985
+  ...
+# Subtest: modifying prev_hash breaks the chain
+ok 5 - modifying prev_hash breaks the chain
+  ---
+  duration_ms: 0.456665
+  ...
+# Subtest: rejects unknown event
+ok 6 - rejects unknown event
+  ---
+  duration_ms: 0.153005
+  ...
+# Subtest: rejects missing trace id
+ok 7 - rejects missing trace id
+  ---
+  duration_ms: 0.159003
+  ...
+# Subtest: rejects missing tenant
+ok 8 - rejects missing tenant
+  ---
+  duration_ms: 0.94707
+  ...
+# Subtest: payload defaults to empty object
+ok 9 - payload defaults to empty object
+  ---
+  duration_ms: 0.832942
+  ...
+# Subtest: append-only API has no update / delete
+ok 10 - append-only API has no update / delete
+  ---
+  duration_ms: 0.312845
+  ...
+# Subtest: payload key order does not change the hash
+ok 11 - payload key order does not change the hash
+  ---
+  duration_ms: 0.408851
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 51.105576
+[qala-audit-integrity-gate] VERIFY: Python Qala audit chain
+..............
+----------------------------------------------------------------------
+Ran 14 tests in 0.003s
+
+OK
+[qala-audit-integrity-gate] PASS: Qala audit append-only hash-chain integrity verified
+[INFO] Qal'a audit integrity gate (Q7)
+[INFO] repo=/home/ubuntu/swarms
+AUDIT_SINK_PATH: /home/ubuntu/swarms/artifacts/security/qala-audit.jsonl
+AUDIT_CHAIN_BROKEN at_record=1 message=prev_hash mismatch at record 1
+[FAIL] AUDIT_CHAIN_BROKEN: the sealed audit chain failed verification
+[RESULT] FAIL
+[FAIL] Qal'a audit integrity gate
+
+[CHECK] Python tests
+........................................................................ [ 19%]
+..................................................ss.................... [ 38%]
+....................................................ss.................. [ 57%]
+........................................................................ [ 76%]
+........................................................................ [ 96%]
+...............                                                          [100%]
+371 passed, 6 skipped in 3.45s
+[PASS] Python tests
+
+[CHECK] Node unit tests
+
+> curlexai-swarms@1.0.0 test:unit
+> node --test tests/unifiedAgentAdapter.test.js
+
+TAP version 13
+# Subtest: forwardToPythonEngine guards missing PYTHON_BACKEND_URL with CONFIG_NOT_FOUND and structured log
+ok 1 - forwardToPythonEngine guards missing PYTHON_BACKEND_URL with CONFIG_NOT_FOUND and structured log
+  ---
+  duration_ms: 1.557632
+  ...
+# Subtest: loadRegistry logs loaded and reasoning-enabled counters for mixed definitions
+ok 2 - loadRegistry logs loaded and reasoning-enabled counters for mixed definitions
+  ---
+  duration_ms: 0.342788
+  ...
+# Subtest: loadRegistry supports primary and fallback registry paths and accepts dict-keyed agents
+ok 3 - loadRegistry supports primary and fallback registry paths and accepts dict-keyed agents
+  ---
+  duration_ms: 0.311615
+  ...
+# Subtest: node dispatcher CONFIG_NOT_FOUND is limited to the canonical agentRunner module
+ok 4 - node dispatcher CONFIG_NOT_FOUND is limited to the canonical agentRunner module
+  ---
+  duration_ms: 0.26649
+  ...
+# Subtest: loadRegistry runtime: invalid array entries trigger startup failure and unhealthy service
+ok 5 - loadRegistry runtime: invalid array entries trigger startup failure and unhealthy service # SKIP JS companion not importable in this runtime
+  ---
+  duration_ms: 12.83249
+  ...
+# Subtest: loadRegistry array path validates schema and fails fast instead of skipping entries
+ok 6 - loadRegistry array path validates schema and fails fast instead of skipping entries
+  ---
+  duration_ms: 0.346797
+  ...
+# Subtest: live .agents/config/agents.yaml declares mihwar/bayyinah and matches Modal deployment
+ok 7 - live .agents/config/agents.yaml declares mihwar/bayyinah and matches Modal deployment
+  ---
+  duration_ms: 0.460263
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 49.783729
+[PASS] Node unit tests
+
+[CHECK] Node security tests
+
+> curlexai-swarms@1.0.0 test:security
+> node --test tests/sovereignCyberRadar.test.js
+
+TAP version 13
+# Subtest: sovereignCyberRadar source exports expected symbols
+ok 1 - sovereignCyberRadar source exports expected symbols
+  ---
+  duration_ms: 1.448212
+  ...
+# Subtest: sovereignCyberRadar imports only node: built-in modules — no external network deps
+ok 2 - sovereignCyberRadar imports only node: built-in modules — no external network deps
+  ---
+  duration_ms: 0.324819
+  ...
+# Subtest: simulate phishing exits 10 and produces SUSPICIOUS or BLOCKED verdict
+ok 3 - simulate phishing exits 10 and produces SUSPICIOUS or BLOCKED verdict
+  ---
+  duration_ms: 194.059599
+  ...
+# Subtest: simulate prompt-injection exits 10 and flags prompt injection rule
+ok 4 - simulate prompt-injection exits 10 and flags prompt injection rule
+  ---
+  duration_ms: 208.886494
+  ...
+# Subtest: simulate dependency-confusion exits 10 and flags dependency confusion rule
+ok 5 - simulate dependency-confusion exits 10 and flags dependency confusion rule
+  ---
+  duration_ms: 188.490344
+  ...
+# Subtest: scan-url exits 10 for raw-IP credential-embedded URL
+ok 6 - scan-url exits 10 for raw-IP credential-embedded URL
+  ---
+  duration_ms: 169.374907
+  ...
+# Subtest: scan-url exits 0 for plain HTTPS domain
+ok 7 - scan-url exits 0 for plain HTTPS domain
+  ---
+  duration_ms: 174.743603
+  ...
+# Subtest: evidence ledger is written as valid JSONL with chained hashes
+ok 8 - evidence ledger is written as valid JSONL with chained hashes
+  ---
+  duration_ms: 188.775952
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1168.442194
+[PASS] Node security tests
+
+[CHECK] TypeScript check
+[PASS] TypeScript check
+
+[CHECK] Aggregate repo check
+
+> curlexai-swarms@1.0.0 check
+> npm run check:service-divergence && npm run test:unit && npm run check:boundary && npm run check:cdn-sri && npm run check:audit-integrity && npm run check:swarms-presence && npm run check:supabase-boundary && npm run check:runtime-policy && npm run test:runtime-policy
+
+
+> curlexai-swarms@1.0.0 check:service-divergence
+> node scripts/check-service-divergence.mjs
+
+Service divergence check passed.
+
+> curlexai-swarms@1.0.0 test:unit
+> node --test tests/unifiedAgentAdapter.test.js
+
+TAP version 13
+# Subtest: forwardToPythonEngine guards missing PYTHON_BACKEND_URL with CONFIG_NOT_FOUND and structured log
+ok 1 - forwardToPythonEngine guards missing PYTHON_BACKEND_URL with CONFIG_NOT_FOUND and structured log
+  ---
+  duration_ms: 1.492578
+  ...
+# Subtest: loadRegistry logs loaded and reasoning-enabled counters for mixed definitions
+ok 2 - loadRegistry logs loaded and reasoning-enabled counters for mixed definitions
+  ---
+  duration_ms: 0.359986
+  ...
+# Subtest: loadRegistry supports primary and fallback registry paths and accepts dict-keyed agents
+ok 3 - loadRegistry supports primary and fallback registry paths and accepts dict-keyed agents
+  ---
+  duration_ms: 0.392358
+  ...
+# Subtest: node dispatcher CONFIG_NOT_FOUND is limited to the canonical agentRunner module
+ok 4 - node dispatcher CONFIG_NOT_FOUND is limited to the canonical agentRunner module
+  ---
+  duration_ms: 0.297821
+  ...
+# Subtest: loadRegistry runtime: invalid array entries trigger startup failure and unhealthy service
+ok 5 - loadRegistry runtime: invalid array entries trigger startup failure and unhealthy service # SKIP JS companion not importable in this runtime
+  ---
+  duration_ms: 12.767424
+  ...
+# Subtest: loadRegistry array path validates schema and fails fast instead of skipping entries
+ok 6 - loadRegistry array path validates schema and fails fast instead of skipping entries
+  ---
+  duration_ms: 0.351334
+  ...
+# Subtest: live .agents/config/agents.yaml declares mihwar/bayyinah and matches Modal deployment
+ok 7 - live .agents/config/agents.yaml declares mihwar/bayyinah and matches Modal deployment
+  ---
+  duration_ms: 0.422416
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 52.819648
+
+> curlexai-swarms@1.0.0 check:boundary
+> bash scripts/commander/adr-0001-boundary-gate.sh .
+
+[INFO] ADR-0001 boundary gate
+[INFO] repo=/home/ubuntu/swarms
+[OK]   no autoStart activation flag detected
+[RESULT] PASS
+
+> curlexai-swarms@1.0.0 check:cdn-sri
+> node scripts/check-cdn-sri.mjs
+
+All HTTPS script tags include integrity and crossorigin="anonymous".
+
+> curlexai-swarms@1.0.0 check:audit-integrity
+> bash scripts/commander/qala-audit-integrity-gate.sh .
+
+[qala-audit-integrity-gate] VERIFY: TypeScript/Node Qala audit chain
+TAP version 13
+# Subtest: first record chains from GENESIS
+ok 1 - first record chains from GENESIS
+  ---
+  duration_ms: 1.816307
+  ...
+# Subtest: subsequent records chain correctly
+ok 2 - subsequent records chain correctly
+  ---
+  duration_ms: 0.466137
+  ...
+# Subtest: verifyChain passes for a clean log
+ok 3 - verifyChain passes for a clean log
+  ---
+  duration_ms: 3.786461
+  ...
+# Subtest: modifying a payload breaks the chain
+ok 4 - modifying a payload breaks the chain
+  ---
+  duration_ms: 0.495718
+  ...
+# Subtest: modifying prev_hash breaks the chain
+ok 5 - modifying prev_hash breaks the chain
+  ---
+  duration_ms: 0.478788
+  ...
+# Subtest: rejects unknown event
+ok 6 - rejects unknown event
+  ---
+  duration_ms: 0.155019
+  ...
+# Subtest: rejects missing trace id
+ok 7 - rejects missing trace id
+  ---
+  duration_ms: 0.154318
+  ...
+# Subtest: rejects missing tenant
+ok 8 - rejects missing tenant
+  ---
+  duration_ms: 0.898548
+  ...
+# Subtest: payload defaults to empty object
+ok 9 - payload defaults to empty object
+  ---
+  duration_ms: 0.83887
+  ...
+# Subtest: append-only API has no update / delete
+ok 10 - append-only API has no update / delete
+  ---
+  duration_ms: 0.325965
+  ...
+# Subtest: payload key order does not change the hash
+ok 11 - payload key order does not change the hash
+  ---
+  duration_ms: 0.418155
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 77.992071
+[qala-audit-integrity-gate] VERIFY: Python Qala audit chain
+..............
+----------------------------------------------------------------------
+Ran 14 tests in 0.003s
+
+OK
+[qala-audit-integrity-gate] PASS: Qala audit append-only hash-chain integrity verified
+[INFO] Qal'a audit integrity gate (Q7)
+[INFO] repo=/home/ubuntu/swarms
+AUDIT_SINK_PATH: /home/ubuntu/swarms/artifacts/security/qala-audit.jsonl
+AUDIT_CHAIN_BROKEN at_record=1 message=prev_hash mismatch at record 1
+[FAIL] AUDIT_CHAIN_BROKEN: the sealed audit chain failed verification
+[RESULT] FAIL
+[FAIL] Aggregate repo check
+
+[CHECK] Node full tests
+
+> curlexai-swarms@1.0.0 test
+> node --test tests/unifiedAgentAdapter.test.js tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js tests/unifiedAgentAdapter.nodeDispatch.integration.test.js
+
+TAP version 13
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:06.251Z","taskId":"93b299cc-cbbc-424d-9878-f33b615d782e","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","metadata":{"correlation_id":"07313818-c7ee-4f7a-8ed3-d61534007e3f","task_id":"93b299cc-cbbc-424d-9878-f33b615d782e","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false},"request_metadata":{"source":"integration-test"}}}
+# [ERROR] 💥 Intelligence Failure at Agent py-agent {
+#   err: PythonEngineRuntimeError: RUNTIME_FAILURE: Python engine returned HTTP 500 unknown
+#       at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306218.9e5fbe59c5729.mjs:218:12)
+#       at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306218.9e5fbe59c5729.mjs:779:27)
+#       at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306218.9e5fbe59c5729.mjs:590:19)
+#       at async waitForActual (node:assert:533:5)
+#       at async Function.rejects (node:assert:654:25)
+#       at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:133:3)
+#       at async Test.run (node:internal/test_runner/test:935:9)
+#       at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+#     code: 'RUNTIME_FAILURE',
+#     upstreamStatus: 500,
+#     retryable: false
+#   },
+#   agentId: 'py-agent',
+#   structuredFailure: {
+#     failure_class: 'RUNTIME_FAILURE',
+#     upstream_status: 500,
+#     retryable: false
+#   },
+#   normalizedError: {
+#     message: 'RUNTIME_FAILURE: Python engine returned HTTP 500 unknown',
+#     code: 'RUNTIME_FAILURE',
+#     stack: 'PythonEngineRuntimeError: RUNTIME_FAILURE: Python engine returned HTTP 500 unknown\\n' +
+#       '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306218.9e5fbe59c5729.mjs:218:12)\\n' +
+#       '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306218.9e5fbe59c5729.mjs:779:27)\\n' +
+#       '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.86...[truncated]'
+#   },
+#   originalStack: 'PythonEngineRuntimeError: RUNTIME_FAILURE: Python engine returned HTTP 500 unknown\\n' +
+#     '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306218.9e5fbe59c5729.mjs:218:12)\\n' +
+#     '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306218.9e5fbe59c5729.mjs:779:27)\\n' +
+#     '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306218.9e5fbe59c5729.mjs:590:19)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:133:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)'
+# }
+# Subtest: UnifiedAgentAdapter.executeAgent marks task FAILED and throws sanitized client-safe error on non-2xx python response
+ok 1 - UnifiedAgentAdapter.executeAgent marks task FAILED and throws sanitized client-safe error on non-2xx python response
+  ---
+  duration_ms: 489.379981
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:06.356Z","taskId":"cb7e107e-badc-448b-9991-2dd4c7f333a1","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","metadata":{"correlation_id":"58981fcd-8849-42e7-935e-1e533fbac96d","task_id":"cb7e107e-badc-448b-9991-2dd4c7f333a1","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false},"request_metadata":{"source":"integration-test"}}}
+# [ERROR] Python engine fetch failed {
+#   classification: 'RUNTIME_FAILURE',
+#   stage: 'python_engine_fetch',
+#   attempt: 1,
+#   maxAttempts: 2,
+#   timeoutMs: 15000,
+#   retryable: false,
+#   errorName: 'Error',
+#   errorCode: null,
+#   causeName: null,
+#   causeCode: null
+# }
+# [ERROR] 💥 Intelligence Failure at Agent py-agent {
+#   err: PythonEngineRuntimeError: RUNTIME_FAILURE: python engine request transport failure
+#       at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306352.91f429bc3a59c.mjs:218:12)
+#       at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306352.91f429bc3a59c.mjs:825:23)
+#       at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306352.91f429bc3a59c.mjs:590:19)
+#       at async waitForActual (node:assert:533:5)
+#       ... 3 lines matching cause stack trace ...
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#     code: 'RUNTIME_FAILURE',
+#     upstreamStatus: 502,
+#     retryable: false,
+#     cause: Error: connect ECONNREFUSED python-backend.internal
+#         at global.fetch (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:181:11)
+#         at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306352.91f429bc3a59c.mjs:760:40)
+#         at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306352.91f429bc3a59c.mjs:590:30)
+#         at async waitForActual (node:assert:533:5)
+#         at async Function.rejects (node:assert:654:25)
+#         at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:214:3)
+#         at async Test.run (node:internal/test_runner/test:935:9)
+#         at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)
+#   },
+#   agentId: 'py-agent',
+#   structuredFailure: {
+#     failure_class: 'RUNTIME_FAILURE',
+#     upstream_status: 502,
+#     retryable: false
+#   },
+#   normalizedError: {
+#     message: 'RUNTIME_FAILURE: python engine request transport failure',
+#     code: 'RUNTIME_FAILURE',
+#     stack: 'PythonEngineRuntimeError: RUNTIME_FAILURE: python engine request transport failure\\n' +
+#       '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306352.91f429bc3a59c.mjs:218:12)\\n' +
+#       '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306352.91f429bc3a59c.mjs:825:23)\\n' +
+#       '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.86...[truncated]'
+#   },
+#   originalStack: 'PythonEngineRuntimeError: RUNTIME_FAILURE: python engine request transport failure\\n' +
+#     '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306352.91f429bc3a59c.mjs:218:12)\\n' +
+#     '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306352.91f429bc3a59c.mjs:825:23)\\n' +
+#     '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306352.91f429bc3a59c.mjs:590:19)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:214:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 contract
+ok 2 - UnifiedAgentAdapter.executeAgent maps network errors to sanitized 502 contract
+  ---
+  duration_ms: 104.887276
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:06.419Z","taskId":"5026d489-354c-4210-bbd8-3b4f0ebdae87","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","metadata":{"correlation_id":"c0d89e48-e638-4243-a39b-8277c2607c6f","task_id":"5026d489-354c-4210-bbd8-3b4f0ebdae87","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false},"request_metadata":{}}}
+# [ERROR] Python engine fetch failed {
+#   classification: 'RUNTIME_FAILURE',
+#   stage: 'python_engine_fetch',
+#   attempt: 1,
+#   maxAttempts: 2,
+#   timeoutMs: 15000,
+#   retryable: true,
+#   errorName: 'TypeError',
+#   errorCode: null,
+#   causeName: 'Error',
+#   causeCode: 'ENOTFOUND'
+# }
+# [ERROR] Python engine fetch failed {
+#   classification: 'RUNTIME_FAILURE',
+#   stage: 'python_engine_fetch',
+#   attempt: 2,
+#   maxAttempts: 2,
+#   timeoutMs: 15000,
+#   retryable: true,
+#   errorName: 'TypeError',
+#   errorCode: null,
+#   causeName: 'Error',
+#   causeCode: 'ENOTFOUND'
+# }
+# [ERROR] 💥 Intelligence Failure at Agent py-agent {
+#   err: PythonEngineRuntimeError: RUNTIME_FAILURE: python engine request transport failure
+#       at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306416.c2ecc59a8eab1.mjs:218:12)
+#       at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306416.c2ecc59a8eab1.mjs:825:23)
+#       at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306416.c2ecc59a8eab1.mjs:590:19)
+#       ... 4 lines matching cause stack trace ...
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#     code: 'RUNTIME_FAILURE',
+#     upstreamStatus: 502,
+#     retryable: false,
+#     cause: TypeError: fetch failed
+#         at global.fetch (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:275:17)
+#         at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306416.c2ecc59a8eab1.mjs:760:40)
+#         ... 5 lines matching cause stack trace ...
+#         at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#       cause: [Error]
+#     }
+#   },
+#   agentId: 'py-agent',
+#   structuredFailure: {
+#     failure_class: 'RUNTIME_FAILURE',
+#     upstream_status: 502,
+#     retryable: false
+#   },
+#   normalizedError: {
+#     message: 'RUNTIME_FAILURE: python engine request transport failure',
+#     code: 'RUNTIME_FAILURE',
+#     stack: 'PythonEngineRuntimeError: RUNTIME_FAILURE: python engine request transport failure\\n' +
+#       '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306416.c2ecc59a8eab1.mjs:218:12)\\n' +
+#       '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306416.c2ecc59a8eab1.mjs:825:23)\\n' +
+#       '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.86...[truncated]'
+#   },
+#   originalStack: 'PythonEngineRuntimeError: RUNTIME_FAILURE: python engine request transport failure\\n' +
+#     '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306416.c2ecc59a8eab1.mjs:218:12)\\n' +
+#     '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306416.c2ecc59a8eab1.mjs:825:23)\\n' +
+#     '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846306416.c2ecc59a8eab1.mjs:590:19)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:319:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUND cause and keeps client errors sanitized
+ok 3 - UnifiedAgentAdapter.executeAgent retries fetch failed errors with ENOTFOUND cause and keeps client errors sanitized
+  ---
+  duration_ms: 313.886416
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:06.727Z","taskId":"b4c04233-dc43-4714-abef-6a70e1e6798c","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","metadata":{"correlation_id":"8ec99d76-350c-4659-8756-e1d2e983c80f","task_id":"b4c04233-dc43-4714-abef-6a70e1e6798c","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false},"request_metadata":{}}}
+# [ERROR] Python engine fetch failed {
+#   classification: 'RUNTIME_FAILURE',
+#   stage: 'python_engine_fetch',
+#   attempt: 1,
+#   maxAttempts: 2,
+#   timeoutMs: 15000,
+#   retryable: true,
+#   errorName: 'TypeError',
+#   errorCode: null,
+#   causeName: 'Error',
+#   causeCode: 'ECONNREFUSED'
+# }
+# Subtest: UnifiedAgentAdapter.executeAgent retries fetch failed errors with ECONNREFUSED cause and keeps client errors sanitized
+ok 4 - UnifiedAgentAdapter.executeAgent retries fetch failed errors with ECONNREFUSED cause and keeps client errors sanitized
+  ---
+  duration_ms: 306.167777
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:07.030Z","taskId":"95cd53fb-7b50-4eeb-be01-c77f479c22bf","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","metadata":{"correlation_id":"0799985e-b919-4e3b-bc09-b44017b4c1c5","task_id":"95cd53fb-7b50-4eeb-be01-c77f479c22bf","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false},"request_metadata":{"source":"integration-test"}}}
+# [ERROR] 💥 Intelligence Failure at Agent py-agent {
+#   err: PythonEngineRuntimeError: Python engine request failed with status 200. Please try again later (ref: 4dc420d3).
+#       at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307013.a8bbb2afd8149.mjs:218:12)
+#       at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307013.a8bbb2afd8149.mjs:786:27)
+#       at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307013.a8bbb2afd8149.mjs:590:19)
+#       at async waitForActual (node:assert:533:5)
+#       at async Function.rejects (node:assert:654:25)
+#       at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:461:3)
+#       at async Test.run (node:internal/test_runner/test:935:9)
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#     code: 'UNVERIFIED_RUNTIME',
+#     upstreamStatus: 200,
+#     retryable: false
+#   },
+#   agentId: 'py-agent',
+#   structuredFailure: {
+#     failure_class: 'UNVERIFIED_RUNTIME',
+#     upstream_status: 200,
+#     retryable: false
+#   },
+#   normalizedError: {
+#     message: 'Python engine request failed with status 200. Please try again later (ref: 4dc420d3).',
+#     code: 'UNVERIFIED_RUNTIME',
+#     stack: 'PythonEngineRuntimeError: Python engine request failed with status 200. Please try again later (ref: 4dc420d3).\\n' +
+#       '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307013.a8bbb2afd8149.mjs:218:12)\\n' +
+#       '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307013.a8bbb2afd8149.mjs:786:27)\\n' +
+#       '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/service...[truncated]'
+#   },
+#   originalStack: 'PythonEngineRuntimeError: Python engine request failed with status 200. Please try again later (ref: 4dc420d3).\\n' +
+#     '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307013.a8bbb2afd8149.mjs:218:12)\\n' +
+#     '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307013.a8bbb2afd8149.mjs:786:27)\\n' +
+#     '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307013.a8bbb2afd8149.mjs:590:19)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:461:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter.executeAgent rejects successful non-JSON python responses with sanitized runtime error
+ok 5 - UnifiedAgentAdapter.executeAgent rejects successful non-JSON python responses with sanitized runtime error
+  ---
+  duration_ms: 52.318224
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:07.070Z","taskId":"fcc90b71-6f9b-4e9c-8e47-a097c64d2955","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","metadata":{"correlation_id":"fd8ea8c0-1160-429f-b6f2-0887e7c10652","task_id":"fcc90b71-6f9b-4e9c-8e47-a097c64d2955","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false},"request_metadata":{}}}
+# [ERROR] 💥 Intelligence Failure at Agent py-agent {
+#   err: PythonEngineRuntimeError: RUNTIME_FAILURE: Python engine returned HTTP 503 unknown
+#       at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307063.4fdcb7b5b89ad.mjs:218:12)
+#       at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307063.4fdcb7b5b89ad.mjs:779:27)
+#       at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307063.4fdcb7b5b89ad.mjs:590:19)
+#       at async waitForActual (node:assert:533:5)
+#       at async Function.rejects (node:assert:654:25)
+#       at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:530:3)
+#       at async Test.run (node:internal/test_runner/test:935:9)
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#     code: 'RUNTIME_FAILURE',
+#     upstreamStatus: 503,
+#     retryable: true
+#   },
+#   agentId: 'py-agent',
+#   structuredFailure: {
+#     failure_class: 'RUNTIME_FAILURE',
+#     upstream_status: 503,
+#     retryable: true
+#   },
+#   normalizedError: {
+#     message: 'RUNTIME_FAILURE: Python engine returned HTTP 503 unknown',
+#     code: 'RUNTIME_FAILURE',
+#     stack: 'PythonEngineRuntimeError: RUNTIME_FAILURE: Python engine returned HTTP 503 unknown\\n' +
+#       '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307063.4fdcb7b5b89ad.mjs:218:12)\\n' +
+#       '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307063.4fdcb7b5b89ad.mjs:779:27)\\n' +
+#       '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.86...[truncated]'
+#   },
+#   originalStack: 'PythonEngineRuntimeError: RUNTIME_FAILURE: Python engine returned HTTP 503 unknown\\n' +
+#     '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307063.4fdcb7b5b89ad.mjs:218:12)\\n' +
+#     '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307063.4fdcb7b5b89ad.mjs:779:27)\\n' +
+#     '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307063.4fdcb7b5b89ad.mjs:590:19)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:530:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter.executeAgent retries retryable 503 responses up to PYTHON_BACKEND_MAX_ATTEMPTS total attempts
+ok 6 - UnifiedAgentAdapter.executeAgent retries retryable 503 responses up to PYTHON_BACKEND_MAX_ATTEMPTS total attempts
+  ---
+  duration_ms: 795.076987
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:07.883Z","taskId":"251a020e-3887-496f-816a-6fe6836eb0aa","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","metadata":{"correlation_id":"dd0efdac-650f-4250-ac25-112409e2d8eb","task_id":"251a020e-3887-496f-816a-6fe6836eb0aa","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false},"request_metadata":{}}}
+# [ERROR] 💥 Intelligence Failure at Agent py-agent {
+#   err: PythonEngineRuntimeError: RUNTIME_FAILURE: Python engine returned HTTP 503 unknown
+#       at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307875.145ec9e6737eb.mjs:218:12)
+#       at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307875.145ec9e6737eb.mjs:779:27)
+#       at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307875.145ec9e6737eb.mjs:590:19)
+#       at async waitForActual (node:assert:533:5)
+#       at async Function.rejects (node:assert:654:25)
+#       at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:575:3)
+#       at async Test.run (node:internal/test_runner/test:935:9)
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#     code: 'RUNTIME_FAILURE',
+#     upstreamStatus: 503,
+#     retryable: true
+#   },
+#   agentId: 'py-agent',
+#   structuredFailure: {
+#     failure_class: 'RUNTIME_FAILURE',
+#     upstream_status: 503,
+#     retryable: true
+#   },
+#   normalizedError: {
+#     message: 'RUNTIME_FAILURE: Python engine returned HTTP 503 unknown',
+#     code: 'RUNTIME_FAILURE',
+#     stack: 'PythonEngineRuntimeError: RUNTIME_FAILURE: Python engine returned HTTP 503 unknown\\n' +
+#       '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307875.145ec9e6737eb.mjs:218:12)\\n' +
+#       '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307875.145ec9e6737eb.mjs:779:27)\\n' +
+#       '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.86...[truncated]'
+#   },
+#   originalStack: 'PythonEngineRuntimeError: RUNTIME_FAILURE: Python engine returned HTTP 503 unknown\\n' +
+#     '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307875.145ec9e6737eb.mjs:218:12)\\n' +
+#     '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307875.145ec9e6737eb.mjs:779:27)\\n' +
+#     '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307875.145ec9e6737eb.mjs:590:19)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:575:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter.executeAgent performs a single outbound attempt for retryable 503 when PYTHON_BACKEND_MAX_ATTEMPTS=1
+ok 7 - UnifiedAgentAdapter.executeAgent performs a single outbound attempt for retryable 503 when PYTHON_BACKEND_MAX_ATTEMPTS=1
+  ---
+  duration_ms: 57.454317
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:07.927Z","taskId":"12b811ed-4d2c-4c32-91f5-aaed157f460e","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","metadata":{"correlation_id":"105849bd-a99a-48a0-848f-fdc832521bb2","task_id":"12b811ed-4d2c-4c32-91f5-aaed157f460e","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false},"request_metadata":{}}}
+# [AUDIT] {"event":"agent_task_status","taskId":"12b811ed-4d2c-4c32-91f5-aaed157f460e","status":"RUNNING","lifecycle_seq":1,"result":{"correlation_id":"105849bd-a99a-48a0-848f-fdc832521bb2","task_id":"12b811ed-4d2c-4c32-91f5-aaed157f460e","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false}}}
+# [AUDIT] {"event":"agent_action","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","action":"EXECUTE_PYTHON_WITHOUT_REASONING","payload":{"taskId":"12b811ed-4d2c-4c32-91f5-aaed157f460e","correlation_id":"105849bd-a99a-48a0-848f-fdc832521bb2","reasoning_enabled":false},"metadata":{"correlation_id":"105849bd-a99a-48a0-848f-fdc832521bb2","task_id":"12b811ed-4d2c-4c32-91f5-aaed157f460e","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false}},"redaction_version":"1"}
+# [AUDIT] {"event":"agent_task_status","taskId":"12b811ed-4d2c-4c32-91f5-aaed157f460e","status":"FAILED","lifecycle_seq":2,"result":{"error":"CONFIG_NOT_FOUND: PYTHON_BACKEND_ALLOWED_HOSTS is required when strict backend allowlist mode is enabled","stack":"Error: CONFIG_NOT_FOUND: PYTHON_BACKEND_ALLOWED_HOSTS is required when strict backend allowlist mode is enabled\\n    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307918.e8399d67779de.mjs:751:19)\\n    at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307918.e8399d67779de.mjs:590:30)\\n    at async waitForActual (node:assert:533:5)\\n    at async Function.rejects ...[truncated]","blocker":"CONFIG_NOT_FOUND","failure_class":"CONFIG_NOT_FOUND","upstream_status":null}}
+# [ERROR] 💥 Intelligence Failure at Agent py-agent {
+#   err: Error: CONFIG_NOT_FOUND: PYTHON_BACKEND_ALLOWED_HOSTS is required when strict backend allowlist mode is enabled
+#       at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307918.e8399d67779de.mjs:751:19)
+#       at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307918.e8399d67779de.mjs:590:30)
+#       at async waitForActual (node:assert:533:5)
+#       at async Function.rejects (node:assert:654:25)
+#       at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:611:3)
+#       at async Test.run (node:internal/test_runner/test:935:9)
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7),
+#   agentId: 'py-agent',
+#   structuredFailure: { failure_class: 'CONFIG_NOT_FOUND', upstream_status: null },
+#   normalizedError: {
+#     message: 'CONFIG_NOT_FOUND: PYTHON_BACKEND_ALLOWED_HOSTS is required when strict backend allowlist mode is enabled',
+#     stack: 'Error: CONFIG_NOT_FOUND: PYTHON_BACKEND_ALLOWED_HOSTS is required when strict backend allowlist mode is enabled\\n' +
+#       '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307918.e8399d67779de.mjs:751:19)\\n' +
+#       '    at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307918.e8399d67779de.mjs:590:30)\\n' +
+#       '    at async waitForActual (node:assert:533:5)\\n' +
+#       '    at async Function.rejects ...[truncated]'
+#   },
+#   originalStack: 'Error: CONFIG_NOT_FOUND: PYTHON_BACKEND_ALLOWED_HOSTS is required when strict backend allowlist mode is enabled\\n' +
+#     '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307918.e8399d67779de.mjs:751:19)\\n' +
+#     '    at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307918.e8399d67779de.mjs:590:30)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:611:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter.executeAgent blocks forwarding in strict mode when allowlist is empty
+ok 8 - UnifiedAgentAdapter.executeAgent blocks forwarding in strict mode when allowlist is empty
+  ---
+  duration_ms: 44.249128
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:07.961Z","taskId":"c6ec7d7c-f913-44ae-90f1-8b1102f81c14","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","metadata":{"correlation_id":"f182ec0d-5761-490c-8ac8-e65be9950cd3","task_id":"c6ec7d7c-f913-44ae-90f1-8b1102f81c14","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false},"request_metadata":{}}}
+# [AUDIT] {"event":"agent_task_status","taskId":"c6ec7d7c-f913-44ae-90f1-8b1102f81c14","status":"RUNNING","lifecycle_seq":1,"result":{"correlation_id":"f182ec0d-5761-490c-8ac8-e65be9950cd3","task_id":"c6ec7d7c-f913-44ae-90f1-8b1102f81c14","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false}}}
+# [AUDIT] {"event":"agent_action","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","action":"EXECUTE_PYTHON_WITHOUT_REASONING","payload":{"taskId":"c6ec7d7c-f913-44ae-90f1-8b1102f81c14","correlation_id":"f182ec0d-5761-490c-8ac8-e65be9950cd3","reasoning_enabled":false},"metadata":{"correlation_id":"f182ec0d-5761-490c-8ac8-e65be9950cd3","task_id":"c6ec7d7c-f913-44ae-90f1-8b1102f81c14","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false}},"redaction_version":"1"}
+# [AUDIT] {"event":"agent_task_status","taskId":"c6ec7d7c-f913-44ae-90f1-8b1102f81c14","status":"FAILED","lifecycle_seq":2,"result":{"error":"CONFIG_NOT_FOUND: PYTHON_BACKEND_URL must use HTTPS","stack":"Error: CONFIG_NOT_FOUND: PYTHON_BACKEND_URL must use HTTPS\\n    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307951.abc94aaf5cc04.mjs:751:19)\\n    at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307951.abc94aaf5cc04.mjs:590:30)\\n    at async waitForActual (node:assert:533:5)\\n    at async Function.rejects (node:assert:654:25)\\n    at async TestContext.<anonym...[truncated]","blocker":"CONFIG_NOT_FOUND","failure_class":"CONFIG_NOT_FOUND","upstream_status":null}}
+# [ERROR] 💥 Intelligence Failure at Agent py-agent {
+#   err: Error: CONFIG_NOT_FOUND: PYTHON_BACKEND_URL must use HTTPS
+#       at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307951.abc94aaf5cc04.mjs:751:19)
+#       at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307951.abc94aaf5cc04.mjs:590:30)
+#       at async waitForActual (node:assert:533:5)
+#       at async Function.rejects (node:assert:654:25)
+#       at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:639:3)
+#       at async Test.run (node:internal/test_runner/test:935:9)
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7),
+#   agentId: 'py-agent',
+#   structuredFailure: { failure_class: 'CONFIG_NOT_FOUND', upstream_status: null },
+#   normalizedError: {
+#     message: 'CONFIG_NOT_FOUND: PYTHON_BACKEND_URL must use HTTPS',
+#     stack: 'Error: CONFIG_NOT_FOUND: PYTHON_BACKEND_URL must use HTTPS\\n' +
+#       '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307951.abc94aaf5cc04.mjs:751:19)\\n' +
+#       '    at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307951.abc94aaf5cc04.mjs:590:30)\\n' +
+#       '    at async waitForActual (node:assert:533:5)\\n' +
+#       '    at async Function.rejects (node:assert:654:25)\\n' +
+#       '    at async TestContext.<anonym...[truncated]'
+#   },
+#   originalStack: 'Error: CONFIG_NOT_FOUND: PYTHON_BACKEND_URL must use HTTPS\\n' +
+#     '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307951.abc94aaf5cc04.mjs:751:19)\\n' +
+#     '    at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846307951.abc94aaf5cc04.mjs:590:30)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:639:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter.executeAgent blocks non-https backend URLs in strict mode
+ok 9 - UnifiedAgentAdapter.executeAgent blocks non-https backend URLs in strict mode
+  ---
+  duration_ms: 33.807543
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:08.012Z","taskId":"05c9bb1a-d9b0-4b07-9f6c-3ca3bf54f10e","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"py-agent","metadata":{"correlation_id":"c16adba0-3da0-4dfb-8fff-cf59e0b564cb","task_id":"05c9bb1a-d9b0-4b07-9f6c-3ca3bf54f10e","agent":{"id":"py-agent","name":"Python Agent","runtime":"python","capabilities":["python_execution"],"reasoning_enabled":false},"request_metadata":{}}}
+# Subtest: UnifiedAgentAdapter.executeAgent allows strict mode forwarding when host is allowlisted and https
+ok 10 - UnifiedAgentAdapter.executeAgent allows strict mode forwarding when host is allowlisted and https
+  ---
+  duration_ms: 50.520876
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [ERROR] 💥 Intelligence Failure at Agent py-agent {
+#   err: PythonEngineRuntimeError: Python engine timed out after 15000ms for agent py-agent
+#       at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846308046.b11a9f82ce342.mjs:218:12)
+#       at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846308046.b11a9f82ce342.mjs:800:27)
+#       at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846308046.b11a9f82ce342.mjs:590:19)
+#       at async waitForActual (node:assert:533:5)
+#       at async Function.rejects (node:assert:654:25)
+#       at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:726:3)
+#       at async Test.run (node:internal/test_runner/test:935:9)
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#     code: 'PYTHON_ENGINE_TIMEOUT',
+#     upstreamStatus: null,
+#     retryable: false,
+#     cause: Error [AbortError]: The operation was aborted
+#         at TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:702:36)
+#         at async Test.run (node:internal/test_runner/test:935:9)
+#         at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)
+#   },
+#   agentId: 'py-agent',
+#   structuredFailure: {
+#     failure_class: 'PYTHON_ENGINE_TIMEOUT',
+#     upstream_status: null,
+#     retryable: false
+#   },
+#   normalizedError: {
+#     message: 'Python engine timed out after 15000ms for agent py-agent',
+#     code: 'PYTHON_ENGINE_TIMEOUT',
+#     stack: 'PythonEngineRuntimeError: Python engine timed out after 15000ms for agent py-agent\\n' +
+#       '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846308046.b11a9f82ce342.mjs:218:12)\\n' +
+#       '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846308046.b11a9f82ce342.mjs:800:27)\\n' +
+#       '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.86...[truncated]'
+#   },
+#   originalStack: 'PythonEngineRuntimeError: Python engine timed out after 15000ms for agent py-agent\\n' +
+#     '    at createPythonRuntimeError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846308046.b11a9f82ce342.mjs:218:12)\\n' +
+#     '    at UnifiedAgentAdapter.forwardToPythonEngine (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846308046.b11a9f82ce342.mjs:800:27)\\n' +
+#     '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.test.8642.1782846308046.b11a9f82ce342.mjs:590:19)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.executeAgent.non2xx.integration.test.js:726:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter.executeAgent maps AbortError timeout to PYTHON_ENGINE_TIMEOUT and marks task FAILED
+ok 11 - UnifiedAgentAdapter.executeAgent maps AbortError timeout to PYTHON_ENGINE_TIMEOUT and marks task FAILED
+  ---
+  duration_ms: 41.6399
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# Subtest: UnifiedAgentAdapter dispatches node runtime to canonical runAgent with validated payload
+ok 12 - UnifiedAgentAdapter dispatches node runtime to canonical runAgent with validated payload
+  ---
+  duration_ms: 451.827313
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [ERROR] 💥 Intelligence Failure at Agent node-agent {
+#   err: RuntimeOutputVerificationError: UNVERIFIED_RUNTIME: downstream payload failed verification (required runtime output field is missing or malformed)
+#       at UnifiedAgentAdapter.verifyOutputQuality (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308658.75d2f2ca2dfc2.mjs:692:19)
+#       at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308658.75d2f2ca2dfc2.mjs:592:47)
+#       at async waitForActual (node:assert:533:5)
+#       at async Function.rejects (node:assert:654:25)
+#       at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:226:3)
+#       at async Test.run (node:internal/test_runner/test:935:9)
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#     code: 'UNVERIFIED_RUNTIME',
+#     reason: 'required runtime output field is missing or malformed'
+#   },
+#   agentId: 'node-agent',
+#   structuredFailure: { failure_class: 'UNVERIFIED_RUNTIME', upstream_status: null },
+#   normalizedError: {
+#     message: 'UNVERIFIED_RUNTIME: downstream payload failed verification (required runtime output field is missing or malformed)',
+#     code: 'UNVERIFIED_RUNTIME',
+#     stack: 'RuntimeOutputVerificationError: UNVERIFIED_RUNTIME: downstream payload failed verification (required runtime output field is missing or malformed)\\n' +
+#       '    at UnifiedAgentAdapter.verifyOutputQuality (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308658.75d2f2ca2dfc2.mjs:692:19)\\n' +
+#       '    at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308658.75d2f2ca2dfc2.mjs:592:47)\\n' +
+#       '    at async waitForActual...[truncated]'
+#   },
+#   originalStack: 'RuntimeOutputVerificationError: UNVERIFIED_RUNTIME: downstream payload failed verification (required runtime output field is missing or malformed)\\n' +
+#     '    at UnifiedAgentAdapter.verifyOutputQuality (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308658.75d2f2ca2dfc2.mjs:692:19)\\n' +
+#     '    at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308658.75d2f2ca2dfc2.mjs:592:47)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:226:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter rejects malformed downstream object that passes JSON parsing but fails quality verification
+ok 13 - UnifiedAgentAdapter rejects malformed downstream object that passes JSON parsing but fails quality verification
+  ---
+  duration_ms: 120.247137
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:08.744Z","taskId":"66cea711-f681-493b-9981-3ac493503092","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"hybrid-agent","metadata":{"correlation_id":"44de884c-6671-43fa-8a08-acc6e002488d","task_id":"66cea711-f681-493b-9981-3ac493503092","agent":{"id":"hybrid-agent","name":"Hybrid Agent","runtime":"hybrid","capabilities":["node_execution"],"reasoning_enabled":false},"request_metadata":{"mode":"hybrid"}}}
+# Subtest: UnifiedAgentAdapter returns real node execution output for hybrid agents (intentional split)
+ok 14 - UnifiedAgentAdapter returns real node execution output for hybrid agents (intentional split)
+  ---
+  duration_ms: 74.379035
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:08.795Z","taskId":"86ae72ff-066c-4843-91c8-2ebd318110b6","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"node-agent","metadata":{"correlation_id":"c97788d5-440f-46e1-b893-6885b7bad0d6","task_id":"86ae72ff-066c-4843-91c8-2ebd318110b6","agent":{"id":"node-agent","name":"Node Agent","runtime":"node","capabilities":["node_execution"],"reasoning_enabled":false},"request_metadata":{}}}
+# Subtest: UnifiedAgentAdapter accepts valid downstream payload when quality verification requirements are met
+ok 15 - UnifiedAgentAdapter accepts valid downstream payload when quality verification requirements are met
+  ---
+  duration_ms: 50.029506
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:08.841Z","taskId":"abff39f1-38bb-497f-8773-b81612672b0a","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"node-agent","metadata":{"correlation_id":"e413819b-7e98-45b0-bd6b-7566a8d295e6","task_id":"abff39f1-38bb-497f-8773-b81612672b0a","agent":{"id":"node-agent","name":"Node Agent","runtime":"node","capabilities":["node_execution"],"reasoning_enabled":false},"request_metadata":{}}}
+# Subtest: UnifiedAgentAdapter forwards trusted admin execution context to node dispatch
+ok 16 - UnifiedAgentAdapter forwards trusted admin execution context to node dispatch
+  ---
+  duration_ms: 46.705586
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:08.886Z","taskId":"0e6fcf92-ee02-46a7-ba5a-1db35b3e701b","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"node-agent","metadata":{"correlation_id":"92c2d4c7-8f37-4b42-a866-8c5091cb984c","task_id":"0e6fcf92-ee02-46a7-ba5a-1db35b3e701b","agent":{"id":"node-agent","name":"Node Agent","runtime":"node","capabilities":["node_execution"],"reasoning_enabled":false},"request_metadata":{}}}
+# Subtest: UnifiedAgentAdapter logs EXECUTE_<TYPE>_WITHOUT_REASONING action when reasoning is disabled
+ok 17 - UnifiedAgentAdapter logs EXECUTE_<TYPE>_WITHOUT_REASONING action when reasoning is disabled
+  ---
+  duration_ms: 44.872844
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:08.928Z","taskId":"f13a3572-ce05-4efb-a3da-28fc1573f9f7","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"node-agent","metadata":{"correlation_id":"75302138-3194-4b40-a0d1-41aa17712e58","task_id":"f13a3572-ce05-4efb-a3da-28fc1573f9f7","agent":{"id":"node-agent","name":"Node Agent","runtime":"node","capabilities":["node_execution","reasoning"],"reasoning_enabled":true},"request_metadata":{}}}
+# [INFO] 🧠 Agent [Node Agent] is reasoning about the legal task...
+# Subtest: UnifiedAgentAdapter logs EXECUTE_<TYPE>_WITH_REASONING action when reasoning is enabled
+ok 18 - UnifiedAgentAdapter logs EXECUTE_<TYPE>_WITH_REASONING action when reasoning is enabled
+  ---
+  duration_ms: 41.701451
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:08.957Z","taskId":"b293fe42-e449-453b-b7b1-d11b3fb675b9","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"node-agent","metadata":{"correlation_id":"06b0b975-cb74-45f1-8bf3-26ca38abfe0b","task_id":"b293fe42-e449-453b-b7b1-d11b3fb675b9","agent":{"id":"node-agent","name":"Node Agent","runtime":"node","capabilities":["node_execution"],"reasoning_enabled":false},"request_metadata":{"trace_id":"trace-err"}}}
+# [ERROR] 💥 Intelligence Failure at Agent node-agent {
+#   err: NodeExecutionDispatchError: RUNTIME_FAILURE: Node runtime execution failed for agent node-agent: provider crashed
+#       at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308955.0598b90d4b86.mjs:901:16)
+#       at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308955.0598b90d4b86.mjs:857:24)
+#       at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308955.0598b90d4b86.mjs:591:19)
+#       ... 4 lines matching cause stack trace ...
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#     code: 'RUNTIME_FAILURE',
+#     classification: 'RUNTIME_FAILURE',
+#     agentId: 'node-agent',
+#     cause: Error: provider crashed
+#         at runAgentStub (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:512:19)
+#         at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308955.0598b90d4b86.mjs:848:26)
+#         at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308955.0598b90d4b86.mjs:591:19)
+#         at async waitForActual (node:assert:533:5)
+#         at async Function.rejects (node:assert:654:25)
+#         at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:556:3)
+#         at async Test.run (node:internal/test_runner/test:935:9)
+#         at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#       code: 'AGENT_EXECUTION_FAILED'
+#     }
+#   },
+#   agentId: 'node-agent',
+#   structuredFailure: { failure_class: 'RUNTIME_FAILURE', upstream_status: null },
+#   normalizedError: {
+#     message: 'RUNTIME_FAILURE: Node runtime execution failed for agent node-agent: provider crashed',
+#     code: 'RUNTIME_FAILURE',
+#     stack: 'NodeExecutionDispatchError: RUNTIME_FAILURE: Node runtime execution failed for agent node-agent: provider crashed\\n' +
+#       '    at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308955.0598b90d4b86.mjs:901:16)\\n' +
+#       '    at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308955.0598b90d4b86.mjs:857:24)\\n' +
+#       '    at async UnifiedAgentAdapter.executeAgent (file:...[truncated]'
+#   },
+#   originalStack: 'NodeExecutionDispatchError: RUNTIME_FAILURE: Node runtime execution failed for agent node-agent: provider crashed\\n' +
+#     '    at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308955.0598b90d4b86.mjs:901:16)\\n' +
+#     '    at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308955.0598b90d4b86.mjs:857:24)\\n' +
+#     '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308955.0598b90d4b86.mjs:591:19)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:556:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter marks task FAILED when node dispatch throws runtime failure
+ok 19 - UnifiedAgentAdapter marks task FAILED when node dispatch throws runtime failure
+  ---
+  duration_ms: 29.550525
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:09.002Z","taskId":"26383828-8871-4221-b22f-5789072757cb","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"node-agent","metadata":{"correlation_id":"a44336b2-ed63-4ce4-b30c-f78a4cba2cce","task_id":"26383828-8871-4221-b22f-5789072757cb","agent":{"id":"node-agent","name":"Node Agent","runtime":"node","capabilities":["node_execution"],"reasoning_enabled":false},"request_metadata":{"trace_id":"node-agent-missing-runner"}}}
+# [ERROR] 💥 Intelligence Failure at Agent node-agent {
+#   err: NodeExecutionDispatchError: CONFIG_NOT_FOUND: Node dispatcher module missing for agent node-agent
+#       at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:898:20)
+#       at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:857:24)
+#       at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:591:19)
+#       at async waitForActual (node:assert:533:5)
+#       at async Function.rejects (node:assert:654:25)
+#       at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:632:5)
+#       at async Test.run (node:internal/test_runner/test:935:9)
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#     code: 'CONFIG_NOT_FOUND',
+#     classification: 'CONFIG_FAILURE',
+#     agentId: 'node-agent',
+#     cause: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/ubuntu/swarms/src/runners/agentRunner.js' imported from /home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs
+#         at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+#         at moduleResolve (node:internal/modules/esm/resolve:932:10)
+#         at defaultResolve (node:internal/modules/esm/resolve:1056:11)
+#         at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:654:12)
+#         at \#cachedDefaultResolve (node:internal/modules/esm/loader:603:25)
+#         at ModuleLoader.resolve (node:internal/modules/esm/loader:586:38)
+#         at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:242:38)
+#         at onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:546:36)
+#         at TracingChannel.tracePromise (node:diagnostics_channel:344:14)
+#         at ModuleLoader.import (node:internal/modules/esm/loader:545:21) {
+#       code: 'ERR_MODULE_NOT_FOUND',
+#       url: 'file:///home/ubuntu/swarms/src/runners/agentRunner.js'
+#     }
+#   },
+#   agentId: 'node-agent',
+#   structuredFailure: { failure_class: 'CONFIG_NOT_FOUND', upstream_status: null },
+#   normalizedError: {
+#     message: 'CONFIG_NOT_FOUND: Node dispatcher module missing for agent node-agent',
+#     code: 'CONFIG_NOT_FOUND',
+#     stack: 'NodeExecutionDispatchError: CONFIG_NOT_FOUND: Node dispatcher module missing for agent node-agent\\n' +
+#       '    at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:898:20)\\n' +
+#       '    at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:857:24)\\n' +
+#       '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu...[truncated]'
+#   },
+#   originalStack: 'NodeExecutionDispatchError: CONFIG_NOT_FOUND: Node dispatcher module missing for agent node-agent\\n' +
+#     '    at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:898:20)\\n' +
+#     '    at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:857:24)\\n' +
+#     '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:591:19)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:632:5)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:09.003Z","taskId":"8efbc9f2-057f-40cd-ad82-bb66a4b7b203","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"hybrid-agent","metadata":{"correlation_id":"b0e86b45-fdee-4e76-ad49-b56bf6f36317","task_id":"8efbc9f2-057f-40cd-ad82-bb66a4b7b203","agent":{"id":"hybrid-agent","name":"Hybrid Agent","runtime":"hybrid","capabilities":["node_execution"],"reasoning_enabled":false},"request_metadata":{"trace_id":"hybrid-agent-missing-runner"}}}
+# [ERROR] 💥 Intelligence Failure at Agent hybrid-agent {
+#   err: NodeExecutionDispatchError: CONFIG_NOT_FOUND: Node dispatcher module missing for agent hybrid-agent
+#       at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:898:20)
+#       at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:857:24)
+#       at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:591:19)
+#       at async waitForActual (node:assert:533:5)
+#       at async Function.rejects (node:assert:654:25)
+#       at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:632:5)
+#       at async Test.run (node:internal/test_runner/test:935:9)
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#     code: 'CONFIG_NOT_FOUND',
+#     classification: 'CONFIG_FAILURE',
+#     agentId: 'hybrid-agent',
+#     cause: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/ubuntu/swarms/src/runners/agentRunner.js' imported from /home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs
+#         at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+#         at moduleResolve (node:internal/modules/esm/resolve:932:10)
+#         at defaultResolve (node:internal/modules/esm/resolve:1056:11)
+#         at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:654:12)
+#         at \#cachedDefaultResolve (node:internal/modules/esm/loader:603:25)
+#         at ModuleLoader.resolve (node:internal/modules/esm/loader:586:38)
+#         at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:242:38)
+#         at onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:546:36)
+#         at TracingChannel.tracePromise (node:diagnostics_channel:344:14)
+#         at ModuleLoader.import (node:internal/modules/esm/loader:545:21) {
+#       code: 'ERR_MODULE_NOT_FOUND',
+#       url: 'file:///home/ubuntu/swarms/src/runners/agentRunner.js'
+#     }
+#   },
+#   agentId: 'hybrid-agent',
+#   structuredFailure: { failure_class: 'CONFIG_NOT_FOUND', upstream_status: null },
+#   normalizedError: {
+#     message: 'CONFIG_NOT_FOUND: Node dispatcher module missing for agent hybrid-agent',
+#     code: 'CONFIG_NOT_FOUND',
+#     stack: 'NodeExecutionDispatchError: CONFIG_NOT_FOUND: Node dispatcher module missing for agent hybrid-agent\\n' +
+#       '    at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:898:20)\\n' +
+#       '    at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:857:24)\\n' +
+#       '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubun...[truncated]'
+#   },
+#   originalStack: 'NodeExecutionDispatchError: CONFIG_NOT_FOUND: Node dispatcher module missing for agent hybrid-agent\\n' +
+#     '    at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:898:20)\\n' +
+#     '    at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:857:24)\\n' +
+#     '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846308997.d25b0f5e10fe3.mjs:591:19)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:632:5)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter reports CONFIG_NOT_FOUND when node dispatcher module is unavailable
+ok 20 - UnifiedAgentAdapter reports CONFIG_NOT_FOUND when node dispatcher module is unavailable
+  ---
+  duration_ms: 45.510014
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [ERROR] 💥 Intelligence Failure at Agent node-agent {
+#   err: 'unexpected string thrown from dispatcher',
+#   agentId: 'node-agent',
+#   structuredFailure: { failure_class: 'UNVERIFIED_RUNTIME', upstream_status: null },
+#   normalizedError: { message: 'unexpected string thrown from dispatcher' }
+# }
+# Subtest: UnifiedAgentAdapter preserves thrown string message in audit on node dispatch
+ok 21 - UnifiedAgentAdapter preserves thrown string message in audit on node dispatch
+  ---
+  duration_ms: 47.185554
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:09.076Z","taskId":"8fc9fae5-9120-4905-b7e4-6d8722ec936f","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"node-agent","metadata":{"correlation_id":"f93377cf-d414-4412-b829-491b60c82580","task_id":"8fc9fae5-9120-4905-b7e4-6d8722ec936f","agent":{"id":"node-agent","name":"Node Agent","runtime":"node","capabilities":["node_execution"],"reasoning_enabled":false},"request_metadata":{"trace_id":"node-agent-missing-transitive"}}}
+# [ERROR] 💥 Intelligence Failure at Agent node-agent {
+#   err: NodeExecutionDispatchError: RUNTIME_FAILURE: Node runtime execution failed for agent node-agent: Cannot find package 'left-pad' imported from /workspace/src/runners/agentRunner.js
+#       at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846309073.b56b6e985ff92.mjs:901:16)
+#       at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846309073.b56b6e985ff92.mjs:857:24)
+#       at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846309073.b56b6e985ff92.mjs:591:19)
+#       at async waitForActual (node:assert:533:5)
+#       ... 3 lines matching cause stack trace ...
+#       at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#     code: 'RUNTIME_FAILURE',
+#     classification: 'RUNTIME_FAILURE',
+#     agentId: 'node-agent',
+#     cause: Error: Cannot find package 'left-pad' imported from /workspace/src/runners/agentRunner.js
+#         at adapter.getNodeDispatcher (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:733:19)
+#         at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846309073.b56b6e985ff92.mjs:847:41)
+#         at UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846309073.b56b6e985ff92.mjs:591:30)
+#         at async waitForActual (node:assert:533:5)
+#         at async Function.rejects (node:assert:654:25)
+#         at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:751:3)
+#         at async Test.run (node:internal/test_runner/test:935:9)
+#         at async Test.processPendingSubtests (node:internal/test_runner/test:633:7) {
+#       code: 'ERR_MODULE_NOT_FOUND'
+#     }
+#   },
+#   agentId: 'node-agent',
+#   structuredFailure: { failure_class: 'RUNTIME_FAILURE', upstream_status: null },
+#   normalizedError: {
+#     message: "RUNTIME_FAILURE: Node runtime execution failed for agent node-agent: Cannot find package 'left-pad' imported from /workspace/src/runners/agentRunner.js",
+#     code: 'RUNTIME_FAILURE',
+#     stack: "NodeExecutionDispatchError: RUNTIME_FAILURE: Node runtime execution failed for agent node-agent: Cannot find package 'left-pad' imported from /workspace/src/runners/agentRunner.js\\n" +
+#       '    at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846309073.b56b6e985ff92.mjs:901:16)\\n' +
+#       '    at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846309073.b56b6e985f...[truncated]'
+#   },
+#   originalStack: "NodeExecutionDispatchError: RUNTIME_FAILURE: Node runtime execution failed for agent node-agent: Cannot find package 'left-pad' imported from /workspace/src/runners/agentRunner.js\\n" +
+#     '    at UnifiedAgentAdapter.mapNodeExecutionError (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846309073.b56b6e985ff92.mjs:901:16)\\n' +
+#     '    at UnifiedAgentAdapter.executeNodeInternal (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846309073.b56b6e985ff92.mjs:857:24)\\n' +
+#     '    at async UnifiedAgentAdapter.executeAgent (file:///home/ubuntu/swarms/src/services/unifiedAgentAdapter.node-dispatch.8653.1782846309073.b56b6e985ff92.mjs:591:19)\\n' +
+#     '    at async waitForActual (node:assert:533:5)\\n' +
+#     '    at async Function.rejects (node:assert:654:25)\\n' +
+#     '    at async TestContext.<anonymous> (file:///home/ubuntu/swarms/tests/unifiedAgentAdapter.nodeDispatch.integration.test.js:751:3)\\n' +
+#     '    at async Test.run (node:internal/test_runner/test:935:9)\\n' +
+#     '    at async Test.processPendingSubtests (node:internal/test_runner/test:633:7)'
+# }
+# Subtest: UnifiedAgentAdapter keeps transitive ERR_MODULE_NOT_FOUND as runtime failure
+ok 22 - UnifiedAgentAdapter keeps transitive ERR_MODULE_NOT_FOUND as runtime failure
+  ---
+  duration_ms: 26.687668
+  ...
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] Registry startup integrity check {
+#   registryPathSource: 'default',
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [INFO] ✅ LexPrim Intelligence Matrix loaded {
+#   loadedAgents: 0,
+#   reasoningEnabledAgents: 0,
+#   registryPath: '/home/ubuntu/swarms/.agents/config/agents.yaml'
+# }
+# [AUDIT] {"event":"agent_task_init","status":"PENDING","lifecycle_seq":0,"timestamp":"2026-06-30T19:05:09.133Z","taskId":"c3aeed6d-c893-475e-992e-b6859eb88376","tenant_id":"tenant-1","actor_id":"user-1","agent_id":"reasoning-node-agent","metadata":{"correlation_id":"f93d4e36-6ed2-4742-b42f-4792364604aa","task_id":"c3aeed6d-c893-475e-992e-b6859eb88376","agent":{"id":"reasoning-node-agent","name":"Reasoning Node Agent","runtime":"node","capabilities":["node_execution","reasoning"],"reasoning_enabled":true},"request_metadata":{"trace_id":"trace-reasoning"}}}
+# [INFO] 🧠 Agent [Reasoning Node Agent] is reasoning about the legal task...
+# Subtest: UnifiedAgentAdapter reasoning path stores execution plan in payload.context and applies optional hook
+ok 23 - UnifiedAgentAdapter reasoning path stores execution plan in payload.context and applies optional hook
+  ---
+  duration_ms: 56.114506
+  ...
+# Subtest: forwardToPythonEngine guards missing PYTHON_BACKEND_URL with CONFIG_NOT_FOUND and structured log
+ok 24 - forwardToPythonEngine guards missing PYTHON_BACKEND_URL with CONFIG_NOT_FOUND and structured log
+  ---
+  duration_ms: 1.395924
+  ...
+# Subtest: loadRegistry logs loaded and reasoning-enabled counters for mixed definitions
+ok 25 - loadRegistry logs loaded and reasoning-enabled counters for mixed definitions
+  ---
+  duration_ms: 0.599227
+  ...
+# Subtest: loadRegistry supports primary and fallback registry paths and accepts dict-keyed agents
+ok 26 - loadRegistry supports primary and fallback registry paths and accepts dict-keyed agents
+  ---
+  duration_ms: 0.399038
+  ...
+# Subtest: node dispatcher CONFIG_NOT_FOUND is limited to the canonical agentRunner module
+ok 27 - node dispatcher CONFIG_NOT_FOUND is limited to the canonical agentRunner module
+  ---
+  duration_ms: 0.231285
+  ...
+# Subtest: loadRegistry runtime: invalid array entries trigger startup failure and unhealthy service
+ok 28 - loadRegistry runtime: invalid array entries trigger startup failure and unhealthy service # SKIP JS companion not importable in this runtime
+  ---
+  duration_ms: 15.401898
+  ...
+# Subtest: loadRegistry array path validates schema and fails fast instead of skipping entries
+ok 29 - loadRegistry array path validates schema and fails fast instead of skipping entries
+  ---
+  duration_ms: 0.284664
+  ...
+# Subtest: live .agents/config/agents.yaml declares mihwar/bayyinah and matches Modal deployment
+ok 30 - live .agents/config/agents.yaml declares mihwar/bayyinah and matches Modal deployment
+  ---
+  duration_ms: 0.44401
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 29
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 3468.90481
+[PASS] Node full tests
+
+=== SECRET STATE (presence only) ===
+BAYYINAH_ENDPOINT=UNSET
+MIHWAR_ENDPOINT=UNSET
+BAYYINAH_API_TOKEN=UNSET
+MIHWAR_API_TOKEN=UNSET
+MODAL_TOKEN_ID=UNSET
+MODAL_TOKEN_SECRET=UNSET
+
+[HOLD] Runtime smoke checks skipped (missing runtime secrets)
+
+=== PUBLIC SURFACE CHECKS ===
+[HOLD] Public surface checks skipped (set PUBLIC_SURFACE_ORIGIN and PUBLIC_SURFACE_APEX)
+
+=== VERDICT ===
+BLOCK
+======================================================================
+EXIT CODE: 1
+RESULT: FAIL (exit 1)

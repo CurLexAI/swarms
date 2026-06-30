@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="LexPrim is a sovereign AI operations layer for governed legal, regulatory, and agent workflows." />
   <title>LexPrim | Sovereign AI Operations</title>
+  <meta name="description" content="LexPrim Trust Center — operator trust and policy publication artifact. Evidence-first VERIFIED / UNVERIFIED disclosure, no product marketing." />
+  <title>LexPrim Trust Center</title>
   <style>
     :root {
       color-scheme: dark;
@@ -19,6 +21,7 @@
       --ok: #22c55e;
       --warn: #f59e0b;
       --radius: 24px;
+      --radius: 18px;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
@@ -30,6 +33,7 @@
       background:
         radial-gradient(circle at top left, rgba(14, 165, 233, 0.28), transparent 34rem),
         radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.14), transparent 28rem),
+        radial-gradient(circle at top left, rgba(14, 165, 233, 0.18), transparent 34rem),
         var(--bg);
       color: var(--text);
       line-height: 1.7;
@@ -56,6 +60,19 @@
       gap: 12px;
       font-weight: 800;
       letter-spacing: 0.02em;
+    a { color: var(--brand); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .shell {
+      width: min(980px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    header.shell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 28px 0 8px;
     }
 
     .mark {
@@ -219,6 +236,32 @@
       border: 1px solid var(--line);
       border-radius: var(--radius);
       padding: 22px;
+      width: 40px;
+      height: 40px;
+      border: 1px solid rgba(56, 189, 248, 0.5);
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(34, 197, 94, 0.14));
+      font-weight: 800;
+    }
+
+    .brand-text { font-weight: 800; letter-spacing: 0.02em; }
+
+    main.shell { padding: 8px 0 40px; }
+
+    h1 {
+      color: #f8fafc;
+      font-size: clamp(2rem, 5vw, 3rem);
+      letter-spacing: -0.03em;
+      margin: 18px 0 10px;
+    }
+
+    .intro { max-width: 720px; color: #cbd5e1; }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-top: 14px;
       background: var(--panel);
       backdrop-filter: blur(18px);
     }
@@ -290,6 +333,39 @@
       .hero, .trust { grid-template-columns: 1fr; padding-top: 32px; }
       .grid { grid-template-columns: 1fr; }
       .status-row, .evidence { grid-template-columns: 1fr; }
+    .card h2 { color: #f8fafc; font-size: 1.2rem; margin: 0 0 8px; }
+    .card h3 { color: #e2e8f0; font-size: 1rem; margin: 14px 0 4px; }
+
+    ul { margin: 8px 0 0; padding-inline-start: 20px; }
+    li { margin: 6px 0; }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.88em;
+      background: rgba(2, 6, 23, 0.55);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 6px;
+      padding: 1px 5px;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 800;
+      border-radius: 999px;
+      padding: 3px 9px;
+      margin-inline-end: 6px;
+    }
+
+    .verified { background: #14532d; color: #dcfce7; }
+    .unverified { background: #7f1d1d; color: #fee2e2; }
+
+    footer {
+      margin-top: 28px;
+      padding: 22px 0 40px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.92rem;
     }
   </style>
 </head>
@@ -403,6 +479,79 @@
 
   <footer class="shell">
     <strong>LexPrim</strong> — Sovereign AI operations for governed legal and regulatory workflows. No public secrets. No live agent activation from this page.
+  </main>
+
+  <footer class="shell">
+    <strong>LexPrim</strong> — Sovereign AI operations for governed legal and regulatory workflows. No public secrets. No live agent activation from this page.
+  <header class="shell">
+    <span class="mark" aria-hidden="true">LP</span>
+    <span class="brand-text">LexPrim</span>
+  </header>
+
+  <main class="shell">
+    <h1>Trust Center</h1>
+    <p class="intro">هذه الصفحة توضح ضوابط الثقة التشغيلية الحالية بشكل منضبط، مع فصل صريح بين ما هو <strong>VERIFIED</strong> داخليًا وما هو <strong>UNVERIFIED</strong>. هي وثيقة نشر سياسات تشغيلية وليست صفحة تسويقية أو شهادة امتثال نهائية.</p>
+
+    <div class="card">
+      <h2>1) Data Residency</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> المستودع الحالي هو طبقة تشغيل وكلاء ولا يحتوي أرشيف المنتج السابق داخل <code>main</code>.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا توجد في هذا المستودع أدلة تشغيل إنتاجي تثبت منطقة استضافة بيانات نهائية لكل عميل.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>2) Encryption</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> تُوثَّق سياسات حدود الأسرار والشبكة (secrets/network boundaries) في <code>.agents/policies</code> كحوكمة لمعالجة الأسرار — وهي ليست إثباتاً لتشفير قائم.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> تفعيل تشفير at-rest/in-transit في بيئة إنتاج محددة غير مُثبت من هذا المستودع.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>3) Access Control</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> توجد طبقة تحقق صلاحيات في مسار التنفيذ عبر <code>required_scope</code> وتسجيل انتهاكات الوصول في خدمة التدقيق.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا يوجد هنا إثبات تكامل IAM مؤسسي خارجي أو SSO مفعل إنتاجيًا.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>4) Model Governance</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> تعريف أدوار الوكلاء ونماذجهم موثق داخل ملفات الإعداد والتشغيل.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا تتوفر في هذا المستودع شهادات طرف ثالث أو اعتماد تنظيمي رسمي للنماذج.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>5) Audit Logging</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> مسار التنفيذ يرسل أحداثًا إلى <code>AuditService</code> لتتبع الأفعال وتحديث حالة المهام.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا يوجد دليل retention policy إنتاجية أو SIEM binding موثق داخل هذا المستودع.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>6) Incident Response</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> توجد قوالب وتقارير تشغيلية للـ execution verdict ضمن <code>docs/operations</code>.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا يوجد runbook حادثة إنتاجية متكامل بزمن استجابة/SLA معتمد في هذا المستودع.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Regulatory Alignment</h2>
+      <ul>
+        <li><span class="tag unverified">UNVERIFIED</span> لا تَدّعي هذه الصفحة امتثالاً لـ PDPL أو SAMA CSF أو NCA ECC؛ أي مواءمة تنظيمية تبقى غير مُتحقَّق منها وتتطلب تدقيقاً خارجياً مستقلاً وأدلة مُستشهَداً بها.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> هذا المستند ليس شهادة امتثال قانوني نهائي، ولا يوجد في هذا المستودع تقرير تدقيق طرف ثالث أو اعتماد تنظيمي رسمي.</li>
+      </ul>
+    </div>
+
+  </main>
+
+  <footer class="shell">
+    <strong>LexPrim</strong> — operator trust and policy publication artifact. No public secrets. No live agent activation from this page.
   </footer>
 
   <script src="https://cdn.example.com/trust/fallback-lib.js" integrity="sha384-ywpyLD6gBwdOofJewvXSuEH8UZHNwBs2e2G8hO9WlWAMz51QaJs2uheKtBJncro2" crossorigin="anonymous"></script>

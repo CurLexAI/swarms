@@ -1,0 +1,83 @@
+# Sovereign Audit Evidence
+Command: bash scripts/commander/master-audit-gate.sh .
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:05:09Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+=================================================================
+Master Audit Gate — architecture, MCP, agents, and sovereignty
+repo=/home/ubuntu/swarms
+=================================================================
+
+[INFO] [1/6] Existing boundary gates
+[INFO] ADR-0001 boundary gate
+[INFO] repo=/home/ubuntu/swarms
+[OK]   no autoStart activation flag detected
+[RESULT] PASS
+[OK]   ADR-0001 boundary gate passed
+[INFO] Modal boundary gate
+[INFO] repo=/home/ubuntu/swarms
+[OK]   no *.modal.run reference in src,public
+[OK]   no Modal SDK import found in client surfaces
+[OK]   server-side relay present (.agents/pr_review.py)
+[OK]   package init present: .agents/router/__init__.py
+[OK]   package init present: .agents/validators/__init__.py
+[WARN] SECRET_MISSING: BAYYINAH_ENDPOINT (expected outside CI/runtime)
+[WARN] SECRET_MISSING: MIHWAR_ENDPOINT (expected outside CI/runtime)
+[WARN] SECRET_MISSING: BAYYINAH_API_TOKEN (expected outside CI/runtime)
+[WARN] SECRET_MISSING: MIHWAR_API_TOKEN (expected outside CI/runtime)
+[OK]   no *.modal.run URL committed in tracked example files
+[OK]   workflow .github/workflows/agent-review.yml has no hardcoded modal URL
+[INFO] ADR-0001 boundary gate
+[INFO] repo=/home/ubuntu/swarms
+[OK]   no autoStart activation flag detected
+[RESULT] PASS
+[OK]   ADR-0001 boundary gate passed
+[WARN] no build artifact directories to scan (skipped)
+[RESULT] PASS
+[OK]   Modal boundary gate passed
+
+[INFO] [2/6] Sovereign endpoint posture
+[INFO] MASTER_AUDIT_REQUIRE_ENDPOINTS=false
+[WARN] MIHWAR_ENDPOINT_UNREACHABLE: http://localhost:11434
+[WARN] BAYYINAH_ENDPOINT_UNREACHABLE: http://localhost:11434
+
+[INFO] [3/6] MCP integration
+[OK]   file present: .agents/mcp/server.py
+[OK]   file present: .agents/mcp/README.md
+[OK]   file present: .agents/mcp/copilot-mcp-config.json
+[OK]   MCP server exports mihwar_generate
+[OK]   MCP server exports bayyinah_review
+[OK]   MCP README documents mihwar_generate
+[OK]   MCP README documents bayyinah_review
+[OK]   mcpServers configuration present
+
+[INFO] [4/6] Architecture doctrine and registry
+[OK]   file present: AGENTS.md
+[OK]   file present: CLAUDE.md
+[OK]   file present: ARCHITECTURE_DIRECTIVE.md
+[OK]   file present: docs/decisions/ADR-0001-swarms-boundary.md
+[OK]   file present: .agents/config/agents.yaml
+[OK]   file present: .agents/catalog/agents.yaml
+[OK]   file present: agents/registry.yaml
+
+[INFO] [5/6] Security posture, Aegis, and Qal'a
+[OK]   file present: .agents/mcp/aegis_gateway.py
+[OK]   file present: .agents/validators/qala_input_gate.py
+[OK]   file present: .agents/validators/qala_trace.py
+[OK]   file present: .agents/validators/qala_audit_sink.py
+[OK]   file present: .agents/validators/qala_ksa_pii.py
+[OK]   Qal'a audit sink default path documented in verifier
+[OK]   ALLOW_EXTERNAL_AI is not enabled
+[OK]   external provider adapters are fail-closed behind ALLOW_EXTERNAL_AI
+
+[INFO] [6/6] Qarar / Bayyinah boundary
+[OK]   Architecture directive forbids direct Qarar -> Bayyinah access
+[OK]   Architecture directive routes Qarar / Bayyinah traffic through Mihwar
+[OK]   no direct Bayyinah reference detected in public/client surfaces
+
+=================================================================
+[RESULT] PASS failures=0 warnings=2
+======================================================================
+EXIT CODE: 0
+RESULT: PASS

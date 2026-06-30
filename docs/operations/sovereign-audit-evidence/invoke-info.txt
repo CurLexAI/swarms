@@ -1,0 +1,73 @@
+# Sovereign Audit Evidence
+Command: python3 .agents/invoke.py info
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:06:56Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+
+── CurLexAI Coding Agents ──────────────────────────────
+
+  Mihwar — المحور
+  Tier:    1
+  Model:   deepseek-coder-v2:latest
+  Size:    236B (MoE 21B active)
+  Context: 128000 tokens
+  GPU:     A100-80GB x2
+  Tasks:
+    - Architecture and system design
+    - Complex multi-file feature development
+    - Refactoring with behavioral preservation
+    - Task decomposition for Bayyinah
+    - API design and contract definition
+    - Performance-critical implementations
+
+  Bayyinah — البيّنة
+  Tier:    2
+  Model:   qwen2.5-coder:32b
+  Size:    32B
+  Context: 131072 tokens
+  GPU:     A100-80GB x1
+  Tasks:
+    - Code review and bug detection
+    - Security vulnerability scanning
+    - Type safety and contract validation
+    - Test generation for uncovered logic
+    - Prompt injection surface detection
+    - Dependency risk assessment
+    - Validating Mihwar's generated code
+
+  Qarar Router — قرار
+  Tier:    0
+  Model:   ?
+  Size:    ?
+  Context: ? tokens
+  GPU:     ? x1
+  Tasks:
+
+  Search Agent — وكيل البحث
+  Tier:    2
+  Model:   ?
+  Size:    ?
+  Context: ? tokens
+  GPU:     ? x1
+  Tasks:
+
+  Code Agent — وكيل الكود
+  Tier:    2
+  Model:   ?
+  Size:    ?
+  Context: ? tokens
+  GPU:     ? x1
+  Tasks:
+
+  Audit Agent — وكيل التدقيق
+  Tier:    2
+  Model:   ?
+  Size:    ?
+  Context: ? tokens
+  GPU:     ? x1
+  Tasks:
+
+======================================================================
+EXIT CODE: 0
+RESULT: PASS
