@@ -8,7 +8,6 @@ import {
   isLegacyArchitectureBlocked,
   RuntimePolicyError,
   runtimePolicy,
-  type ProviderId,
 } from "../src/policy/runtime-policy.ts";
 
 interface CheckResult {
@@ -31,13 +30,6 @@ function assert(condition: boolean, message: string): void {
   if (!condition) {
     throw new Error(message);
   }
-}
-
-function assertNoExternalProviders(providers: readonly ProviderId[]): void {
-  assert(
-    providers.every((provider) => provider !== "vertex-llama4" && provider !== "cursor-cloud"),
-    `external providers escaped sovereign boundary: ${providers.join(",")}`,
-  );
 }
 
 const results: CheckResult[] = [

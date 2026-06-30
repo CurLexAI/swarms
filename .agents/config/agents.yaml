@@ -36,6 +36,15 @@ agents:
       benchmark_humaneval: "90.2"
       benchmark_livecodebench: "Tier-1 open-source"
 
+    modal:
+      app: "curlexai-agents"
+      endpoint: "MihwarAgent"
+      gpu: "A100-80GB"
+      gpu_count: 2
+      concurrency_limit: 1
+      timeout_seconds: 300
+      keep_warm: 1
+
     inference:
       engine: "ollama"
       max_tokens: 8192
@@ -79,6 +88,15 @@ agents:
       license: "Apache 2.0"
       benchmark_humaneval: "92.7"
       benchmark_livecodebench: "Tier-1 open-source (instruction)"
+
+    modal:
+      app: "curlexai-agents"
+      endpoint: "BayyinahAgent"
+      gpu: "A100-80GB"
+      gpu_count: 1
+      concurrency_limit: 4
+      timeout_seconds: 120
+      keep_warm: 1
 
     inference:
       engine: "ollama"
