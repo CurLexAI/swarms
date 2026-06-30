@@ -27,7 +27,7 @@ jobs:
     name: Boundary Gates
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: ADR-0001 boundary
         run: bash scripts/commander/adr-0001-boundary-gate.sh .
       - name: Modal boundary
@@ -39,7 +39,7 @@ jobs:
     needs: boundary-gates
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
@@ -64,7 +64,7 @@ jobs:
     needs: boundary-gates
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
@@ -88,7 +88,7 @@ jobs:
     needs: build-mihwar-core
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
       - name: Build image (no push on PR)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5
