@@ -33,8 +33,9 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+import unittest.mock
 from typing import TYPE_CHECKING, Any
-from unittest import TestCase, main, mock
+from unittest import TestCase, main
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -93,12 +94,12 @@ class _ExternalProviderGuardMixin(_MixinBase):
     api_key_env: str
 
     def test_missing_api_key_raises_runtime_error(self) -> None:
-        with mock.patch.dict("os.environ", _env(), clear=True):
+        with unittest.mock.patch.dict("os.environ", _env(), clear=True):
             with self.assertRaisesRegex(RuntimeError, "not configured"):
                 self.provider_factory().execute(_request())
 
     def test_key_present_but_external_ai_disabled_raises(self) -> None:
-        with mock.patch.dict(
+        with unittest.mock.patch.dict(
             "os.environ", _env(**{self.api_key_env: "sk-test"}), clear=True
         ):
             with self.assertRaisesRegex(RuntimeError, "ALLOW_EXTERNAL_AI"):
@@ -112,7 +113,7 @@ class _ExternalProviderGuardMixin(_MixinBase):
         # pass even if a regression let one of these values open the gate.
         for sneaky in ("1", "yes", "TRUE ", "on", "enabled"):
             with self.subTest(value=sneaky):
-                with mock.patch.dict(
+                with unittest.mock.patch.dict(
                     "os.environ",
                     _env(**{self.api_key_env: "sk-test", "ALLOW_EXTERNAL_AI": sneaky}),
                     clear=True,
@@ -121,7 +122,7 @@ class _ExternalProviderGuardMixin(_MixinBase):
                         self.provider_factory().execute(_request())
 
     def test_fully_opted_in_reaches_unimplemented_transport(self) -> None:
-        with mock.patch.dict(
+        with unittest.mock.patch.dict(
             "os.environ",
             _env(**{self.api_key_env: "sk-test", "ALLOW_EXTERNAL_AI": "true"}),
             clear=True,
@@ -132,7 +133,7 @@ class _ExternalProviderGuardMixin(_MixinBase):
     def test_true_is_case_insensitive(self) -> None:
         # The adapter lower-cases the flag, so "True"/"TRUE" must also open
         # the gate (and then hit the unimplemented transport).
-        with mock.patch.dict(
+        with unittest.mock.patch.dict(
             "os.environ",
             _env(**{self.api_key_env: "sk-test", "ALLOW_EXTERNAL_AI": "True"}),
             clear=True,
@@ -170,7 +171,7 @@ class ModalProviderGuardTests(TestCase):
             _env(MODAL_TOKEN_ID="x", MODAL_TOKEN_SECRET="y"),
         ):
             with self.subTest(env=sorted(env)):
-                with mock.patch.dict("os.environ", env, clear=True):
+                with unittest.mock.patch.dict("os.environ", env, clear=True):
                     with self.assertRaisesRegex(RuntimeError, "SECURITY_POLICY"):
                         ModalProvider().execute(_request())
 

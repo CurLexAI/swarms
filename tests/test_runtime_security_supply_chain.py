@@ -22,9 +22,10 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import unittest.mock
 from pathlib import Path
 from types import ModuleType
-from unittest import TestCase, main, mock
+from unittest import TestCase, main
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -52,14 +53,14 @@ class RequirePinnedRevisionTests(TestCase):
     ENV = "MIHWAR_MODEL_REVISION"
 
     def test_missing_revision_raises(self) -> None:
-        with mock.patch.dict("os.environ", {}, clear=True):
+        with unittest.mock.patch.dict("os.environ", {}, clear=True):
             with self.assertRaisesRegex(RuntimeError, f"{self.ENV}_missing"):
                 rs.require_pinned_revision(self.ENV)
 
     def test_empty_or_whitespace_revision_raises_missing(self) -> None:
         for value in ("", "   ", "\t\n"):
             with self.subTest(value=repr(value)):
-                with mock.patch.dict("os.environ", {self.ENV: value}, clear=True):
+                with unittest.mock.patch.dict("os.environ", {self.ENV: value}, clear=True):
                     with self.assertRaisesRegex(RuntimeError, f"{self.ENV}_missing"):
                         rs.require_pinned_revision(self.ENV)
 
@@ -68,7 +69,7 @@ class RequirePinnedRevisionTests(TestCase):
         # must be refused — this is the core supply-chain protection.
         for mutable in ("main", "v1.0", "latest", "abc1234", _VALID_SHA[:39]):
             with self.subTest(ref=mutable):
-                with mock.patch.dict("os.environ", {self.ENV: mutable}, clear=True):
+                with unittest.mock.patch.dict("os.environ", {self.ENV: mutable}, clear=True):
                     with self.assertRaisesRegex(
                         RuntimeError, f"{self.ENV}_must_be_full_40_char_commit_sha"
                     ):
@@ -76,21 +77,21 @@ class RequirePinnedRevisionTests(TestCase):
 
     def test_uppercase_hex_is_rejected(self) -> None:
         # The matcher is lowercase-only; an uppercase SHA must not pass.
-        with mock.patch.dict("os.environ", {self.ENV: _VALID_SHA.upper()}, clear=True):
+        with unittest.mock.patch.dict("os.environ", {self.ENV: _VALID_SHA.upper()}, clear=True):
             with self.assertRaises(RuntimeError):
                 rs.require_pinned_revision(self.ENV)
 
     def test_too_long_is_rejected(self) -> None:
-        with mock.patch.dict("os.environ", {self.ENV: _VALID_SHA + "0"}, clear=True):
+        with unittest.mock.patch.dict("os.environ", {self.ENV: _VALID_SHA + "0"}, clear=True):
             with self.assertRaises(RuntimeError):
                 rs.require_pinned_revision(self.ENV)
 
     def test_valid_pinned_sha_is_returned(self) -> None:
-        with mock.patch.dict("os.environ", {self.ENV: _VALID_SHA}, clear=True):
+        with unittest.mock.patch.dict("os.environ", {self.ENV: _VALID_SHA}, clear=True):
             self.assertEqual(rs.require_pinned_revision(self.ENV), _VALID_SHA)
 
     def test_surrounding_whitespace_is_trimmed(self) -> None:
-        with mock.patch.dict(
+        with unittest.mock.patch.dict(
             "os.environ", {self.ENV: f"  {_VALID_SHA}\n"}, clear=True
         ):
             self.assertEqual(rs.require_pinned_revision(self.ENV), _VALID_SHA)
@@ -110,14 +111,14 @@ class TrustRemoteCodeForTests(TestCase):
     def test_unpinned_revision_raises_before_consulting_ack(self) -> None:
         # Even with a perfect acknowledgement, an unpinned revision must fail
         # closed: the SHA check runs first.
-        with mock.patch.dict(
+        with unittest.mock.patch.dict(
             "os.environ", {self.ACK_ENV: rs.REMOTE_CODE_ACK}, clear=True
         ):
             with self.assertRaises(RuntimeError):
                 rs.trust_remote_code_for(self._policy())
 
     def test_pinned_without_ack_returns_false(self) -> None:
-        with mock.patch.dict(
+        with unittest.mock.patch.dict(
             "os.environ", {self.REVISION_ENV: _VALID_SHA}, clear=True
         ):
             self.assertFalse(rs.trust_remote_code_for(self._policy()))
@@ -125,7 +126,7 @@ class TrustRemoteCodeForTests(TestCase):
     def test_pinned_with_wrong_ack_value_returns_false(self) -> None:
         for wrong in ("true", "1", "yes", rs.REMOTE_CODE_ACK.lower(), "ALLOW"):
             with self.subTest(ack=wrong):
-                with mock.patch.dict(
+                with unittest.mock.patch.dict(
                     "os.environ",
                     {self.REVISION_ENV: _VALID_SHA, self.ACK_ENV: wrong},
                     clear=True,
@@ -133,7 +134,7 @@ class TrustRemoteCodeForTests(TestCase):
                     self.assertFalse(rs.trust_remote_code_for(self._policy()))
 
     def test_pinned_with_exact_ack_returns_true(self) -> None:
-        with mock.patch.dict(
+        with unittest.mock.patch.dict(
             "os.environ",
             {self.REVISION_ENV: _VALID_SHA, self.ACK_ENV: rs.REMOTE_CODE_ACK},
             clear=True,
