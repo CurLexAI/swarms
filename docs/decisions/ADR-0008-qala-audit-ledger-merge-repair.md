@@ -55,7 +55,7 @@ green gate alone does not prove "no records were removed."
    merge-induced corruption, **not** a content edit or a removal of genuine
    audit evidence — it is the documented exception this ADR authorises.
 2. **Standing exception.** Repairing the ledger to undo *merge-induced*
-   corruption (multi-GENESIS concatenation or byte-identical duplicates) is
+   corruption (multi-GENESIS concatenation or duplicated event records) is
    a permitted maintenance operation, provided it: (a) preserves every
    unique event verbatim, (b) re-seals via the sink's own canonicalize/hash
    functions, and (c) is recorded against this ADR in the PR.
