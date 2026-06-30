@@ -60,6 +60,20 @@ jobs:
       - name: Run aggregate Node gate
         run: npm run check
 
+      # The Qala audit chain is no longer tracked in git (ADR-0008 §Decision.4):
+      # `npm run check` runs qala-audit-integrity-gate.sh, which deterministically
+      # seals artifacts/security/qala-audit.jsonl from the merge-safe event source
+      # and verifies it against the committed anchor. Publish the sealed chain as a
+      # build artifact so it is reviewable without being committed.
+      - name: Upload sealed Qala audit chain
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qala-audit-chain
+          path: artifacts/security/qala-audit.jsonl
+          if-no-files-found: warn
+          retention-days: 90
+
       - name: Run full JavaScript Node test suite
         run: node --import tsx --test tests/*.test.js
 

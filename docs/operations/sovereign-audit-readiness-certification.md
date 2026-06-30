@@ -151,6 +151,7 @@ The following evidence was collected locally on 2026-06-30 after installing `req
 Observed correction: the requested statement referenced `373 passed, 6 skipped`; the verified local result for this repository state is `378 passed, 1 warning`. The report must use the observed value, not the requested value.
 
 ## 5. Certification Matrix
+## 4. Certification Matrix
 
 | Domain | Current status | Reason |
 | --- | --- | --- |
@@ -166,6 +167,7 @@ Observed correction: the requested statement referenced `373 passed, 6 skipped`;
 | Patent support | `INFERRED` | Engineering controls support the narrative but do not prove legal claims. |
 
 ## 6. Final Verdict
+## 5. Final Verdict
 
 `VERIFIED` — The repository has a safe CI control plane for gated verification and optional activation.
 
@@ -176,3 +178,6 @@ Observed correction: the requested statement referenced `373 passed, 6 skipped`;
 Decision: `LOCAL_GATES_VERIFIED_AND_RUNTIME_UNVERIFIED`.
 
 Next action: attach the local evidence above, then run CI Verify Mode and CI Activate Mode only after production secrets, approvals, live endpoint smoke, and public edge checks are available.
+Decision: `PARTIAL_READY_FOR_GATED_CI_ORCHESTRATION`.
+
+Next action: run Verify Mode, attach the generated artifact, then run Activate Mode only after production secrets, approvals, and runtime smoke prerequisites are in place.

@@ -1,0 +1,13 @@
+# Sovereign Audit Evidence
+Command: bash scripts/commander/adr-0001-boundary-gate.sh .
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:06:11Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+[INFO] ADR-0001 boundary gate
+[INFO] repo=/home/ubuntu/swarms
+[OK]   no autoStart activation flag detected
+[RESULT] PASS
+======================================================================
+EXIT CODE: 0
+RESULT: PASS

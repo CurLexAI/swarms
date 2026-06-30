@@ -1,0 +1,15 @@
+# Sovereign Audit Evidence
+Command: bash scripts/commander/agent-activation-preflight.sh .
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:06:11Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+[repo]
+?? docs/operations/sovereign-audit-evidence/
+[python]
+python_ok: 3.12
+[secrets presence only]
+FAIL: missing env: MODAL_TOKEN_ID
+======================================================================
+EXIT CODE: 1
+RESULT: FAIL (exit 1)

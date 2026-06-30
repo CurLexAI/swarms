@@ -36,6 +36,7 @@
     "test:render-public": "node --test tests/renderPublicServer.test.js",
     "ollama:activate-local": "bash scripts/ollama/activate-local-models.sh",
     "ollama:verify-local": "OLLAMA_PULL=0 bash scripts/ollama/activate-local-models.sh"
+    "test:render-public": "node --test tests/renderPublicServer.test.js"
   },
   "dependencies": {
     "js-yaml": "^5.2.0",
