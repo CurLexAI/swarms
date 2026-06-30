@@ -81,6 +81,7 @@ validate_repo() {
   run_step "secret-pattern review" check_secret_free_diff
   run_step "npm aggregate check" npm run check
   run_step "frontend SRI check" npm run test:cdn-sri
+  run_step "TypeScript typecheck" npx tsc --noEmit
   # TypeScript typecheck is a tracked blocker (AGENTS.md:253) — run as
   # non-blocking advisory so it does not short-circuit remaining gates.
   log "START TypeScript typecheck (advisory)"
