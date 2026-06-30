@@ -80,7 +80,10 @@ def test_copilot_setup_installs_dev_dependencies_and_avoids_live_integrations() 
 
     assert "npm ci --include=dev" in text
     assert "npm run check --if-present" in text
-    assert "npm test --if-present" in text
+    # Unit tests only — integration tests need PYTHON_BACKEND_* / live endpoints,
+    # which the air-gapped sovereign setup intentionally avoids.
+    assert "npm run test:unit --if-present" in text
+    assert "npm test --if-present" not in text
 
 
 def test_frontend_sri_workflow_uses_lockfile_install() -> None:
