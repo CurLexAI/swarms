@@ -33,14 +33,16 @@ python3 .agents/invoke.py info
 
 # Tests (pytest and unittest cover the same Python tests; either works)
 python3 -m unittest discover -s tests
-python3 -m pytest -q tests/
+python3 -m pytest -q tests/          # or: npm run test:python
 python3 -m pytest -q tests/test_router_policy.py            # single file
 python3 -m pytest -q tests/test_router_policy.py::TestName  # single test
 
-# Node tests for the unified agent adapter (3 files: unit + 2 integration)
-npm test                 # full adapter suite
+# Node tests. `npm test` is the unified-adapter suite (unit + 2 integration);
+# `npm run test:node` runs every Node test (all .test.js and .test.ts via tsx).
+npm test                 # unifiedAgentAdapter unit + integration
 npm run test:unit        # unifiedAgentAdapter unit only
 npm run test:security    # sovereignCyberRadar
+npm run test:node        # all Node tests (.js then .ts)
 node --test tests/unifiedAgentAdapter.test.js               # single file
 node --import tsx --test tests/runtime-policy.test.ts       # a .ts test via tsx
 
@@ -54,6 +56,11 @@ npm run security:radar:simulate
 npx tsc --noEmit
 # Build (emits .js next to .ts)
 npm run build
+
+# Misc developer utilities
+npm run doctor:cli               # dev CLI environment diagnostics
+npm run integrity:frontend       # regenerate frontend SRI/integrity manifest
+npm run deploy:evidence:validate # validate launch-evidence docs
 
 # Aggregate gate (npm run check), in order:
 #   service-divergence -> unit tests -> ADR-0001 boundary -> CDN SRI ->
@@ -75,6 +82,10 @@ bash scripts/commander/public-surface-boundary-gate.sh .   # public/ surface bou
 bash scripts/commander/qala-audit-integrity-gate.sh .      # Qala audit hash-chain integrity
 bash scripts/commander/qala-egress-residency-gate.sh .     # egress/data-residency boundary
 bash scripts/commander/release-readiness-gate.sh .         # aggregate launch readiness
+bash scripts/commander/master-audit-gate.sh .              # chains the core gates in one pass
+bash scripts/commander/agent-activation-preflight.sh .     # preflight before any activation claim
+bash scripts/commander/modal-runtime-smoke.sh .            # Modal runtime smoke (needs secrets)
+bash scripts/commander/repo-rename-gate.sh .               # repo-identity / rename safety
 python3 scripts/commander/swarm-presence-monitor.py --repo-root . --no-network
 python3 scripts/commander/copilot-agent-profiles-gate.py
 bash .agents/skills/codex-commander/scripts/codex_commander_gate.sh .
@@ -116,7 +127,9 @@ Three named agents and their roles are first-class concepts and appear throughou
 | **Bayyinah** (البيّنة) | Qwen2.5-Coder-32B-Instruct | Reviewer / validator | 2 |
 | **Copilot SWE** | GitHub Copilot | Scaffold-only executor | 3 |
 
-Default collaboration: Mihwar generates → Bayyinah reviews → up to 3 revision cycles → human approval. Bayyinah must never approve with unresolved CRITICAL/HIGH findings.
+Default collaboration: Mihwar generates → Bayyinah reviews → up to 3 revision cycles → human approval. Bayyinah must never approve with unresolved CRITICAL/HIGH findings. The `.agents/core_coding_swarm.py` orchestrator encodes this pipeline (`phase_1_mihwar_planning` → `phase_2_bayyinah_validation`); it is offline/mock-safe by default and refuses to run when external AI is enabled.
+
+> **Two lenses on the same three names.** The table above is the *code-level* model-assignment view (the source of truth in `.agents/config/agents.yaml`). The newer platform doctrine in `ARCHITECTURE_DIRECTIVE.md` (Arabic) describes a *system-topology* view where **Bayyinah** is the evidence/knowledge core (single source of truth, Qdrant-backed), **Mihwar** is the control/audit plane through which every interaction must pass, and **Qarar** is the public-facing interface that never touches Bayyinah directly. Keep both lenses in mind: the directive governs platform topology and compliance (ECC-2:2024, PDPL); `agents.yaml` governs which model executes which coding task.
 
 ### Key components
 
@@ -128,6 +141,9 @@ Default collaboration: Mihwar generates → Bayyinah reviews → up to 3 revisio
 - **`.agents/validators/`** — programmatic gates. `bayyinah_validation_gate.py` (P0-tested in `tests/test_bayyinah_validation_gate.py`) plus the **Qala security layer** (`qala_input_gate.py`, `qala_ksa_pii.py`, `qala_trace.py`, `qala_audit_sink.py`) and `classification_validator.py` / `sovereign_security_controls.py`. Qala (قلعة, "Qal'a") is the dependency-free security architecture from `docs/decisions/ADR-0003-qala-security-architecture.md` — input validation, KSA PII redaction, trace correlation, and a sealed hash-chained audit sink. Raw secrets/PII must never enter these modules.
 - **`.agents/providers/`** — provider abstractions: `modal_provider.py`, `openai_provider.py`, `anthropic_provider.py`, and local sovereign runtimes `local_ollama.py` / `local_llama_cpp.py`.
 - **`.agents/mcp/`** — MCP server config and the **Aegis gateway** (`aegis_gateway.py`): a local-only, dependency-free MCP boundary that does role-based `tools/list` filtering, prompt-injection inspection of `tools/call` args, and sanitized hash-chained audit through Qala. Also hosts the Qarar API server (`qarar_api_server.py`) and Copilot/Render/Cloudflare/Modal MCP integration config.
+- **`.agents/gateway/`** — **scaffolding only** for ADR-0005 (public OpenAI-compatible LLM gateway). `mcp_server.py` exposes the OpenAI *shape* but every routing endpoint returns HTTP 501 ("ADR-0005 not approved"); it calls no Modal endpoint and embeds no URL/token. The `Dockerfile` builds `swarms-gateway-stub` (deliberately not a production image name). Do not wire it to Modal until ADR-0005 is approved.
+- **`.agents/core_coding_swarm.py`** — Mihwar→Bayyinah pipeline orchestrator (ADR-0001 category 1); offline/mock-safe, external-AI-denied by default. `.agents/drive_service_agent.py` and `.agents/runtime_security.py` are supporting agent-operations modules; `.agents/adapters/lexprim_bridge.py` is the (test-covered) bridge toward the LexPrim side, kept on the operations side of the boundary.
+- **`.agents/catalog/agents.yaml`** — agent *catalog* (id, category, permissions, allowed/forbidden actions) for governance, distinct from the runtime profiles in `.agents/config/agents.yaml`. **`.agents/registries/`** holds the cross-client skills registry (`ai-skills.registry.yaml`, single source of truth for gemini/codex/claude-code/chatgpt skills with `no_autostart`/`no_secrets`/`no_modal_public_urls` rules) and `recovery-supervisor.yaml`. `.agents/plugins/marketplace.json` is the plugin marketplace manifest.
 - **`src/services/unifiedAgentAdapter.ts`** — Node-side adapter. Loads `.agents/config/agents.yaml` (falls back to `agents/registry.yaml`), validates payloads, authorizes via `PolicyService`, and dispatches to Python or Node runtimes (dynamic import of `../runners/agentRunner.js`). Hand-maintained `.js` companion is tracked; `ControlPlaneSecurityService.js` is gitignored as tsc-emitted output.
 - **`src/security/`** — TS mirrors of the Qala Python layer (`qalaTrace.ts`, `qalaKsaPii.ts`, `qalaAuditSink.ts`, `bayyinahRedactor.ts`, `contentSecurityPolicy.ts`) plus `sovereignCyberRadar.ts` — the security scanner CLI (`npm run security:radar:*`).
 - **`src/runtimePolicy.ts`** / **`src/policy/runtime-policy.ts`** — runtime policy enforced by `scripts/check-runtime-policy.ts` and `tests/runtime-policy.test.ts` (both run inside `npm run check`).
@@ -147,6 +163,7 @@ Beyond the four allowed categories, the repo also carries operator-adjacent surf
 - `sama_ingestion_swarm/` — SAMA document ingestion swarm (fetcher/parser/auditor/orchestrator); an ADR-0001-sanctioned POC with deps gated in `requirements-agent.txt`.
 - `sovereign-connectivity-poc/`, `qarar-swarms-sovereign-integration/`, `dev-factory/`, `sovereign_network_agent_systemd_v1/` — connectivity/integration POCs and operator tooling.
 - `modal/`, `mcp/`, `config/`, `agents/` (legacy `registry.yaml`) — runtime manifests and the legacy agent registry fallback.
+- `artifacts/security/qala-audit.jsonl` — sealed, hash-chained Qala audit sink output (checked by `qala-audit-integrity-gate.sh`; do not hand-edit). `ci/policy-gate.yml` — PR gate reminding that registry/policy changes require an ADR + sandbox tests + Mihwar approval.
 
 ## Required conventions
 
@@ -172,13 +189,16 @@ Beyond the four allowed categories, the repo also carries operator-adjacent surf
 ## Pointers
 
 - `AGENTS.md` — agent handbook (read first for operating model, execution order, and the Repository Activation Checklist).
+- `ARCHITECTURE_DIRECTIVE.md` — platform architectural doctrine (Arabic): Bayyinah core / Mihwar control plane / Qarar public interface, the swarms-and-agents inventory, and KSA compliance controls (ECC-2:2024, PDPL). Read alongside the `agents.yaml` model-assignment view.
+- `AGENT_BOOTSTRAP.md` / `ONBOARDING_CHECKLIST.md` — short bootstrap prompt and onboarding steps for a new operational agent (register identity via Mihwar, short-lived creds, read-only sandbox test, enable logging before any write).
 - `INSTRUCTION_LOADING_ORDER.md` — deterministic instruction-loading policy (kernel + policies + one task mode).
 - `CONSTITUTION.md` — founding charter (Arabic); founder/client rights and duties.
 - `README.md` — operating-model summary and verification command list.
 - `docs/decisions/` — Architecture Decision Records. Key ones:
   - `ADR-0001-swarms-boundary.md` — repository boundary (authoritative).
+  - `ADR-0002-*` — repo identity, Mihwar control plane, and operator static-artifacts boundary (three records share the ADR-0002 number).
   - `ADR-0003-qala-security-architecture.md` — Qala (قلعة) security layer.
-  - `ADR-0004-qala-modal-edge-hmac-auth.md` — Modal/edge HMAC auth.
+  - `ADR-0004-qala-modal-edge-hmac-auth.md` (Modal/edge HMAC auth) and `ADR-0004-canonical-platform-surfaces.md` (canonical platform surfaces).
   - `ADR-0005-public-llm-gateway.md`, `ADR-0006-fastapi-secondary-ai-gateway.md`, `ADR-0007-sovereign-incident-decision-service.md`.
 - `docs/secrets-policy.md` — required/optional secrets and rotation posture.
 - `docs/launch-evidence/agent-launch.md` — launch readiness template (stays pending until evidence exists).
