@@ -154,6 +154,18 @@ def _default_anchor_path() -> Path:
     )
 
 
+def _validated_anchor_path(path: Path) -> Path:
+    safe_root = Path("artifacts/security").resolve()
+    resolved = path.expanduser().resolve()
+    try:
+        resolved.relative_to(safe_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"anchor path must be within {safe_root}, got: {resolved}"
+        ) from exc
+    return resolved
+
+
 def _canonicalize(
     *,
     event: str,
@@ -591,7 +603,13 @@ def _main(argv: list[str] | None = None) -> int:
     if args.command == "seal":
         events_path = Path(args.events) if args.events else _default_events_path()
         sink = QalaAuditSink(_resolve_verify_path(args.path))
-        anchor_path = Path(args.anchor) if args.anchor else _default_anchor_path()
+        try:
+            anchor_path = _validated_anchor_path(
+                Path(args.anchor) if args.anchor else _default_anchor_path()
+            )
+        except ValueError as exc:
+            print(f"AUDIT_SEAL_FAILED message={exc}")
+            return 2
         print(f"AUDIT_EVENTS_PATH: {events_path}")
         print(f"AUDIT_SINK_PATH: {sink.sink_path}")
         try:
