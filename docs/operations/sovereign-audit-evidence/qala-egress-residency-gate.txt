@@ -1,0 +1,17 @@
+# Sovereign Audit Evidence
+Command: bash scripts/commander/qala-egress-residency-gate.sh .
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:05:09Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+[INFO] Qal'a egress residency gate (Q8)
+[INFO] repo=/home/ubuntu/swarms
+EGRESS_HOSTS_SCANNED: 0
+ALLOWLIST: *.modal.run,api.github.com,github.com,huggingface.co,router.huggingface.co,ollama,llama-server,qarar-security-gate,login.microsoftonline.com
+UNAPPROVED_HOSTS: NONE
+IP_LITERALS: NONE
+[OK]   no unapproved egress destinations detected
+[RESULT] PASS
+======================================================================
+EXIT CODE: 0
+RESULT: PASS

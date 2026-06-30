@@ -1,0 +1,22 @@
+# Sovereign Audit Evidence
+Command: bash scripts/commander/agent-presence-gate.sh .
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:06:11Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+[INFO] Parsing configured agents from .agents/config/agents.yaml
+[OK] configured_agent_count=6
+[OK] agent=mihwar display_name=Mihwar — المحور model=deepseek-coder-v2:latest
+[OK] agent=bayyinah display_name=Bayyinah — البيّنة model=qwen2.5-coder:32b
+[OK] agent=router display_name=Qarar Router — قرار model=unknown
+[OK] agent=search_agent display_name=Search Agent — وكيل البحث model=unknown
+[OK] agent=code_agent display_name=Code Agent — وكيل الكود model=unknown
+[OK] agent=audit_agent display_name=Audit Agent — وكيل التدقيق model=unknown
+[INFO] Inspecting workflow gates in .github/workflows/agent-review.yml
+[WARN] Mihwar gate condition not found
+[WARN] SECRET_MISSING: BAYYINAH_ENDPOINT or BAYYINAH_API_TOKEN
+[WARN] SECRET_MISSING: MIHWAR_ENDPOINT or MIHWAR_API_TOKEN
+[INFO] gate completed
+======================================================================
+EXIT CODE: 0
+RESULT: PASS
