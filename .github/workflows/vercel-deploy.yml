@@ -34,7 +34,7 @@ jobs:
     name: Modal boundary gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Ensure public frontend cannot call Modal directly
         run: bash scripts/commander/modal-boundary-gate.sh .
 
@@ -44,7 +44,7 @@ jobs:
     needs: modal-boundary
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: "20"
@@ -74,7 +74,7 @@ jobs:
     needs: modal-boundary
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: "20"
