@@ -1,1 +1,8 @@
 *.sh text eol=lf
+
+# Qal'a (Q7) tamper-evident append-only audit ledger: never auto-merge.
+# Treating it as binary makes git raise a conflict instead of silently
+# concatenating divergent sealed chains, which produced duplicate records and
+# broken hash-links across PRs (see ADR-0008). On conflict, deliberately
+# re-seal via the sink's own canonicalize/hash rather than git union-merging.
+artifacts/security/qala-audit.jsonl -merge -text
