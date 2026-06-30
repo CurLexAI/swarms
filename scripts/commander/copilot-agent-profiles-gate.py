@@ -14,6 +14,7 @@ REQUIRED_PROFILES = (
     "mihwar.agent.md",
     "qarar-platform-supervisor.agent.md",
     "free-birds.agent.md",
+    "core-coding-swarm.agent.md",
 )
 
 FORBIDDEN_PATTERNS = (

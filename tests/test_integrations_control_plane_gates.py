@@ -185,6 +185,7 @@ def test_copilot_custom_agent_profiles_use_agent_suffix_only() -> None:
 
     assert profiles == [
         "bayyinah.agent.md",
+        "core-coding-swarm.agent.md",
         "free-birds.agent.md",
         "mihwar.agent.md",
         "qarar-platform-supervisor.agent.md",
