@@ -174,3 +174,114 @@ test("payload key order does not change the hash", () => {
     });
   });
 });
+
+// --- ADR-0008 §Decision.4: deterministic seal-from-events + anchor ---
+
+const SEAL_EVENTS = [
+  {
+    recordId: "11111111-1111-1111-1111-111111111111",
+    event: "policy_decision",
+    traceId: "t1",
+    spanId: "s1",
+    tenantId: "system",
+    occurredAt: "2026-06-01T00:00:00.000Z",
+    payload: { action: "a1" },
+  },
+  {
+    recordId: "22222222-2222-2222-2222-222222222222",
+    event: "route_decision",
+    traceId: "t2",
+    spanId: "s2",
+    tenantId: "system",
+    occurredAt: "2026-06-01T00:00:01.000Z",
+    payload: { action: "a2" },
+  },
+];
+
+test("sealFromEvents is deterministic and byte-reproducible", () => {
+  withTempSink((sinkA) => {
+    withTempSink((sinkB) => {
+      const headA = sinkA.sealFromEvents(SEAL_EVENTS);
+      const headB = sinkB.sealFromEvents(SEAL_EVENTS);
+      assert.equal(headA, headB);
+      assert.equal(
+        readFileSync(sinkA.sinkPath, "utf8"),
+        readFileSync(sinkB.sinkPath, "utf8"),
+      );
+    });
+  });
+});
+
+test("sealed chain verifies against its anchor", () => {
+  withTempSink((sink) => {
+    const head = sink.sealFromEvents(SEAL_EVENTS);
+    const result = sink.verifyChain({
+      expectedCount: SEAL_EVENTS.length,
+      expectedHeadHash: head,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.recordsVerified, SEAL_EVENTS.length);
+  });
+});
+
+test("sealFromEvents rejects an unknown event", () => {
+  withTempSink((sink) => {
+    assert.throws(() =>
+      sink.sealFromEvents([{ ...SEAL_EVENTS[0], event: "garbage" }]),
+    );
+  });
+});
+
+test("tail truncation is detected by the anchor record count", () => {
+  withTempSink((sink) => {
+    const head = sink.sealFromEvents(SEAL_EVENTS);
+    // Drop the last record — a valid prefix still link-verifies, so the
+    // old forward-only walk passes. The anchor must catch it.
+    const lines = readFileSync(sink.sinkPath, "utf8").trim().split("\n");
+    writeFileSync(sink.sinkPath, lines.slice(0, -1).join("\n") + "\n");
+
+    const unanchored = sink.verifyChain();
+    assert.equal(unanchored.ok, true, "prefix still link-verifies (the gap)");
+
+    const anchored = sink.verifyChain({
+      expectedCount: SEAL_EVENTS.length,
+      expectedHeadHash: head,
+    });
+    assert.equal(anchored.ok, false);
+    assert.equal(anchored.error, "AUDIT_CHAIN_BROKEN");
+  });
+});
+
+test("head hash mismatch is detected", () => {
+  withTempSink((sink) => {
+    sink.sealFromEvents(SEAL_EVENTS);
+    const result = sink.verifyChain({
+      expectedCount: SEAL_EVENTS.length,
+      expectedHeadHash: "0".repeat(64),
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "AUDIT_CHAIN_BROKEN");
+  });
+});
+
+test("absent ledger with a non-zero anchor fails", () => {
+  withTempSink((sink) => {
+    const result = sink.verifyChain({
+      expectedCount: 3,
+      expectedHeadHash: "0".repeat(64),
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "AUDIT_CHAIN_BROKEN");
+  });
+});
+
+test("absent ledger with a zero anchor passes", () => {
+  withTempSink((sink) => {
+    const result = sink.verifyChain({
+      expectedCount: 0,
+      expectedHeadHash: QALA_GENESIS_HASH,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.recordsVerified, 0);
+  });
+});

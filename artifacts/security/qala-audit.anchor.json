@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "algorithm": "sha256-chain",
+  "genesis": "GENESIS",
+  "recordCount": 10,
+  "headHash": "764fafbb48ac10bc88cde5e390227270b38859b3b04d4da2b3181faf0913ff4e"
+}

@@ -12,7 +12,7 @@
 //
 // See docs/decisions/ADR-0003-qala-security-architecture.md §Q7.
 import { createHash, randomUUID } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, } from "node:fs";
 import { dirname, resolve } from "node:path";
 export const QALA_GENESIS_HASH = "GENESIS";
 const QALA_AUDIT_EVENTS = new Set([
@@ -129,8 +129,56 @@ export class QalaAuditSink {
             return { ok: false, error: "AUDIT_WRITE_FAILED", message };
         }
     }
-    verifyChain() {
+    // Deterministically (re)build the sealed chain from a merge-safe event
+    // source. Each event MUST carry a stable recordId + occurredAt so the seal
+    // is byte-reproducible. Returns the head hash (GENESIS for an empty source).
+    sealFromEvents(events) {
+        let prevHash = QALA_GENESIS_HASH;
+        const lines = [];
+        events.forEach((ev, idx) => {
+            if (!isQalaAuditEvent(ev.event)) {
+                throw new Error(`event ${idx} has unknown event type: ${String(ev.event)}`);
+            }
+            const payload = ev.payload ?? {};
+            const canonical = canonicalize({
+                event: ev.event,
+                traceId: ev.traceId,
+                spanId: ev.spanId,
+                tenantId: ev.tenantId,
+                payload,
+            }, ev.occurredAt);
+            const recordHash = sha256(`${prevHash}\n${canonical}`);
+            const record = {
+                recordId: ev.recordId,
+                prevHash,
+                recordHash,
+                event: ev.event,
+                traceId: ev.traceId,
+                spanId: ev.spanId,
+                tenantId: ev.tenantId,
+                occurredAt: ev.occurredAt,
+                payload,
+            };
+            lines.push(JSON.stringify(record));
+            prevHash = recordHash;
+        });
+        writeFileSync(this.path, lines.length > 0 ? `${lines.join("\n")}\n` : "", {
+            encoding: "utf8",
+        });
+        return prevHash;
+    }
+    verifyChain(anchor) {
+        const expectedCount = anchor?.expectedCount;
+        const expectedHeadHash = anchor?.expectedHeadHash;
         if (!existsSync(this.path)) {
+            if (expectedCount !== undefined && expectedCount !== 0) {
+                return {
+                    ok: false,
+                    error: "AUDIT_CHAIN_BROKEN",
+                    message: `ledger absent but anchor expects ${expectedCount} record(s) (tail truncation)`,
+                    atRecord: 0,
+                };
+            }
             return { ok: true, recordsVerified: 0 };
         }
         let content;
@@ -183,6 +231,23 @@ export class QalaAuditSink {
             }
             expectedPrev = parsed.recordHash;
             index += 1;
+        }
+        if (expectedCount !== undefined && index !== expectedCount) {
+            return {
+                ok: false,
+                error: "AUDIT_CHAIN_BROKEN",
+                message: `record count mismatch: found ${index}, anchor expects ${expectedCount} (insertion or tail truncation)`,
+                atRecord: index,
+            };
+        }
+        // After the walk, expectedPrev holds the head hash (GENESIS if empty).
+        if (expectedHeadHash !== undefined && expectedPrev !== expectedHeadHash) {
+            return {
+                ok: false,
+                error: "AUDIT_CHAIN_BROKEN",
+                message: "head hash mismatch: chain head does not match the sealed anchor (tail truncation or tamper)",
+                atRecord: index,
+            };
         }
         return { ok: true, recordsVerified: index };
     }
