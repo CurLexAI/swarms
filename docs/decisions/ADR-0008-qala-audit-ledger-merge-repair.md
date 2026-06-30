@@ -66,12 +66,42 @@ green gate alone does not prove "no records were removed."
    broken links above). On conflict, the operator deliberately re-seals
    under this ADR rather than letting git union-merge. `diff` stays enabled
    so the file remains reviewable in PRs.
-4. **Structural follow-up (recommended, separate PR).** The merge guard
-   stops silent corruption but does not make the ledger tamper-proof against
-   deliberate edits. The durable fix is to stop tracking a tamper-evident
-   ledger in git at all — generate/seal it as a CI artifact — and to close
-   the `verify_chain` tail-truncation gap (e.g. a sealed record-count or
-   head-anchor the gate enforces).
+4. **Structural fix (Implemented).** The merge guard stops silent corruption
+   but does not address the root cause (a hash-chain tracked in git) or the
+   tail-truncation gap. Both are now implemented:
+
+   - **(A) Ledger no longer tracked in git — sealed from a merge-safe source.**
+     `artifacts/security/qala-audit.jsonl` is removed from tracking and
+     gitignored. The committed source is `artifacts/security/qala-audit.events.json`
+     — a plain JSON **array of events** (`recordId`, `event`, `traceId`,
+     `spanId`, `tenantId`, `occurredAt`, `payload`) with **no `prevHash`/
+     `recordHash`**. A positional hash-chain is what git merges corrupt; an
+     unordered-by-hash event array cannot be silently concatenated into a
+     broken chain (a merge that duplicates an element is a visible,
+     reviewable JSON diff, not a hidden chain break). A new `seal` command
+     (`QalaAuditSink.seal_from_events` / `QalaAuditSink.sealFromEvents`)
+     deterministically rebuilds the sealed `.jsonl` from this source: because
+     each event carries a stable `recordId` + `occurredAt`, re-sealing is
+     **byte-reproducible**. `qala-audit-integrity-gate.sh` now seals from the
+     event source before verifying, and CI (`.github/workflows/main.yml`)
+     uploads the sealed chain as a build artifact (`qala-audit-chain`).
+   - **(B) Tail-truncation gap closed via a sealed anchor.** A committed
+     `artifacts/security/qala-audit.anchor.json` pins `recordCount` and
+     `headHash`. `verify_chain` / `verifyChain` now accept an expected count
+     and head hash and **fail** when either the walked record count or the
+     final head hash diverges from the anchor. Removing the last *N* records
+     leaves a still-link-valid prefix (which the old forward-only walk
+     passes), but it changes both the count and the head hash, so the anchor
+     now catches it. Unit tests on both runtimes assert that the unanchored
+     walk still passes the truncated prefix (demonstrating the gap) while the
+     anchored verify fails.
+
+   **Honesty caveat.** A git/CI-sealed ledger is **tamper-evident in review**,
+   not tamper-proof: anyone with repo-write could edit the event source and
+   re-anchor in the same commit. The anchor makes tamper/truncation visible
+   in the diff and breaks any sealed chain that does not match a committed
+   anchor; true immutability would require append-only runtime storage and is
+   out of scope.
 
 ## Consequences
 
@@ -82,8 +112,13 @@ green gate alone does not prove "no records were removed."
   concatenating (the `-merge` guard), so the duplicate/broken-link
   corruption stops recurring automatically and is surfaced for a deliberate
   re-seal.
-- A residual gap remains: `verify_chain` does not detect tail truncation.
-  Hardening it (e.g. a sealed record count / head-anchor) is deferred to the
-  structural follow-up and is out of scope for the repair.
+- The tail-truncation gap is closed: `verify_chain` now enforces a sealed
+  record count and head hash from `qala-audit.anchor.json`, so removing
+  trailing records (a still-link-valid prefix) fails the gate.
+- The ledger is no longer tracked in git; the merge-safe `qala-audit.events.json`
+  source plus the `qala-audit.anchor.json` anchor are tracked instead, and the
+  sealed chain is regenerated deterministically by the gate and in CI. This
+  removes the structural cause of the recurring merge corruption (a positional
+  hash-chain stored in git).
 - Hand-edits to this file remain prohibited **except** for the narrow
   merge-repair case authorised here, which must cite this ADR.

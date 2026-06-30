@@ -238,5 +238,142 @@ class DeterministicCanonicalizationTests(unittest.TestCase):
             self.assertEqual(a.value.record_hash, b.value.record_hash)
 
 
+def _sample_events() -> "list[dict[str, Any]]":
+    return [
+        {
+            "recordId": f"id-{i}",
+            "event": "policy_decision",
+            "traceId": f"trace-{i}",
+            "spanId": "aegis_mcp.mcp_tool_discovery",
+            "tenantId": "system",
+            "occurredAt": f"2026-06-29T0{i}:00:00.000000Z",
+            "payload": {"i": i},
+        }
+        for i in range(3)
+    ]
+
+
+class SealFromEventsTests(unittest.TestCase):
+    """ADR-0008 §Decision.4: the chain is sealed from a merge-safe source."""
+
+    def test_seal_is_deterministic_and_reproducible(self) -> None:
+        events = _sample_events()
+        with tempfile.TemporaryDirectory() as tmp:
+            a = QalaAuditSink(Path(tmp) / "a.jsonl")
+            b = QalaAuditSink(Path(tmp) / "b.jsonl")
+            head_a = a.seal_from_events(events)
+            head_b = b.seal_from_events(events)
+            self.assertEqual(head_a, head_b)
+            self.assertEqual(
+                a.sink_path.read_bytes(), b.sink_path.read_bytes()
+            )
+            # Re-sealing the same source is idempotent (no append growth).
+            head_a2 = a.seal_from_events(events)
+            self.assertEqual(head_a, head_a2)
+
+    def test_sealed_chain_verifies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
+            sink.seal_from_events(_sample_events())
+            self.assertTrue(sink.verify_chain().ok)
+
+    def test_seal_rejects_unknown_event(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
+            bad = _sample_events()
+            bad[1]["event"] = "garbage"
+            with self.assertRaises(ValueError):
+                sink.seal_from_events(bad)
+
+
+class AnchorTruncationTests(unittest.TestCase):
+    """Forward link-walking cannot catch tail truncation; the anchor can."""
+
+    def test_anchor_match_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
+            head = sink.seal_from_events(_sample_events())
+            res = sink.verify_chain(expected_count=3, expected_head_hash=head)
+            self.assertTrue(res.ok)
+            self.assertEqual(res.records_verified, 3)
+
+    def test_tail_truncation_detected_by_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "audit.jsonl"
+            sink = QalaAuditSink(path)
+            head = sink.seal_from_events(_sample_events())
+            # Drop the last record — the remaining prefix is still link-valid.
+            lines = path.read_text(encoding="utf-8").splitlines()
+            path.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
+            # Without the anchor the truncated prefix verifies (the gap).
+            self.assertTrue(sink.verify_chain().ok)
+            # With the anchor it fails closed.
+            res = sink.verify_chain(expected_count=3, expected_head_hash=head)
+            self.assertFalse(res.ok)
+            self.assertEqual(res.error, "AUDIT_CHAIN_BROKEN")
+
+    def test_head_hash_mismatch_detected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sink = QalaAuditSink(Path(tmp) / "audit.jsonl")
+            sink.seal_from_events(_sample_events())
+            res = sink.verify_chain(expected_count=3, expected_head_hash="0" * 64)
+            self.assertFalse(res.ok)
+            self.assertEqual(res.error, "AUDIT_CHAIN_BROKEN")
+
+    def test_absent_ledger_with_nonzero_anchor_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sink = QalaAuditSink(Path(tmp) / "missing.jsonl")
+            res = sink.verify_chain(expected_count=5, expected_head_hash="x")
+            self.assertFalse(res.ok)
+            self.assertEqual(res.error, "AUDIT_CHAIN_BROKEN")
+
+    def test_absent_ledger_with_zero_anchor_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sink = QalaAuditSink(Path(tmp) / "missing.jsonl")
+            res = sink.verify_chain(
+                expected_count=0, expected_head_hash=QALA_GENESIS_HASH
+            )
+            self.assertTrue(res.ok)
+
+
+class SealVerifyCliTests(unittest.TestCase):
+    """End-to-end CLI: seal --write-anchor, verify, then truncate -> rc 10."""
+
+    def _write_events(self, tmp: str) -> "tuple[Path, Path, Path]":
+        events_path = Path(tmp) / "events.json"
+        sink_path = Path(tmp) / "audit.jsonl"
+        anchor_path = Path(tmp) / "anchor.json"
+        events_path.write_text(
+            json.dumps(_sample_events()), encoding="utf-8"
+        )
+        return events_path, sink_path, anchor_path
+
+    def test_cli_seal_then_verify_then_truncate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            events_path, sink_path, anchor_path = self._write_events(tmp)
+            seal_rc = qala_audit_sink._main(
+                [
+                    "seal",
+                    "--events", str(events_path),
+                    "--path", str(sink_path),
+                    "--anchor", str(anchor_path),
+                    "--write-anchor",
+                ]
+            )
+            self.assertEqual(seal_rc, 0)
+            self.assertTrue(anchor_path.exists())
+            verify_rc = qala_audit_sink._main(
+                ["verify", "--path", str(sink_path), "--anchor", str(anchor_path)]
+            )
+            self.assertEqual(verify_rc, 0)
+            # Tail-truncate and re-verify: the anchor must force rc 10.
+            lines = sink_path.read_text(encoding="utf-8").splitlines()
+            sink_path.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
+            broken_rc = qala_audit_sink._main(
+                ["verify", "--path", str(sink_path), "--anchor", str(anchor_path)]
+            )
+            self.assertEqual(broken_rc, 10)
+
+
 if __name__ == "__main__":
     unittest.main()

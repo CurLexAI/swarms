@@ -69,6 +69,11 @@ wg0.conf
 *.db
 audit.log
 audit-*.jsonl
+# Qal'a Q7 sealed audit chain: generated/sealed from qala-audit.events.json at
+# build time (see ADR-0008 §Decision.4). Never tracked in git — a committed
+# hash-chain gets silently concatenated by merges. The merge-safe event source
+# and the sealed anchor (qala-audit.anchor.json) ARE tracked.
+artifacts/security/qala-audit.jsonl
 # Notebook checkpoints and outputs
 .ipynb_checkpoints/
 *.nbconvert.ipynb

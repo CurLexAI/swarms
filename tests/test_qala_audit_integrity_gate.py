@@ -2,19 +2,29 @@
 # Licensed under MIT
 """Regression tests for scripts/commander/qala-audit-integrity-gate.sh.
 
-The gate wraps the existing QalaAuditSink.verify_chain engine and turns
-chain integrity into a runnable CI gate (ADR-0003 §Q7). These tests lock
-the gate's BEHAVIOR — exit code and result line — for the three cases
+Under the ADR-0008 §Decision.4 generated-artifact model the gate is
+two-phase: it deterministically *seals* the chain from the merge-safe event
+source (``qala-audit.events.json``) and then *verifies* it against the
+committed anchor (``qala-audit.anchor.json``: recordCount + headHash). These
+tests lock the gate's BEHAVIOR — exit code and result line — for the cases
 that matter:
 
-1. An intact chain PASSes.
-2. A tampered chain FAILs (fail-closed) with AUDIT_CHAIN_BROKEN.
-3. An absent/empty log PASSes (lazy sink, pre-activation state).
+1. A sealed chain whose anchor matches PASSes.
+2. An event source that diverges from its anchor (e.g. tail truncation)
+   FAILs (fail-closed) with AUDIT_CHAIN_BROKEN.
+3. With no event source, a tampered runtime chain still FAILs.
+4. With no event source, no anchor, and no log, the gate PASSes
+   (lazy sink, pre-activation state).
+
+Each test points QALA_AUDIT_EVENTS_PATH / QALA_AUDIT_ANCHOR_PATH /
+QALA_AUDIT_SINK_PATH at a private temp dir so the gate's inputs are fully
+controlled and independent of the repo's committed ledger.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -34,22 +44,57 @@ QalaAuditSink = qala_audit_sink.QalaAuditSink
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE = REPO_ROOT / "scripts" / "commander" / "qala-audit-integrity-gate.sh"
+VERIFIER = REPO_ROOT / ".agents" / "validators" / "qala_audit_sink.py"
 
 
-def _run_gate(sink_path: Path) -> "subprocess.CompletedProcess[str]":
+def _run_gate(env_overrides: dict[str, str]) -> "subprocess.CompletedProcess[str]":
+    env = {"PATH": os.environ.get("PATH", "")}
+    env.update(env_overrides)
     return subprocess.run(
         ["bash", str(GATE), str(REPO_ROOT)],
         capture_output=True,
         text=True,
-        env={"QALA_AUDIT_SINK_PATH": str(sink_path), "PATH": _path_env()},
-        timeout=30,
+        env=env,
+        timeout=60,
     )
 
 
-def _path_env() -> str:
-    import os
+def _seal_cli(
+    events_path: Path, sink_path: Path, anchor_path: Path, *, write_anchor: bool
+) -> "subprocess.CompletedProcess[str]":
+    cmd = [
+        sys.executable,
+        str(VERIFIER),
+        "seal",
+        "--events",
+        str(events_path),
+        "--path",
+        str(sink_path),
+        "--anchor",
+        str(anchor_path),
+    ]
+    if write_anchor:
+        cmd.append("--write-anchor")
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
-    return os.environ.get("PATH", "")
+
+def _events(count: int) -> list[dict[str, Any]]:
+    return [
+        {
+            "recordId": f"{i:08d}-0000-0000-0000-000000000000",
+            "event": "policy_decision",
+            "traceId": f"trace-{i}",
+            "spanId": f"span-{i}",
+            "tenantId": "tenant-A",
+            "occurredAt": f"2026-06-01T00:00:{i:02d}.000000Z",
+            "payload": {"i": i},
+        }
+        for i in range(count)
+    ]
+
+
+def _write_events(path: Path, count: int) -> None:
+    path.write_text(json.dumps(_events(count), indent=2) + "\n", encoding="utf-8")
 
 
 def _append_valid(sink: Any, payload: dict[str, Any]) -> Any:
@@ -63,15 +108,22 @@ def _append_valid(sink: Any, payload: dict[str, Any]) -> Any:
 
 
 class AuditIntegrityGateTests(unittest.TestCase):
-    def test_intact_chain_passes(self) -> None:
+    def test_sealed_chain_matching_anchor_passes(self) -> None:
         with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "audit.jsonl"
-            sink = QalaAuditSink(path)
-            _append_valid(sink, {"i": 1})
-            _append_valid(sink, {"i": 2})
-            _append_valid(sink, {"i": 3})
+            events = Path(tmp) / "events.json"
+            sink = Path(tmp) / "audit.jsonl"
+            anchor = Path(tmp) / "anchor.json"
+            _write_events(events, 3)
+            seal = _seal_cli(events, sink, anchor, write_anchor=True)
+            self.assertEqual(seal.returncode, 0, msg=seal.stdout + seal.stderr)
 
-            result = _run_gate(path)
+            result = _run_gate(
+                {
+                    "QALA_AUDIT_EVENTS_PATH": str(events),
+                    "QALA_AUDIT_SINK_PATH": str(sink),
+                    "QALA_AUDIT_ANCHOR_PATH": str(anchor),
+                }
+            )
             self.assertEqual(
                 result.returncode,
                 0,
@@ -81,21 +133,28 @@ class AuditIntegrityGateTests(unittest.TestCase):
             self.assertIn("[RESULT] PASS", result.stdout)
             self.assertIn("AUDIT_CHAIN_OK records_verified=3", result.stdout)
 
-    def test_tampered_chain_fails(self) -> None:
+    def test_event_source_diverging_from_anchor_fails(self) -> None:
+        # Seal + anchor over 3 events, then truncate the source to 2 without
+        # updating the anchor. The re-seal produces a still-link-valid 2-record
+        # chain (the old forward-only walk would PASS), but the anchor pins
+        # count=3, so the gate must FAIL — closing the tail-truncation gap.
         with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "audit.jsonl"
-            sink = QalaAuditSink(path)
-            _append_valid(sink, {"i": 1})
-            _append_valid(sink, {"i": 2})
+            events = Path(tmp) / "events.json"
+            sink = Path(tmp) / "audit.jsonl"
+            anchor = Path(tmp) / "anchor.json"
+            _write_events(events, 3)
+            seal = _seal_cli(events, sink, anchor, write_anchor=True)
+            self.assertEqual(seal.returncode, 0, msg=seal.stdout + seal.stderr)
 
-            # Tamper with the first record's payload after the fact.
-            lines = path.read_text(encoding="utf-8").splitlines()
-            first = json.loads(lines[0])
-            first["payload"]["i"] = 99
-            lines[0] = json.dumps(first)
-            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            _write_events(events, 2)  # drop the last event; anchor still says 3
 
-            result = _run_gate(path)
+            result = _run_gate(
+                {
+                    "QALA_AUDIT_EVENTS_PATH": str(events),
+                    "QALA_AUDIT_SINK_PATH": str(sink),
+                    "QALA_AUDIT_ANCHOR_PATH": str(anchor),
+                }
+            )
             self.assertEqual(
                 result.returncode,
                 1,
@@ -105,33 +164,46 @@ class AuditIntegrityGateTests(unittest.TestCase):
             self.assertIn("[RESULT] FAIL", result.stdout)
             self.assertIn("AUDIT_CHAIN_BROKEN", result.stdout)
 
-    def test_malformed_record_reports_chain_broken(self) -> None:
-        # A record that is valid JSON but missing required fields must be
-        # classified as AUDIT_CHAIN_BROKEN (gate rc=1), never a traceback,
-        # so the CLI keeps its documented exit-code contract.
+    def test_tampered_runtime_chain_without_event_source_fails(self) -> None:
+        # No event source (a live runtime ledger). The gate skips sealing and
+        # verifies the chain as-is; a tampered record must FAIL.
         with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "audit.jsonl"
-            sink = QalaAuditSink(path)
-            _append_valid(sink, {"i": 1})
-            first = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
-            malformed = {"prevHash": first["recordHash"], "recordHash": "deadbeef"}
-            with path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(malformed) + "\n")
+            sink = Path(tmp) / "audit.jsonl"
+            s = QalaAuditSink(sink)
+            _append_valid(s, {"i": 1})
+            _append_valid(s, {"i": 2})
+            lines = sink.read_text(encoding="utf-8").splitlines()
+            first = json.loads(lines[0])
+            first["payload"]["i"] = 99
+            lines[0] = json.dumps(first)
+            sink.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-            result = _run_gate(path)
+            result = _run_gate(
+                {
+                    "QALA_AUDIT_EVENTS_PATH": str(Path(tmp) / "no-events.json"),
+                    "QALA_AUDIT_SINK_PATH": str(sink),
+                    "QALA_AUDIT_ANCHOR_PATH": str(Path(tmp) / "no-anchor.json"),
+                }
+            )
             self.assertEqual(
                 result.returncode,
                 1,
                 msg=f"expected FAIL, got rc={result.returncode}\n"
                 f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
             )
+            self.assertIn("[RESULT] FAIL", result.stdout)
             self.assertIn("AUDIT_CHAIN_BROKEN", result.stdout)
             self.assertNotIn("Traceback", result.stderr)
 
-    def test_absent_log_passes(self) -> None:
+    def test_absent_log_no_anchor_passes(self) -> None:
         with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "does-not-exist.jsonl"
-            result = _run_gate(path)
+            result = _run_gate(
+                {
+                    "QALA_AUDIT_EVENTS_PATH": str(Path(tmp) / "no-events.json"),
+                    "QALA_AUDIT_SINK_PATH": str(Path(tmp) / "does-not-exist.jsonl"),
+                    "QALA_AUDIT_ANCHOR_PATH": str(Path(tmp) / "no-anchor.json"),
+                }
+            )
             self.assertEqual(
                 result.returncode,
                 0,

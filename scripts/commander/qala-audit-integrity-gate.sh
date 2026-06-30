@@ -49,6 +49,14 @@ echo "[qala-audit-integrity-gate] PASS: Qala audit append-only hash-chain integr
 # Sink path resolution (delegated to the verifier CLI):
 #   $QALA_AUDIT_SINK_PATH, else artifacts/security/qala-audit.jsonl.
 #
+# Generated-artifact model (ADR-0008 §Decision.4): the sealed chain is NOT
+# tracked in git. When the merge-safe event source
+# (artifacts/security/qala-audit.events.json) is present, this gate first
+# deterministically *seals* it into the chain, then verifies it. Verification
+# enforces the committed anchor (artifacts/security/qala-audit.anchor.json:
+# recordCount + headHash) so tail truncation is detected — forward link-walking
+# alone cannot catch removal of the last N records.
+#
 # See .agents/validators/qala_audit_sink.py and
 # docs/decisions/ADR-0003-qala-security-architecture.md §Q7.
 
@@ -78,6 +86,26 @@ if ! command -v python3 >/dev/null 2>&1; then
   fail "PYTHON3_MISSING: cannot run audit chain verifier"
   echo "[RESULT] FAIL"
   exit 1
+fi
+
+# Generated-artifact model: seal the chain from the merge-safe event source
+# before verifying. Skipped when no event source exists (pre-activation), which
+# preserves the "absent log PASSes" posture above.
+EVENTS_PATH="${QALA_AUDIT_EVENTS_PATH:-artifacts/security/qala-audit.events.json}"
+if [[ -f "$EVENTS_PATH" ]]; then
+  info "sealing audit chain from event source: $EVENTS_PATH"
+  set +e
+  seal_output="$(python3 "$VERIFIER" seal)"
+  seal_rc=$?
+  set -e
+  printf '%s\n' "$seal_output"
+  if [[ "$seal_rc" -ne 0 ]]; then
+    fail "AUDIT_SEAL_FAILED: could not seal chain from $EVENTS_PATH (rc=$seal_rc)"
+    echo "[RESULT] FAIL"
+    exit 1
+  fi
+else
+  info "no event source at $EVENTS_PATH; verifying any existing chain as-is"
 fi
 
 # Verifier exit codes:
