@@ -134,34 +134,32 @@ def _default_events_path() -> Path:
     )
 
 
-def _safe_artifact_path(raw_path: str, *, fallback: str) -> Path:
-    candidate = Path(raw_path or fallback)
-    if not candidate.is_absolute():
-        candidate = Path.cwd() / candidate
-    normalized = candidate.resolve(strict=False)
-    base_dir = (Path.cwd() / "artifacts/security").resolve(strict=False)
-    try:
-        normalized.relative_to(base_dir)
-    except ValueError as exc:
-        raise ValueError(f"path escapes artifacts/security: {normalized}") from exc
-    return normalized
-
-
 def _default_anchor_path() -> Path:
-    return _safe_artifact_path(
-        os.environ.get("QALA_AUDIT_ANCHOR_PATH", "artifacts/security/qala-audit.anchor.json"),
-        fallback="artifacts/security/qala-audit.anchor.json",
+    return Path(
+        os.environ.get(
+            "QALA_AUDIT_ANCHOR_PATH", "artifacts/security/qala-audit.anchor.json"
+        )
     )
 
 
-def _validated_anchor_path(path: Path) -> Path:
-    safe_root = Path("artifacts/security").resolve()
-    resolved = path.expanduser().resolve()
+def _contained_anchor_path(candidate: Path, *, sink_dir: Path) -> Path:
+    """Resolve ``candidate`` and require it to stay within ``sink_dir``.
+
+    Path-traversal guard (CodeQL py/path-injection): the anchor path can come
+    from an untrusted CLI argument or environment variable, so the resolved
+    path must be a descendant of the audit sink's own directory or it is
+    rejected. The anchor always lives beside the ledger it pins, which keeps
+    the production invariant (``artifacts/security``) intact while letting the
+    integrity gate and tests redirect the whole sink directory in isolation.
+    """
+    sink_root = sink_dir.expanduser().resolve(strict=False)
+    resolved = candidate.expanduser().resolve(strict=False)
     try:
-        resolved.relative_to(safe_root)
+        resolved.relative_to(sink_root)
     except ValueError as exc:
         raise ValueError(
-            f"anchor path must be within {safe_root}, got: {resolved}"
+            f"anchor path must be within the audit directory {sink_root}, "
+            f"got: {resolved}"
         ) from exc
     return resolved
 
@@ -568,15 +566,12 @@ def _main(argv: list[str] | None = None) -> int:
 
     if args.command == "verify":
         sink = QalaAuditSink(_resolve_verify_path(args.path))
-        anchor_path = (
-            _safe_artifact_path(
-                args.anchor, fallback="artifacts/security/qala-audit.anchor.json"
-            )
-            if args.anchor
-            else _default_anchor_path()
-        )
         print(f"AUDIT_SINK_PATH: {sink.sink_path}")
         try:
+            anchor_path = _contained_anchor_path(
+                Path(args.anchor) if args.anchor else _default_anchor_path(),
+                sink_dir=sink.sink_path.parent,
+            )
             expected_count, expected_head = _load_anchor(anchor_path)
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             print(f"AUDIT_READ_FAILED message=anchor unreadable: {exc}")
@@ -604,8 +599,9 @@ def _main(argv: list[str] | None = None) -> int:
         events_path = Path(args.events) if args.events else _default_events_path()
         sink = QalaAuditSink(_resolve_verify_path(args.path))
         try:
-            anchor_path = _validated_anchor_path(
-                Path(args.anchor) if args.anchor else _default_anchor_path()
+            anchor_path = _contained_anchor_path(
+                Path(args.anchor) if args.anchor else _default_anchor_path(),
+                sink_dir=sink.sink_path.parent,
             )
         except ValueError as exc:
             print(f"AUDIT_SEAL_FAILED message={exc}")
