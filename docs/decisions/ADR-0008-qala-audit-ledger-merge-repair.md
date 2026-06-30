@@ -59,17 +59,29 @@ green gate alone does not prove "no records were removed."
    a permitted maintenance operation, provided it: (a) preserves every
    unique event verbatim, (b) re-seals via the sink's own canonicalize/hash
    functions, and (c) is recorded against this ADR in the PR.
-3. **Structural follow-up (recommended, separate PR).** The durable fix is
-   to stop subjecting a tamper-evident ledger to git merges — e.g. treat it
-   as a CI-generated/sealed artifact rather than a merged file, and/or add a
-   merge driver that refuses union-concatenation. Until then this exception
-   prevents the gate from blocking unrelated PRs.
+3. **Merge guard (this PR).** `.gitattributes` now marks the ledger
+   `-merge -text`, so git refuses to auto-merge it: a branch that diverges
+   from `main` on this file raises a **conflict** instead of silently
+   concatenating two sealed chains (the cause of the duplicate records and
+   broken links above). On conflict, the operator deliberately re-seals
+   under this ADR rather than letting git union-merge. `diff` stays enabled
+   so the file remains reviewable in PRs.
+4. **Structural follow-up (recommended, separate PR).** The merge guard
+   stops silent corruption but does not make the ledger tamper-proof against
+   deliberate edits. The durable fix is to stop tracking a tamper-evident
+   ledger in git at all — generate/seal it as a CI artifact — and to close
+   the `verify_chain` tail-truncation gap (e.g. a sealed record-count or
+   head-anchor the gate enforces).
 
 ## Consequences
 
 - The Q7 chain stays verifiable in CI; PRs are not blocked by pre-existing
   merge corruption on `main`.
 - The ledger reflects genuine event history (no phantom duplicate events).
+- Future merges that touch the ledger conflict instead of silently
+  concatenating (the `-merge` guard), so the duplicate/broken-link
+  corruption stops recurring automatically and is surfaced for a deliberate
+  re-seal.
 - A residual gap remains: `verify_chain` does not detect tail truncation.
   Hardening it (e.g. a sealed record count / head-anchor) is deferred to the
   structural follow-up and is out of scope for the repair.
