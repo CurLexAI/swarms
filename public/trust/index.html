@@ -3,22 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="LexPrim is a sovereign AI operations layer for governed legal, regulatory, and agent workflows." />
-  <title>LexPrim | Sovereign AI Operations</title>
+  <meta name="description" content="LexPrim Trust Center — operator trust and policy publication artifact. Evidence-first VERIFIED / UNVERIFIED disclosure, no product marketing." />
+  <title>LexPrim Trust Center</title>
   <style>
     :root {
       color-scheme: dark;
       --bg: #020617;
       --panel: rgba(15, 23, 42, 0.84);
-      --panel-strong: #0f172a;
       --line: rgba(148, 163, 184, 0.24);
       --text: #e2e8f0;
       --muted: #94a3b8;
       --brand: #38bdf8;
-      --brand-strong: #0ea5e9;
-      --ok: #22c55e;
-      --warn: #f59e0b;
-      --radius: 24px;
+      --radius: 18px;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
@@ -28,381 +24,180 @@
       margin: 0;
       min-height: 100vh;
       background:
-        radial-gradient(circle at top left, rgba(14, 165, 233, 0.28), transparent 34rem),
-        radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.14), transparent 28rem),
+        radial-gradient(circle at top left, rgba(14, 165, 233, 0.18), transparent 34rem),
         var(--bg);
       color: var(--text);
       line-height: 1.7;
     }
 
-    a { color: inherit; text-decoration: none; }
+    a { color: var(--brand); text-decoration: none; }
+    a:hover { text-decoration: underline; }
 
     .shell {
-      width: min(1120px, calc(100% - 32px));
+      width: min(980px, calc(100% - 32px));
       margin: 0 auto;
     }
 
-    .nav {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 24px 0;
-    }
-
-    .brand {
+    header.shell {
       display: flex;
       align-items: center;
       gap: 12px;
-      font-weight: 800;
-      letter-spacing: 0.02em;
+      padding: 28px 0 8px;
     }
 
     .mark {
       display: inline-grid;
       place-items: center;
-      width: 42px;
-      height: 42px;
+      width: 40px;
+      height: 40px;
       border: 1px solid rgba(56, 189, 248, 0.5);
-      border-radius: 14px;
+      border-radius: 12px;
       background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(34, 197, 94, 0.14));
-      box-shadow: 0 0 40px rgba(56, 189, 248, 0.16);
+      font-weight: 800;
     }
 
-    .nav-links {
-      display: flex;
-      gap: 14px;
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
+    .brand-text { font-weight: 800; letter-spacing: 0.02em; }
 
-    .nav-links a:hover { color: var(--text); }
-
-    .hero {
-      display: grid;
-      grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
-      gap: 32px;
-      align-items: center;
-      padding: 64px 0 42px;
-    }
-
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 18px;
-      padding: 7px 12px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: rgba(15, 23, 42, 0.72);
-      color: #bae6fd;
-      font-size: 0.9rem;
-    }
-
-    .pulse {
-      width: 9px;
-      height: 9px;
-      border-radius: 999px;
-      background: var(--ok);
-      box-shadow: 0 0 18px var(--ok);
-    }
+    main.shell { padding: 8px 0 40px; }
 
     h1 {
-      margin: 0;
-      max-width: 780px;
       color: #f8fafc;
-      font-size: clamp(2.6rem, 7vw, 5.8rem);
-      line-height: 0.98;
-      letter-spacing: -0.07em;
+      font-size: clamp(2rem, 5vw, 3rem);
+      letter-spacing: -0.03em;
+      margin: 18px 0 10px;
     }
 
-    .lead {
-      max-width: 680px;
-      margin: 24px 0 0;
-      color: #cbd5e1;
-      font-size: clamp(1.05rem, 2vw, 1.25rem);
-    }
-
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 30px;
-    }
-
-    .button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 48px;
-      padding: 0 18px;
-      border-radius: 14px;
-      font-weight: 700;
-      border: 1px solid transparent;
-    }
-
-    .button.primary {
-      background: linear-gradient(135deg, var(--brand), var(--brand-strong));
-      color: #00111c;
-      box-shadow: 0 20px 50px rgba(14, 165, 233, 0.24);
-    }
-
-    .button.secondary {
-      border-color: var(--line);
-      color: var(--text);
-      background: rgba(15, 23, 42, 0.72);
-    }
-
-    .console {
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.92));
-      overflow: hidden;
-      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
-    }
-
-    .console-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 0.88rem;
-    }
-
-    .dots { display: flex; gap: 7px; }
-    .dots span { width: 10px; height: 10px; border-radius: 999px; background: #334155; }
-    .dots span:nth-child(1) { background: #ef4444; }
-    .dots span:nth-child(2) { background: #f59e0b; }
-    .dots span:nth-child(3) { background: #22c55e; }
-
-    .status-list { padding: 18px; }
-
-    .status-row {
-      display: grid;
-      grid-template-columns: 96px 1fr;
-      gap: 14px;
-      padding: 14px 0;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-    }
-
-    .status-row:last-child { border-bottom: 0; }
-    .label { color: #bae6fd; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; }
-    .value { color: #dbeafe; }
-    .note { color: var(--muted); font-size: 0.92rem; }
-
-    .section { padding: 54px 0; }
-
-    .section h2 {
-      margin: 0 0 14px;
-      color: #f8fafc;
-      font-size: clamp(1.8rem, 4vw, 3rem);
-      letter-spacing: -0.04em;
-    }
-
-    .section-intro {
-      max-width: 760px;
-      margin: 0 0 26px;
-      color: var(--muted);
-      font-size: 1.05rem;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-    }
+    .intro { max-width: 720px; color: #cbd5e1; }
 
     .card {
-      min-height: 100%;
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: 22px;
+      padding: 18px 20px;
+      margin-top: 14px;
       background: var(--panel);
       backdrop-filter: blur(18px);
     }
 
-    .card h3 { margin: 0 0 10px; color: #f8fafc; font-size: 1.12rem; }
-    .card p { margin: 0; color: var(--muted); }
+    .card h2 { color: #f8fafc; font-size: 1.2rem; margin: 0 0 8px; }
+    .card h3 { color: #e2e8f0; font-size: 1rem; margin: 14px 0 4px; }
 
-    .pill-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    ul { margin: 8px 0 0; padding-inline-start: 20px; }
+    li { margin: 6px 0; }
 
-    .pill {
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 8px 12px;
-      color: #cbd5e1;
-      background: rgba(15, 23, 42, 0.68);
-      font-size: 0.9rem;
-    }
-
-    .trust {
-      display: grid;
-      grid-template-columns: 0.82fr 1.18fr;
-      gap: 20px;
-      align-items: stretch;
-    }
-
-    .quote {
-      border-color: rgba(56, 189, 248, 0.42);
-      background: linear-gradient(145deg, rgba(14, 165, 233, 0.18), rgba(15, 23, 42, 0.8));
-    }
-
-    .evidence-list {
-      display: grid;
-      gap: 12px;
-    }
-
-    .evidence {
-      display: grid;
-      grid-template-columns: 112px 1fr;
-      gap: 12px;
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.88em;
+      background: rgba(2, 6, 23, 0.55);
       border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: 18px;
-      padding: 14px;
-      background: rgba(2, 6, 23, 0.32);
+      border-radius: 6px;
+      padding: 1px 5px;
     }
 
     .tag {
-      align-self: start;
-      justify-self: start;
-      border-radius: 999px;
-      padding: 4px 9px;
-      color: #052e16;
-      background: #86efac;
+      display: inline-block;
       font-size: 0.78rem;
       font-weight: 800;
+      border-radius: 999px;
+      padding: 3px 9px;
+      margin-inline-end: 6px;
     }
 
-    .tag.unverified { color: #451a03; background: #fcd34d; }
+    .verified { background: #14532d; color: #dcfce7; }
+    .unverified { background: #7f1d1d; color: #fee2e2; }
 
     footer {
-      margin-top: 40px;
-      padding: 28px 0 44px;
+      margin-top: 28px;
+      padding: 22px 0 40px;
       border-top: 1px solid var(--line);
       color: var(--muted);
-      font-size: 0.94rem;
-    }
-
-    @media (max-width: 860px) {
-      .nav { align-items: flex-start; flex-direction: column; }
-      .hero, .trust { grid-template-columns: 1fr; padding-top: 32px; }
-      .grid { grid-template-columns: 1fr; }
-      .status-row, .evidence { grid-template-columns: 1fr; }
+      font-size: 0.92rem;
     }
   </style>
 </head>
 <body>
-  <header class="shell nav" aria-label="LexPrim navigation">
-    <a class="brand" href="#top" aria-label="LexPrim home">
-      <span class="mark" aria-hidden="true">LP</span>
-      <span>LexPrim</span>
-    </a>
-    <nav class="nav-links" aria-label="Primary navigation">
-      <a href="#platform">المنصة</a>
-      <a href="#governance">الحوكمة</a>
-      <a href="#trust">الثقة</a>
-    </nav>
+  <header class="shell">
+    <span class="mark" aria-hidden="true">LP</span>
+    <span class="brand-text">LexPrim</span>
   </header>
 
-  <main id="top">
-    <section class="shell hero" aria-labelledby="hero-title">
-      <div>
-        <span class="eyebrow"><span class="pulse" aria-hidden="true"></span> Sovereign AI operations for regulated teams</span>
-        <h1 id="hero-title">LexPrim يبني طبقة قرار قانونية وسيادية للفرق عالية الحساسية.</h1>
-        <p class="lead">
-          واجهة عامة مختصرة لـ LexPrim: منصة تشغيل وكلاء، مراجعة، وتدقيق تساعد المؤسسات على إدارة مسارات قانونية وتنظيمية تحت ضوابط واضحة، أدلة قابلة للتحقق، وحدود بيانات صارمة.
-        </p>
-        <div class="actions" aria-label="Primary actions">
-          <a class="button primary" href="#platform">استكشف المنصة</a>
-          <a class="button secondary" href="#trust">مركز الثقة</a>
-        </div>
-      </div>
+  <main class="shell">
+    <h1>Trust Center</h1>
+    <p class="intro">هذه الصفحة توضح ضوابط الثقة التشغيلية الحالية بشكل منضبط، مع فصل صريح بين ما هو <strong>VERIFIED</strong> داخليًا وما هو <strong>UNVERIFIED</strong>. هي وثيقة نشر سياسات تشغيلية وليست صفحة تسويقية أو شهادة امتثال نهائية.</p>
 
-      <aside class="console" aria-label="Operational status summary">
-        <div class="console-top">
-          <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
-          <span>lexprim.com / trust surface</span>
-        </div>
-        <div class="status-list">
-          <div class="status-row">
-            <span class="label">CONTROL</span>
-            <span class="value">Policy-first agent orchestration<br><span class="note">كل قرار تشغيلي يحتاج دليلاً، لا ادعاءً مجرداً.</span></span>
-          </div>
-          <div class="status-row">
-            <span class="label">DATA</span>
-            <span class="value">No public secrets in this surface<br><span class="note">لا يتم عرض مفاتيح، endpoints خاصة، أو بيانات عملاء.</span></span>
-          </div>
-          <div class="status-row">
-            <span class="label">AI</span>
-            <span class="value">Human-reviewed activation model<br><span class="note">الوكلاء السحابيون/الخاصون لا يُفعّلون من الواجهة العامة.</span></span>
-          </div>
-        </div>
-      </aside>
-    </section>
+    <div class="card">
+      <h2>1) Data Residency</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> المستودع الحالي هو طبقة تشغيل وكلاء ولا يحتوي أرشيف المنتج السابق داخل <code>main</code>.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا توجد في هذا المستودع أدلة تشغيل إنتاجي تثبت منطقة استضافة بيانات نهائية لكل عميل.</li>
+      </ul>
+    </div>
 
-    <section id="platform" class="shell section" aria-labelledby="platform-title">
-      <h2 id="platform-title">منصة تشغيل، وليست مجرد موقع.</h2>
-      <p class="section-intro">
-        LexPrim يضع طبقات القرار، الاتصال، التحكم، والأجهزة خلف حدود واضحة؛ الواجهة العامة تعرض القيمة فقط، بينما تبقى عمليات الوكلاء والأسرار في الخلفية الخاضعة للحوكمة.
-      </p>
-      <div class="grid">
-        <article class="card">
-          <h3>Decision Layer</h3>
-          <p>تنسيق وكلاء محليين وسحابيين تحت سياسات تصنيف، مراجعة بشرية، وسجلات تدقيق قبل أي تفعيل حساس.</p>
-        </article>
-        <article class="card">
-          <h3>Control Layer</h3>
-          <p>توزيع سياسات، فصل صلاحيات، وتتبع تغييرات التشغيل بدون كشف أسرار أو اختصار بوابات الحماية.</p>
-        </article>
-        <article class="card">
-          <h3>Trust Surface</h3>
-          <p>صفحة عامة ثابتة وخفيفة توضح النطاق والثقة، ولا تتصل بأي مزود AI أو endpoint خاص.</p>
-        </article>
-      </div>
-    </section>
+    <div class="card">
+      <h2>2) Encryption</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> يوجد فصل سياسات أمنيّة وتشغيلية في <code>.agents/policies</code> كمصدر حوكمة للممارسات.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا يوجد في هذا المستودع إثبات مباشر لتفعيل تشفير at-rest/in-transit في بيئة إنتاج محددة.</li>
+      </ul>
+    </div>
 
-    <section id="governance" class="shell section" aria-labelledby="governance-title">
-      <h2 id="governance-title">حوكمة مبنية على الدليل.</h2>
-      <p class="section-intro">
-        لا يتم تقديم ادعاءات امتثال نهائية من هذه الصفحة. ما نعرضه هو نموذج تشغيل منضبط: VERIFIED لما يمكن إثباته من المستودع، وUNVERIFIED لما يحتاج بيئة إنتاج أو تدقيقاً خارجياً.
-      </p>
-      <div class="pill-row" aria-label="Governance principles">
-        <span class="pill">Evidence-first reporting</span>
-        <span class="pill">No secrets in public surfaces</span>
-        <span class="pill">Human review before activation</span>
-        <span class="pill">Offline-safe agent workflows</span>
-        <span class="pill">Scoped regulatory alignment</span>
-      </div>
-    </section>
+    <div class="card">
+      <h2>3) Access Control</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> توجد طبقة تحقق صلاحيات في مسار التنفيذ عبر <code>required_scope</code> وتسجيل انتهاكات الوصول في خدمة التدقيق.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا يوجد هنا إثبات تكامل IAM مؤسسي خارجي أو SSO مفعل إنتاجيًا.</li>
+      </ul>
+    </div>
 
-    <section id="trust" class="shell section trust" aria-labelledby="trust-title">
-      <article class="card quote">
-        <h2 id="trust-title">Trust Center</h2>
-        <p>
-          هذه الصفحة هي واجهة ثقة عامة وليست شهادة امتثال. أي تشغيل إنتاجي، تكامل Render/Cloudflare، أو ربط نماذج خاصة يجب أن يبقى خلف أسرار محمية ومراجعة بشرية.
-        </p>
-      </article>
-      <div class="evidence-list">
-        <article class="evidence">
-          <span class="tag">VERIFIED</span>
-          <p>السطح الحالي ثابت، ولا يحتوي على نماذج إدخال أو JavaScript يرسل بيانات المستخدمين إلى طرف ثالث.</p>
-        </article>
-        <article class="evidence">
-          <span class="tag">VERIFIED</span>
-          <p>الرابط العام يمكن أن يوجه إلى `/trust/` وفق إعداد `vercel.json` الحالي دون تغيير DNS أو مفاتيح نشر.</p>
-        </article>
-        <article class="evidence">
-          <span class="tag unverified">UNVERIFIED</span>
-          <p>حالة Render/Cloudflare الحية، TLS، وDNS لم يتم تعديلها أو إثباتها من هذه الجلسة.</p>
-        </article>
-      </div>
-    </section>
+    <div class="card">
+      <h2>4) Model Governance</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> تعريف أدوار الوكلاء ونماذجهم موثق داخل ملفات الإعداد والتشغيل.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا تتوفر في هذا المستودع شهادات طرف ثالث أو اعتماد تنظيمي رسمي للنماذج.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>5) Audit Logging</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> مسار التنفيذ يرسل أحداثًا إلى <code>AuditService</code> لتتبع الأفعال وتحديث حالة المهام.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا يوجد دليل retention policy إنتاجية أو SIEM binding موثق داخل هذا المستودع.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>6) Incident Response</h2>
+      <ul>
+        <li><span class="tag verified">VERIFIED</span> توجد قوالب وتقارير تشغيلية للـ execution verdict ضمن <code>docs/operations</code>.</li>
+        <li><span class="tag unverified">UNVERIFIED</span> لا يوجد runbook حادثة إنتاجية متكامل بزمن استجابة/SLA معتمد في هذا المستودع.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Regulatory Alignment (Scoped)</h2>
+      <h3>PDPL alignment (مختصر)</h3>
+      <ul>
+        <li>النطاق: مواءمة تشغيلية داخلية للسياسات ومسارات الوكلاء.</li>
+        <li>خارج النطاق: لا يُعد هذا المستند شهادة امتثال قانوني نهائي.</li>
+      </ul>
+      <h3>SAMA CSF mapping (مختصر)</h3>
+      <ul>
+        <li>النطاق: ربط ضوابط الحوكمة/الوصول/التدقيق على مستوى تصميم النظام.</li>
+        <li>خارج النطاق: لا يوجد هنا تقرير تدقيق خارجي أو اعتماد SAMA رسمي.</li>
+      </ul>
+      <h3>NCA ECC mapping (مختصر)</h3>
+      <ul>
+        <li>النطاق: مواءمة مبدئية لمجالات الحوكمة والأمن التشغيلي وإدارة السجلات.</li>
+        <li>خارج النطاق: غير مغطى إثبات امتثال ECC كامل أو نتائج تقييم جهة مقيمة.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <a href="/">العودة إلى الصفحة الرئيسية</a>
+    </div>
   </main>
 
   <footer class="shell">
-    <strong>LexPrim</strong> — Sovereign AI operations for governed legal and regulatory workflows. No public secrets. No live agent activation from this page.
+    <strong>LexPrim</strong> — operator trust and policy publication artifact. No public secrets. No live agent activation from this page.
   </footer>
 
   <script src="https://cdn.example.com/trust/fallback-lib.js" integrity="sha384-ywpyLD6gBwdOofJewvXSuEH8UZHNwBs2e2G8hO9WlWAMz51QaJs2uheKtBJncro2" crossorigin="anonymous"></script>
