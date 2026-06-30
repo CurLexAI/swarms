@@ -19,6 +19,25 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
 
+  ollama:
+    image: ollama/ollama:0.12.10
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+
+  qdrant:
+    image: qdrant/qdrant:v1.15.3
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY is required}
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+
   mihwar-core:
     build:
       context: ./mihwar-core
@@ -27,11 +46,18 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
       MIHWAR_HMAC_SECRET: ${MIHWAR_HMAC_SECRET:?MIHWAR_HMAC_SECRET is required}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      QDRANT_INTERNAL_URL: ${QDRANT_INTERNAL_URL:-http://qdrant:6333}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY is required}
     depends_on:
       - postgres
       - redis
+      - ollama
+      - qdrant
     ports:
       - "127.0.0.1:8080:8080"
 
 volumes:
   postgres_data:
+  ollama_data:
+  qdrant_data:

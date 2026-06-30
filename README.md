@@ -13,11 +13,11 @@ This repository operates under the **LexPrime** GitHub Enterprise — https://gi
 ## Current operating model
 
 - **Codex Commander** is the repository execution lead skill. It scopes work, plans small PRs, runs gates, and reports with `COMMANDER REPORT` discipline.
-- **Bayyinah** is the validation and review gate. Runtime activation must remain `UNVERIFIED` until endpoint smoke tests pass.
-- **Mihwar** is the implementation and fix-suggestion agent. It must not be treated as live unless `MIHWAR_ENDPOINT` and `MIHWAR_API_TOKEN` are configured and smoke-tested.
-- **Render** hosts the repository-defined `curlexai-mcp-server` Modal MCP Gateway. The BSM backend and public product API origin are distinct external services unless their source and Render blueprint are intentionally supplied to this repository.
+- **Bayyinah** is the validation and review gate. Runtime activation must remain `UNVERIFIED` until local Ollama/Qdrant smoke tests pass.
+- **Mihwar** is the implementation and fix-suggestion agent. It must not be treated as live unless the local Ollama control-plane route is configured and smoke-tested.
+- **Render** hosts repository-defined operator services only when explicitly deployed; model inference for Qarar/Bayyinah/Mihwar is local sovereign by default.
 - **Cloudflare** is the edge layer for DNS/TLS/WAF concerns.
-- **Modal** is backend-only model runtime. Public browser, iPhone, or frontend code must not call `*.modal.run` directly.
+- **Local Sovereign Runtime** is the only active model runtime path in this repository: Ollama serves Qwen/DeepSeek-class models and Qdrant stores local evidence vectors. Public browser, iPhone, or frontend code must not call model runtimes directly.
 
 
 ## Instruction loading architecture
@@ -74,17 +74,15 @@ Every instruction file should begin with:
 Do not commit values. Configure these as **Organization secrets at the LexPrime enterprise org** with both `CurLexAI/swarms` and `LexPrim/Qarar` in the Selected repositories allow-list. Repository-scoped duplicates are deprecated — see `docs/secrets-policy.md §3` for the operator runbook and `§3.1` for the silent-degrade warning.
 
 ```text
-BAYYINAH_ENDPOINT
-BAYYINAH_API_TOKEN
-MIHWAR_ENDPOINT
-MIHWAR_API_TOKEN
+OLLAMA_BASE_URL
+QDRANT_INTERNAL_URL
+QDRANT_API_KEY
+MIHWAR_HMAC_SECRET
 ```
 
-Optional deployment/provider secrets depend on the active workflow:
+Optional deployment/provider secrets depend on the active workflow. They must not enable model egress from Qarar/Bayyinah/Mihwar unless a separate human-approved architecture decision reintroduces that path:
 
 ```text
-MODAL_TOKEN_ID
-MODAL_TOKEN_SECRET
 RENDER_API_TOKEN
 CLOUDFLARE_API_TOKEN
 SOVEREIGN_API_KEY
@@ -142,6 +140,7 @@ npx tsc --noEmit
 ```bash
 bash scripts/commander/p0-security-test-gate.sh .
 bash scripts/commander/modal-boundary-gate.sh .
+# The Modal boundary gate remains as a regression check to prevent public/client Modal leakage.
 bash scripts/commander/adr-0001-boundary-gate.sh .
 bash scripts/commander/agent-presence-gate.sh .
 bash .agents/skills/codex-commander/scripts/codex_commander_gate.sh .
@@ -167,7 +166,7 @@ The repository scope and forbidden additions are codified in
 Read it before proposing changes that add public-facing application
 surfaces, RAG pipelines, frontend pages, or `autoStart` activation flags.
 
-Secret warnings in local runs are expected unless runtime endpoints and tokens are intentionally bound. They must not be reported as verified runtime activation.
+Secret warnings in local runs are expected unless the local Ollama/Qdrant runtime and required HMAC/Qdrant secrets are intentionally bound. They must not be reported as verified runtime activation.
 
 ## Status language
 

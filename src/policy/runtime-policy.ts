@@ -25,8 +25,6 @@ export type RuntimeCapability =
 export type ProviderId =
   | "ollama-qwen-local"
   | "ollama-deepseek-local"
-  | "modal-mihwar"
-  | "modal-bayyinah"
   | "vertex-llama4"
   | "cursor-cloud";
 
@@ -149,22 +147,6 @@ export const providerRegistry: Readonly<Record<ProviderId, ProviderRegistryEntry
     allowedClassifications: ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED", "SECRET"],
     requiresHumanReview: false,
   },
-  "modal-mihwar": {
-    id: "modal-mihwar",
-    displayName: "Mihwar Sovereign Modal Runtime",
-    trustBoundary: "SOVEREIGN_CLOUD",
-    capabilities: ["text_generation", "code_generation", "long_context", "cloud_inference"],
-    allowedClassifications: ["PUBLIC", "INTERNAL", "CONFIDENTIAL"],
-    requiresHumanReview: false,
-  },
-  "modal-bayyinah": {
-    id: "modal-bayyinah",
-    displayName: "Bayyinah Sovereign Modal Runtime",
-    trustBoundary: "SOVEREIGN_CLOUD",
-    capabilities: ["text_generation", "code_generation", "long_context", "cloud_inference"],
-    allowedClassifications: ["PUBLIC", "INTERNAL", "CONFIDENTIAL"],
-    requiresHumanReview: false,
-  },
   "vertex-llama4": {
     id: "vertex-llama4",
     displayName: "Vertex Llama 4 Approved Cloud",
@@ -186,10 +168,6 @@ export const providerRegistry: Readonly<Record<ProviderId, ProviderRegistryEntry
 export const currentProviderOrder: readonly ProviderId[] = [
   "ollama-qwen-local",
   "ollama-deepseek-local",
-  "modal-mihwar",
-  "modal-bayyinah",
-  "vertex-llama4",
-  "cursor-cloud",
 ];
 
 export function isLegacyArchitectureBlocked(

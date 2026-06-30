@@ -5,7 +5,7 @@ agents:
     role: "architect_generator"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -18,17 +18,16 @@ agents:
       - "multi_file_planning"
     enable_reasoning: true
     provider:
-      kind: "modal_vllm"
-      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
-      endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "MIHWAR_API_TOKEN"
+      kind: "local_ollama"
+      model: "deepseek-coder-v2:latest"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: bayyinah
     name: "Bayyinah — البيّنة"
     role: "validator_reviewer"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -43,10 +42,9 @@ agents:
       - "legal_risk_review"
     enable_reasoning: true
     provider:
-      kind: "modal_vllm"
-      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-      endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "BAYYINAH_API_TOKEN"
+      kind: "local_ollama"
+      model: "qwen2.5-coder:32b"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: qarar-router
     name: "Qarar Model Router"
@@ -78,41 +76,39 @@ agents:
     role: "raw_code_generation"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
         - "scope:code.generate"
     enable_reasoning: false
     provider:
-      kind: "modal_vllm"
-      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
-      endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "MIHWAR_API_TOKEN"
+      kind: "local_ollama"
+      model: "deepseek-coder-v2:latest"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: qwen-coder
     name: "Qwen2.5 Coder 32B — كيونق كود"
     role: "raw_code_review"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
         - "scope:code.review"
     enable_reasoning: false
     provider:
-      kind: "modal_vllm"
-      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-      endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "BAYYINAH_API_TOKEN"
+      kind: "local_ollama"
+      model: "qwen2.5-coder:32b"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: pr-fix-conflict
     name: "PR Fix Conflict"
     role: "merge_conflict_resolver"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -125,10 +121,9 @@ agents:
       - "code_review"
     enable_reasoning: true
     provider:
-      kind: "modal_vllm"
-      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-      endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "BAYYINAH_API_TOKEN"
+      kind: "local_ollama"
+      model: "qwen2.5-coder:32b"
+      base_url_env: "OLLAMA_BASE_URL"
 
   # ── External provider agents (UNVERIFIED until env is configured) ────────
   # Gated by ALLOW_EXTERNAL_AI=true. Transports for these providers are NOT
@@ -171,15 +166,13 @@ agents:
     status: "UNVERIFIED"
 
   # ── Free Birds Pool — الطيور الحرة ────────────────────────────────────────
-  # Code-named alias agents that route to existing sovereign Modal endpoints
+  # Code-named alias agents that route to local sovereign Ollama endpoints
   # without exposing the underlying reviewer/architect identities. Naming the
-  # endpoint via `endpoint_env` is the only required coupling; the operator-
+  # endpoint via `base_url_env` is the only required coupling; the operator-
   # facing identity is the bird name and its capability list.
   #
-  # Programming birds (8) → Qwen2.5-Coder-32B over the sovereign code-review
-  # endpoint (`BAYYINAH_ENDPOINT`).
-  # Reasoning birds  (4) → DeepSeek-Coder-V2-Instruct over the sovereign
-  # architect endpoint (`MIHWAR_ENDPOINT`).
+  # Programming birds (8) → Qwen2.5-Coder-32B through the local Ollama code-review model.
+  # Reasoning birds  (4) → DeepSeek-Coder-V2-Instruct through the local Ollama architect model.
   #
   # Invoke as a group via the `free-birds` swarm. Individual bird ids exist
   # so an operator can pick a single bird by capability when needed.
@@ -191,7 +184,7 @@ agents:
     role: "code_review"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -202,17 +195,16 @@ agents:
       - "tenant_validation"
     enable_reasoning: false
     provider:
-      kind: "modal_vllm"
-      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-      endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "BAYYINAH_API_TOKEN"
+      kind: "local_ollama"
+      model: "qwen2.5-coder:32b"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: hawk
     name: "Hawk — الباز"
     role: "code_review"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -223,17 +215,16 @@ agents:
       - "contract_validation"
     enable_reasoning: false
     provider:
-      kind: "modal_vllm"
-      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-      endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "BAYYINAH_API_TOKEN"
+      kind: "local_ollama"
+      model: "qwen2.5-coder:32b"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: shaheen
     name: "Shaheen — الشاهين"
     role: "code_review"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -244,17 +235,16 @@ agents:
       - "secrets_leakage_scan"
     enable_reasoning: false
     provider:
-      kind: "modal_vllm"
-      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-      endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "BAYYINAH_API_TOKEN"
+      kind: "local_ollama"
+      model: "qwen2.5-coder:32b"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: kestrel
     name: "Kestrel — اليؤيؤ"
     role: "code_review"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -265,17 +255,16 @@ agents:
       - "test_coverage_gap_detection"
     enable_reasoning: false
     provider:
-      kind: "modal_vllm"
-      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-      endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "BAYYINAH_API_TOKEN"
+      kind: "local_ollama"
+      model: "qwen2.5-coder:32b"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: osprey
     name: "Osprey — العقاب النهري"
     role: "code_review"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -286,38 +275,36 @@ agents:
       - "supply_chain_check"
     enable_reasoning: false
     provider:
-      kind: "modal_vllm"
-      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-      endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "BAYYINAH_API_TOKEN"
+      kind: "local_ollama"
+      model: "qwen2.5-coder:32b"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: harrier
     name: "Harrier — المرزة"
     role: "code_review"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
         - "scope:code.review"
     capabilities:
       - "code_review"
-      - "modal_boundary_check"
+      - "local_runtime_boundary_check"
       - "public_surface_audit"
     enable_reasoning: false
     provider:
-      kind: "modal_vllm"
-      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-      endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "BAYYINAH_API_TOKEN"
+      kind: "local_ollama"
+      model: "qwen2.5-coder:32b"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: merlin
     name: "Merlin — الحرّ"
     role: "code_review"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -329,17 +316,16 @@ agents:
       - "conflict_analysis"
     enable_reasoning: false
     provider:
-      kind: "modal_vllm"
-      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-      endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "BAYYINAH_API_TOKEN"
+      kind: "local_ollama"
+      model: "qwen2.5-coder:32b"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: saker
     name: "Saker — الصقر الحرّ"
     role: "code_review"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -350,10 +336,9 @@ agents:
       - "legal_risk_review"
     enable_reasoning: false
     provider:
-      kind: "modal_vllm"
-      model: "Qwen/Qwen2.5-Coder-32B-Instruct"
-      endpoint_env: "BAYYINAH_ENDPOINT"
-      token_env: "BAYYINAH_API_TOKEN"
+      kind: "local_ollama"
+      model: "qwen2.5-coder:32b"
+      base_url_env: "OLLAMA_BASE_URL"
 
   # — Reasoning birds (DeepSeek-Coder-V2, sovereign architect) —
 
@@ -362,7 +347,7 @@ agents:
     role: "architecture_design"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -374,17 +359,16 @@ agents:
       - "multi_file_planning"
     enable_reasoning: true
     provider:
-      kind: "modal_vllm"
-      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
-      endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "MIHWAR_API_TOKEN"
+      kind: "local_ollama"
+      model: "deepseek-coder-v2:latest"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: raven
     name: "Raven — الغراب"
     role: "architecture_design"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -396,17 +380,16 @@ agents:
       - "api_contract_design"
     enable_reasoning: true
     provider:
-      kind: "modal_vllm"
-      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
-      endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "MIHWAR_API_TOKEN"
+      kind: "local_ollama"
+      model: "deepseek-coder-v2:latest"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: eagle
     name: "Eagle — النسر"
     role: "architecture_design"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -418,17 +401,16 @@ agents:
       - "performance_critical_implementation"
     enable_reasoning: true
     provider:
-      kind: "modal_vllm"
-      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
-      endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "MIHWAR_API_TOKEN"
+      kind: "local_ollama"
+      model: "deepseek-coder-v2:latest"
+      base_url_env: "OLLAMA_BASE_URL"
 
   - id: phoenix
     name: "Phoenix — العنقاء"
     role: "architecture_design"
     type: "hybrid"
     execution:
-      runtime: "modal_vllm"
+      runtime: "local_ollama"
     contexts:
       allowed:
         - "scope:agent.execute"
@@ -440,10 +422,9 @@ agents:
       - "system_design"
     enable_reasoning: true
     provider:
-      kind: "modal_vllm"
-      model: "deepseek-ai/DeepSeek-Coder-V2-Instruct"
-      endpoint_env: "MIHWAR_ENDPOINT"
-      token_env: "MIHWAR_API_TOKEN"
+      kind: "local_ollama"
+      model: "deepseek-coder-v2:latest"
+      base_url_env: "OLLAMA_BASE_URL"
 
 # ── Swarms ──────────────────────────────────────────────────────────────────
 # A swarm is a named, ordered group of agents that operate in coordination on
@@ -476,7 +457,7 @@ swarms:
       Sovereign coded-named engineering swarm. Twelve aliased birds split into
       a code-review pool (8, Qwen2.5-Coder-32B) and an architecture/reasoning
       pool (4, DeepSeek-Coder-V2-Instruct). Operator-facing identity is the
-      bird name; underlying endpoints stay private. Invoke when a multi-angle
+      bird name; underlying local model names stay private. Invoke when a multi-angle
       engineering pass is desired rather than a single reviewer.
     members:
       - falcon
@@ -501,7 +482,7 @@ swarms:
       - shaheen.prompt_injection_scan
       - kestrel.test_coverage_check
       - osprey.dependency_risk
-      - harrier.modal_boundary_check
+      - harrier.local_runtime_boundary_check
       - merlin.merge_safety
       - saker.citation_validation
     revision_policy:
@@ -540,8 +521,9 @@ providers:
       - "coding"
       - "code_review"
       - "agent_creation"
-  modal_vllm:
-    kind: "sovereign_runtime"
+  local_ollama:
+    kind: "local_sovereign_runtime"
+    endpoint_env: "OLLAMA_BASE_URL"
     allowed_when:
       - "coding"
       - "code_review"
