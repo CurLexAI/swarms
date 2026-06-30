@@ -20,6 +20,7 @@ skill. See `docs/decisions/ADR-0003-qala-security-architecture.md`
 |---|---|---|
 | `*.modal.run` | Sovereign coding agents (Mihwar / Bayyinah) | `.agents/modal_app.py`, `.agents/pr_review.py`, `.agents/providers/modal_provider.py` |
 | `api.github.com` | PR review comments, user info | `.agents/pr_review.py`, `.agents/mcp/cloudflare-mcp/src/github-handler.ts` |
+| `api.render.com` | Manual Render deploy hook trigger for the gated orchestrator only | `scripts/ci/sovereign-platform-orchestrator.sh`, `.github/workflows/render-deploy.yml` |
 | `github.com` | GitHub OAuth authorization and token exchange | `.agents/mcp/cloudflare-mcp/src/github-handler.ts` |
 | `huggingface.co` | Model weight pull (Modal runtime only — never client) | `.agents/modal_app.py` |
 | `router.huggingface.co` | Public-only HF inference router for the public coding-model smoke test and explicitly enabled backend-only Mihwar/Bayyinah inference (synthetic/public snippets only unless separately approved — never secrets) | `scripts/hf_public_coding_smoke.py`, `.agents/providers/huggingface_provider.py` |

@@ -28,6 +28,7 @@ info "repo=$(pwd)"
 ALLOWLIST=(
   "*.modal.run"
   "api.github.com"
+  "api.render.com"
   "github.com"
   "huggingface.co"
   "router.huggingface.co"
@@ -73,6 +74,7 @@ from fnmatch import fnmatch
 ALLOWLIST = (
     "*.modal.run",
     "api.github.com",
+    "api.render.com",
     "github.com",
     "huggingface.co",
     "router.huggingface.co",
