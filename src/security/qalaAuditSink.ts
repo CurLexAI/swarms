@@ -20,7 +20,7 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 export const QALA_GENESIS_HASH = "GENESIS";
 
@@ -128,10 +128,24 @@ function sha256(input: string): string {
   return createHash("sha256").update(input, "utf8").digest("hex");
 }
 
+const QALA_AUDIT_ROOT = resolve("artifacts/security");
+const QALA_AUDIT_DEFAULT_FILENAME = "qala-audit.jsonl";
+
 function defaultSinkPath(): string {
-  // Resolved at sink-construction time; under artifacts/security/ which
-  // is gitignored by convention (matches sovereignCyberRadar.EvidenceLedger).
-  return process.env.QALA_AUDIT_SINK_PATH ?? "artifacts/security/qala-audit.jsonl";
+  // Allow operator override, but constrain to QALA_AUDIT_ROOT in resolveSinkPath().
+  return process.env.QALA_AUDIT_SINK_PATH ?? QALA_AUDIT_DEFAULT_FILENAME;
+}
+
+function resolveSinkPath(inputPath?: string): string {
+  const candidate = inputPath ?? defaultSinkPath();
+  const resolved = isAbsolute(candidate)
+    ? resolve(candidate)
+    : resolve(QALA_AUDIT_ROOT, candidate);
+  const rel = relative(QALA_AUDIT_ROOT, resolved);
+  if (rel === ".." || rel.startsWith(`..${"/"}`) || rel.startsWith(`..${"\\"}`)) {
+    throw new Error("Invalid audit sink path: must be within artifacts/security");
+  }
+  return resolved;
 }
 
 function isQalaAuditEvent(value: unknown): value is QalaAuditEvent {
@@ -173,7 +187,7 @@ export class QalaAuditSink {
   private readonly path: string;
 
   public constructor(sinkPath?: string) {
-    this.path = resolve(sinkPath ?? defaultSinkPath());
+    this.path = resolveSinkPath(sinkPath);
     const dir = dirname(this.path);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
