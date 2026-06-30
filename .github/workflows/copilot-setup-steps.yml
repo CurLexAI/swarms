@@ -113,6 +113,13 @@ jobs:
           set -euo pipefail
           npm ci --include=dev
 
+      - name: Run local no-secrets checks (if present)
+        run: |
+          set -euo pipefail
+          # Local, no-secrets validation only — no live integrations.
+          npm run check --if-present
+          npm test --if-present
+
       - name: Wait for Ollama service to become healthy
         run: |
           set -euo pipefail
@@ -181,6 +188,14 @@ jobs:
           chmod +x "${GATE}"
           echo "Running ADR-0001 boundary gate ..."
           "${GATE}" .
+
+      - name: Run repo checks and tests (no-secrets, local only)
+        run: |
+          set -euo pipefail
+          # Local, no-secrets validation only. --if-present keeps the step
+          # green if a script is absent; we never invoke live integrations.
+          npm run check --if-present
+          npm test --if-present
 
       - name: Verify environment readiness
         run: |
