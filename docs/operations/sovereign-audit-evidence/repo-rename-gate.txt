@@ -1,0 +1,37 @@
+# Sovereign Audit Evidence
+Command: bash scripts/commander/repo-rename-gate.sh .
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:06:11Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+=== REPO RENAME GATE ===
+canonical_repo=CurLexAI/swarms
+canonical_url=https://github.com/CurLexAI/swarms
+branch=devin/1782846262-sovereign-audit
+head_sha=d64ac70cdb366d2d1733b9261cc442a6b56f6e78
+=== Local remotes ===
+origin	https://git-manager.devin.ai/proxy/github.com/CurLexAI/swarms.git (fetch)
+origin	https://git-manager.devin.ai/proxy/github.com/CurLexAI/swarms.git (push)
+NO-GO: stale repository or invalid evidence references found.
+.agents/policies/execution-discipline-maximum.md:40:- AUTH_MISSING
+docs/integrations/lexprim-chat-gateway-spec.md:213:               "AUTH_MISSING" | "MODEL_TIMEOUT" | "POLICY_BLOCKED" |
+docs/security/control-plane-cloudflare-access.md:17:| Access JWT required on every request | `enforceCloudflareAccess()` checks `cf-access-jwt-assertion` header. | `AUTH_MISSING` |
+docs/security/control-plane-cloudflare-access.md:24:- Negative: request without Access token -> denied (`AUTH_MISSING`).
+docs/public-profile/go-live-gate.md:11:- `CurLexAI/LexPrim`
+docs/public-profile/go-live-gate.md:12:- `LexBANK/BSM`
+docs/public-profile/go-live-gate.md:13:- `MOTEB1989/LexPrim`
+docs/public-profile/go-live-gate.md:14:- `AUTH_MISSING`
+docs/operations/reports/swarms-extraction-20260516-200955.md:6:- Blockers: AUTH_MISSING (gh auth status failed for github.com)
+docs/operations/sr-bsm-dashboard-bff-handoff-2026-05-29.md:9:- Blockers: `AUTH_MISSING` for `moteb1989/SR.BSM` source access; `/workspace/swarms` does not contain `src/components/SwarmsDashboard.tsx` or `src/app/api/agents/route.ts`.
+docs/operations/execution-discipline-maximum.md:40:- `AUTH_MISSING`
+docs/operations/sr-bsm-command-interface-mock-handoff-2026-05-29.md:16:- Blockers: `AUTH_MISSING` — مستودع `moteb1989/SR.BSM` غير قابل للوصول من هذا الـ worktree؛ نطاق أدوات GitHub مقيّد بـ `curlexai/swarms`. كما أن `src/api/` مسار محظور صراحةً في `scripts/commander/adr-0001-boundary-gate.sh`، فلا يجوز إنشاء ملفات منتج Next.js داخل هذا المستودع.
+docs/operations/sr-bsm-command-interface-mock-handoff-2026-05-29.md:50:1. `AUTH_MISSING`: مستودع SR.BSM غير متاح من بيئة التنفيذ الحالية (نطاق مقيّد بـ `curlexai/swarms`).
+docs/operations/sr-bsm-command-interface-mock-handoff-2026-05-29.md:209:   - AUTH_MISSING: مستودع SR.BSM غير متاح (نطاق مقيّد بـ curlexai/swarms)
+docs/ai-governance/instruction-architecture/01-policies/execution-and-approval-policy.md:43:AUTH_MISSING
+docs/launch-evidence/agent-launch.md:123:| AUTH_MISSING      | NOT_APPLICABLE — no auth-gated local path failed | N/A |
+scripts/verify_swarms_extraction.sh:21:- Blockers: AUTH_MISSING (gh auth status failed for github.com)
+scripts/verify_swarms_extraction.sh:28:  printf 'BLOCKER AUTH_MISSING: GitHub CLI authentication is required. Report: %s\n' "${REPORT_PATH}" >&2
+scripts/commander/repo-rename-gate.sh:47:    "CurLexAI/LexPrim|LexBANK/BSM|MOTEB1989/LexPrim|AUTH_MISSING|api\.github\.com/repos/LexBANK|github\.com/LexBANK|api\.github\.com/repos/CurLexAI/LexPrim|github\.com/CurLexAI/LexPrim|api\.github\.com/repos/MOTEB1989/LexPrim|github\.com/MOTEB1989/LexPrim" \
+======================================================================
+EXIT CODE: 1
+RESULT: FAIL (exit 1)
