@@ -22,16 +22,21 @@ two sides. This has repeatedly produced a corrupt on-disk chain:
    independently-sealed chains, so `verify_chain` failed at record 1
    (`prev_hash mismatch`). This pre-existed on `main` and was repaired by
    the previously-merged re-seal `d6011ac`, and again during PR #409.
-2. **Byte-identical duplicate records.** The `Merge branch 'main'` commit
+2. **Duplicated event records.** The `Merge branch 'main'` commit
    `d9252a4` (in PR #409) concatenated two copies of the same log, leaving
-   16 records of which only **9 were unique**. The 7 duplicates were
-   identical on *every* field — `recordId`, `occurredAt` (to the
-   microsecond), and `recordHash`. Such records cannot be produced by
-   `QalaAuditSink.append()` (fresh `uuid4()` + fresh timestamp per call),
-   nor by a replay through it (a replay mints new ids/timestamps). The
-   only mechanism that reproduces byte-identical lines is file-level
-   duplication during a git merge — i.e. they are merge artifacts, not
-   genuine distinct audit events.
+   16 records of which only **9 were unique**. Each of the 7 duplicates is
+   identical to an earlier record on every *event/content* field —
+   `recordId`, `occurredAt` (to the microsecond), `event`, `traceId`,
+   `spanId`, `tenantId`, and `payload` — although their `prevHash`/
+   `recordHash` differ, because the duplicate copies were re-linked into
+   later chain positions during the PR #409 re-seal (`be19809`). A reused
+   `recordId` paired with an identical microsecond `occurredAt` cannot be
+   produced by `QalaAuditSink.append()` (fresh `uuid4()` + fresh timestamp
+   per call), nor by a replay through it (a replay mints new ids and
+   timestamps). The only mechanism that reproduces the same
+   `recordId`+`occurredAt`+`payload` is file-level duplication during a git
+   merge — i.e. they are merge artifacts, not genuine distinct audit
+   events.
 
 Automated review correctly flagged both states: the duplicates as a defect,
 and the deletion of sealed lines as an append-only/tamper concern. The
@@ -40,8 +45,9 @@ green gate alone does not prove "no records were removed."
 
 ## Decision
 
-1. **One-time repair (PR #412).** Collapse the 7 byte-identical merge
-   duplicates and re-seal the chain over the 9 genuine events, in original
+1. **One-time repair (PR #412).** Collapse the 7 merge-duplicate records
+   (matched by event/content fields) and re-seal the chain over the 9
+   genuine events, in original
    order, using the sink's own `_canonicalize`/`_sha256` (record 0 =
    GENESIS, each later `prevHash` = prior `recordHash`). No genuine event's
    payload, id, or timestamp is altered; the diff is a pure deletion of
