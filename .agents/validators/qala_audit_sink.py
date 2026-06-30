@@ -134,11 +134,23 @@ def _default_events_path() -> Path:
     )
 
 
+def _safe_artifact_path(raw_path: str, *, fallback: str) -> Path:
+    candidate = Path(raw_path or fallback)
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    normalized = candidate.resolve(strict=False)
+    base_dir = (Path.cwd() / "artifacts/security").resolve(strict=False)
+    try:
+        normalized.relative_to(base_dir)
+    except ValueError as exc:
+        raise ValueError(f"path escapes artifacts/security: {normalized}") from exc
+    return normalized
+
+
 def _default_anchor_path() -> Path:
-    return Path(
-        os.environ.get(
-            "QALA_AUDIT_ANCHOR_PATH", "artifacts/security/qala-audit.anchor.json"
-        )
+    return _safe_artifact_path(
+        os.environ.get("QALA_AUDIT_ANCHOR_PATH", "artifacts/security/qala-audit.anchor.json"),
+        fallback="artifacts/security/qala-audit.anchor.json",
     )
 
 
@@ -544,7 +556,13 @@ def _main(argv: list[str] | None = None) -> int:
 
     if args.command == "verify":
         sink = QalaAuditSink(_resolve_verify_path(args.path))
-        anchor_path = Path(args.anchor) if args.anchor else _default_anchor_path()
+        anchor_path = (
+            _safe_artifact_path(
+                args.anchor, fallback="artifacts/security/qala-audit.anchor.json"
+            )
+            if args.anchor
+            else _default_anchor_path()
+        )
         print(f"AUDIT_SINK_PATH: {sink.sink_path}")
         try:
             expected_count, expected_head = _load_anchor(anchor_path)
