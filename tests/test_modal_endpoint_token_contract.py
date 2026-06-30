@@ -154,8 +154,8 @@ def test_remote_mcp_surfaces_use_endpoint_specific_tokens() -> None:
     for source in (render_blueprint, render_config, render_client, cloudflare_agent, cloudflare_client):
         assert LEGACY_SHARED_TOKEN_ENV not in source
 
-    assert "MIHWAR_API_TOKEN" in render_blueprint
-    assert "BAYYINAH_API_TOKEN" in render_blueprint
+    assert "MIHWAR_API_TOKEN" not in render_blueprint
+    assert "BAYYINAH_API_TOKEN" not in render_blueprint
     assert "mihwarApiToken: env.MIHWAR_API_TOKEN" in render_config
     assert "bayyinahApiToken: env.BAYYINAH_API_TOKEN" in render_config
     assert "this.config.mihwarApiToken" in render_client
