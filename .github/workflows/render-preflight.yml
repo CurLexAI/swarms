@@ -107,10 +107,12 @@ jobs:
           fi
           echo "Render preflight service path exists: $service_path"
 
-      - name: Validate Modal MCP package metadata
-        working-directory: .agents/mcp/modal-mcp
+      - name: Validate Render service package metadata
         shell: bash
         run: |
           set -euo pipefail
+          service_path='${{ steps.blueprint.outputs.service_path }}'
+          cd "$service_path"
           npm ci --include=dev
-          npm run build
+          npm run test:render-public
+          npm run check:cdn-sri
