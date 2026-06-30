@@ -1,0 +1,61 @@
+# Sovereign Audit Evidence
+Command: python3 scripts/commander/swarm-presence-monitor.py --repo-root . --no-network
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:07:06Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+{
+  "checks": [
+    {
+      "detail": "required control files exist",
+      "evidence": {
+        "count": 8
+      },
+      "name": "static repository controls",
+      "status": "VERIFIED"
+    },
+    {
+      "detail": "boundary, modal, agent-presence, and aegis gates are present",
+      "evidence": {},
+      "name": "static validation gates",
+      "status": "VERIFIED"
+    },
+    {
+      "detail": "running inside a Git worktree",
+      "evidence": {},
+      "name": "git worktree identity",
+      "status": "VERIFIED"
+    },
+    {
+      "detail": "network checks disabled",
+      "evidence": {},
+      "name": "GitHub repository metadata",
+      "status": "SKIPPED_UNVERIFIED"
+    },
+    {
+      "detail": "network checks disabled",
+      "evidence": {},
+      "name": "MCP health",
+      "status": "SKIPPED_UNVERIFIED"
+    },
+    {
+      "detail": "network checks disabled",
+      "evidence": {},
+      "name": "Microsoft Entra metadata",
+      "status": "SKIPPED_UNVERIFIED"
+    }
+  ],
+  "exitCode": 0,
+  "generatedAt": "2026-06-30T19:07:06.209386+00:00",
+  "repo": "CurLexAI/swarms",
+  "strict": false,
+  "summary": {
+    "FAILED": 0,
+    "HOLD": 0,
+    "SKIPPED_UNVERIFIED": 3,
+    "VERIFIED": 3
+  }
+}
+======================================================================
+EXIT CODE: 0
+RESULT: PASS

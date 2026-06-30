@@ -14,14 +14,16 @@ the `ALLOW_EXTERNAL_AI` / API-key gate, these tests fail.
 
 Contracts under test:
 
-1. Anthropic / OpenAI raise ``RuntimeError`` when their API key is absent —
-   before any network consideration.
-2. With a key present but ``ALLOW_EXTERNAL_AI`` unset (or not exactly
-   ``"true"``), they still raise ``RuntimeError`` — the deliberate-opt-in
-   gate.
-3. With both the key and ``ALLOW_EXTERNAL_AI=true``, they reach the
+1. The sovereignty gate runs first: with ``ALLOW_EXTERNAL_AI`` unset (or not
+   exactly ``"true"``), Anthropic / OpenAI raise ``RuntimeError`` naming
+   ``ALLOW_EXTERNAL_AI`` *before* any credential is even considered — the
+   no-egress decision precedes credential availability.
+2. Only once external AI is explicitly allowed does the missing-API-key
+   check fire: with ``ALLOW_EXTERNAL_AI=true`` but no key present, they
+   raise ``RuntimeError`` naming the key as not configured.
+3. With both ``ALLOW_EXTERNAL_AI=true`` and the key, they reach the
    intentionally-unimplemented transport and raise ``NotImplementedError``
-   (proving the guards are ordered key -> flag -> transport, and that the
+   (proving the guards are ordered flag -> key -> transport, and that the
    repo ships no live external transport).
 4. The Modal provider is disabled by policy and raises ``RuntimeError``
    unconditionally, regardless of environment.
@@ -93,8 +95,19 @@ class _ExternalProviderGuardMixin(_MixinBase):
     provider_factory: type[Any]
     api_key_env: str
 
-    def test_missing_api_key_raises_runtime_error(self) -> None:
+    def test_sovereignty_gate_runs_before_key_check(self) -> None:
+        # Sovereignty gate first: with neither the flag nor a key, the
+        # ALLOW_EXTERNAL_AI gate must fire *before* the missing-key check,
+        # so the no-egress decision is made independently of credentials.
         with unittest.mock.patch.dict("os.environ", _env(), clear=True):
+            with self.assertRaisesRegex(RuntimeError, "ALLOW_EXTERNAL_AI"):
+                self.provider_factory().execute(_request())
+
+    def test_missing_api_key_raises_runtime_error(self) -> None:
+        # Only once external AI is explicitly allowed does the key gate fire.
+        with unittest.mock.patch.dict(
+            "os.environ", _env(ALLOW_EXTERNAL_AI="true"), clear=True
+        ):
             with self.assertRaisesRegex(RuntimeError, "not configured"):
                 self.provider_factory().execute(_request())
 
