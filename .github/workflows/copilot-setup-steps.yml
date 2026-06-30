@@ -189,6 +189,14 @@ jobs:
           echo "Running ADR-0001 boundary gate ..."
           "${GATE}" .
 
+      - name: Run repo checks and tests (no-secrets, local only)
+        run: |
+          set -euo pipefail
+          # Local, no-secrets validation only. --if-present keeps the step
+          # green if a script is absent; we never invoke live integrations.
+          npm run check --if-present
+          npm test --if-present
+
       - name: Verify environment readiness
         run: |
           set -euo pipefail
