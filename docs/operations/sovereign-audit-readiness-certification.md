@@ -133,6 +133,24 @@ Expected result before production certification:
 6. Frontend and backend health checks pass.
 7. The uploaded `sovereign-platform-orchestrator-report` artifact records all material claims as `VERIFIED`.
 
+## 4. Execution Evidence
+
+The following evidence was collected locally on 2026-06-30 after installing `requirements-agent.txt`. These results verify repository-local controls only; they do not prove live production runtime readiness.
+
+| Evidence command | Status | Observed result | Scope |
+| --- | --- | --- | --- |
+| `python3 scripts/verify_aegis.py` | `VERIFIED` | `AEGIS RESULT: 34 passed | 0 failed` | Local source controls, local providers, router/audit-chain controls, source secret scan, Python suite delegation. |
+| `python3 -m pytest -q tests/` | `VERIFIED` | `378 passed, 1 warning` | Full Python test suite in this environment after dependency installation. |
+| `npm run check` | `VERIFIED` | Aggregate Node/runtime-policy/security gates passed. | Node gates, SRI, audit integrity, swarms presence, Supabase boundary, runtime policy tests. |
+| `npm run test:render-public` | `VERIFIED` | `5 passed` | SR.BSM public adapter health, root mapping, 404, traversal, and content-type tests. |
+| `bash -n scripts/ci/sovereign-platform-orchestrator.sh` | `VERIFIED` | Shell syntax check passed. | Orchestrator syntax only. |
+| `test_external_provider_guards.py` | `UNVERIFIED` | No file with this name exists in the repository. | User-provided claim could not be mapped to an executable test file. |
+| Live Bayyinah/Mihwar endpoint smoke | `UNVERIFIED` | Not run in this environment; endpoint secrets are not present. | Production/runtime activation evidence. |
+| Live Render/Cloudflare/TLS verification | `UNVERIFIED` | Not run in this environment. | Public edge/runtime evidence. |
+
+Observed correction: the requested statement referenced `373 passed, 6 skipped`; the verified local result for this repository state is `378 passed, 1 warning`. The report must use the observed value, not the requested value.
+
+## 5. Certification Matrix
 ## 4. Certification Matrix
 
 | Domain | Current status | Reason |
@@ -148,6 +166,7 @@ Expected result before production certification:
 | SAMA/NCA/PDPL compliance | `UNVERIFIED` | Requires formal control mapping, external audit, and runtime evidence. |
 | Patent support | `INFERRED` | Engineering controls support the narrative but do not prove legal claims. |
 
+## 6. Final Verdict
 ## 5. Final Verdict
 
 `VERIFIED` — The repository has a safe CI control plane for gated verification and optional activation.
@@ -156,6 +175,9 @@ Expected result before production certification:
 
 `UNVERIFIED` — The platform must not be described as fully production-ready, fully air-gapped, immune to all exfiltration, or compliant with SAMA/NCA/PDPL until live CI artifacts and external compliance evidence exist.
 
+Decision: `LOCAL_GATES_VERIFIED_AND_RUNTIME_UNVERIFIED`.
+
+Next action: attach the local evidence above, then run CI Verify Mode and CI Activate Mode only after production secrets, approvals, live endpoint smoke, and public edge checks are available.
 Decision: `PARTIAL_READY_FOR_GATED_CI_ORCHESTRATION`.
 
 Next action: run Verify Mode, attach the generated artifact, then run Activate Mode only after production secrets, approvals, and runtime smoke prerequisites are in place.

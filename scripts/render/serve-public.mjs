@@ -94,6 +94,7 @@ async function streamFile(response, filePath) {
 
 export function createPublicServer({ publicRoot = DEFAULT_PUBLIC_ROOT } = {}) {
   return createHttpServer(async (request, response) => {
+    const requestUrl = new URL(request.url ?? '/', 'http://localhost');
     const requestUrl = new URL(request.url ?? '/', 'http://sr-bsm.local');
 
     if (request.method !== 'GET' && request.method !== 'HEAD') {
