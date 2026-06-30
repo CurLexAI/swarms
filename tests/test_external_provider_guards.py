@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest import TestCase, main, mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -89,7 +89,7 @@ else:
 
 
 class _ExternalProviderGuardMixin(_MixinBase):
-    provider_factory: type
+    provider_factory: type[Any]
     api_key_env: str
     route_name: str
 
@@ -107,6 +107,10 @@ class _ExternalProviderGuardMixin(_MixinBase):
 
     def test_external_ai_flag_must_be_exactly_true(self) -> None:
         # A truthy-looking but non-"true" value must NOT open the gate.
+        # Assert the specific gate message rather than bare RuntimeError:
+        # NotImplementedError subclasses RuntimeError, so a loose assertion
+        # would also accept the fall-through transport error and silently
+        # pass even if a regression let one of these values open the gate.
         for sneaky in ("1", "yes", "TRUE ", "on", "enabled"):
             with self.subTest(value=sneaky):
                 with mock.patch.dict(
@@ -114,7 +118,7 @@ class _ExternalProviderGuardMixin(_MixinBase):
                     _env(**{self.api_key_env: "sk-test", "ALLOW_EXTERNAL_AI": sneaky}),
                     clear=True,
                 ):
-                    with self.assertRaises(RuntimeError):
+                    with self.assertRaisesRegex(RuntimeError, "ALLOW_EXTERNAL_AI"):
                         self.provider_factory().execute(_request())
 
     def test_fully_opted_in_reaches_unimplemented_transport(self) -> None:
