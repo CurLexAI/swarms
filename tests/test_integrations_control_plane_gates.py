@@ -24,9 +24,11 @@ def test_render_blueprint_is_manual_gated_and_uses_secret_sync() -> None:
 
     assert "autoDeploy: false" in render_yaml
     assert "healthCheckPath: /healthz" in render_yaml
-    assert "rootDir: .agents/mcp/modal-mcp" in render_yaml
-    assert "buildCommand: npm ci --include=dev && npm run build" in render_yaml
-    assert "startCommand: node dist/server.js" in render_yaml
+    assert "name: SR.BSM" in render_yaml
+    assert "rootDir: ." in render_yaml
+    assert "buildCommand: npm ci --include=dev && npm run test:render-public && npm run check:cdn-sri" in render_yaml
+    assert "startCommand: npm start" in render_yaml
+    assert "port: 10000" in render_yaml
     assert "api.render.com/deploy" not in render_yaml
     assert "deploy hook" not in render_yaml.lower()
     for secret_name in (
@@ -37,7 +39,7 @@ def test_render_blueprint_is_manual_gated_and_uses_secret_sync() -> None:
         "MIHWAR_API_TOKEN",
         "BAYYINAH_API_TOKEN",
     ):
-        assert re.search(rf"key: {secret_name}\n\s+sync: false", render_yaml)
+        assert secret_name not in render_yaml
 
 
 def test_render_deploy_is_separate_manual_environment_gate() -> None:

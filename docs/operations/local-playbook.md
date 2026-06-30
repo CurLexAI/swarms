@@ -21,6 +21,19 @@ docker compose -f deploy/qdrant/docker-compose.yml up -d
 ollama serve &
 ```
 
+
+### 2.1 Activate the sovereign Ollama model set
+
+The repository declares 18 local Ollama models in `config/ollama.local.models.json`. Verification is fail-closed and never calls external AI APIs. Pulling model weights is explicit because it can be large and must run only on the local model host.
+
+```bash
+# Verify only; fails if Ollama is down or any model is missing.
+npm run ollama:verify-local
+
+# Pull missing models, then verify all 18 models locally.
+OLLAMA_PULL=1 npm run ollama:activate-local
+```
+
 ### 3. Configure environment
 
 ```bash

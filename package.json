@@ -31,7 +31,11 @@
     "test:python": "python3 -m pytest -q tests/",
     "test:node:js": "node --import tsx --test tests/*.test.js",
     "test:node:ts": "node --import tsx --test tests/*.test.ts",
-    "test:node": "npm run test:node:js && npm run test:node:ts"
+    "test:node": "npm run test:node:js && npm run test:node:ts",
+    "start": "node scripts/render/serve-public.mjs",
+    "test:render-public": "node --test tests/renderPublicServer.test.js",
+    "ollama:activate-local": "bash scripts/ollama/activate-local-models.sh",
+    "ollama:verify-local": "OLLAMA_PULL=0 bash scripts/ollama/activate-local-models.sh"
   },
   "dependencies": {
     "js-yaml": "^5.2.0",

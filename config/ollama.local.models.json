@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Sovereign local Ollama model activation manifest. These models are pulled and verified only on a local Ollama runtime; CI must not pull model weights.",
+  "version": "1.0.0",
+  "provider": "ollama",
+  "baseUrlEnv": "OLLAMA_BASE_URL",
+  "baseUrlDefault": "http://localhost:11434",
+  "policy": {
+    "trustBoundary": "LOCAL_CONTROL_PLANE",
+    "egress": "none_for_inference",
+    "pullRequiresExplicitFlag": "OLLAMA_PULL=1",
+    "requiredModelCount": 18
+  },
+  "models": [
+    { "id": "mihwar-deepseek-coder-v2", "model": "deepseek-coder-v2:16b", "role": "mihwar_architect", "sizeClass": "large", "required": true },
+    { "id": "bayyinah-qwen-coder-32b", "model": "qwen2.5-coder:32b", "role": "bayyinah_reviewer", "sizeClass": "large", "required": true },
+    { "id": "qwen-coder-14b", "model": "qwen2.5-coder:14b", "role": "code_generation", "sizeClass": "medium", "required": true },
+    { "id": "qwen-coder-7b", "model": "qwen2.5-coder:7b", "role": "code_generation", "sizeClass": "small", "required": true },
+    { "id": "qwen-coder-3b", "model": "qwen2.5-coder:3b", "role": "fast_code", "sizeClass": "small", "required": true },
+    { "id": "qwen-coder-1-5b", "model": "qwen2.5-coder:1.5b", "role": "fast_code", "sizeClass": "tiny", "required": true },
+    { "id": "deepseek-r1-32b", "model": "deepseek-r1:32b", "role": "reasoning", "sizeClass": "large", "required": true },
+    { "id": "deepseek-r1-14b", "model": "deepseek-r1:14b", "role": "reasoning", "sizeClass": "medium", "required": true },
+    { "id": "deepseek-r1-8b", "model": "deepseek-r1:8b", "role": "reasoning", "sizeClass": "small", "required": true },
+    { "id": "qwen2-5-14b", "model": "qwen2.5:14b", "role": "arabic_general", "sizeClass": "medium", "required": true },
+    { "id": "qwen2-5-7b", "model": "qwen2.5:7b", "role": "arabic_general", "sizeClass": "small", "required": true },
+    { "id": "llama3-1-8b", "model": "llama3.1:8b", "role": "general_reasoning", "sizeClass": "small", "required": true },
+    { "id": "llama3-2-3b", "model": "llama3.2:3b", "role": "fast_general", "sizeClass": "tiny", "required": true },
+    { "id": "llama3-2-vision-11b", "model": "llama3.2-vision:11b", "role": "vision_local", "sizeClass": "medium", "required": true },
+    { "id": "mistral-7b", "model": "mistral:7b", "role": "general_reasoning", "sizeClass": "small", "required": true },
+    { "id": "codellama-34b", "model": "codellama:34b", "role": "legacy_code", "sizeClass": "large", "required": true },
+    { "id": "nomic-embed-text", "model": "nomic-embed-text:latest", "role": "embedding", "sizeClass": "embedding", "required": true },
+    { "id": "bge-m3", "model": "bge-m3:latest", "role": "embedding_multilingual", "sizeClass": "embedding", "required": true }
+  ]
+}
