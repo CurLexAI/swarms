@@ -34,7 +34,7 @@
     "test:node": "npm run test:node:js && npm run test:node:ts"
   },
   "dependencies": {
-    "js-yaml": "^5.1.0",
+    "js-yaml": "^5.2.0",
     "uuid": "^14.0.1"
   },
   "devDependencies": {
