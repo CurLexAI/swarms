@@ -1,0 +1,121 @@
+name: Sovereign Platform Orchestrator
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "verify runs gates only; activate allows gated Modal/Render actions"
+        required: true
+        type: choice
+        default: verify
+        options:
+          - verify
+          - activate
+      confirm:
+        description: "Use VERIFY_ONLY for verify mode or SOVEREIGN_ACTIVATE for activation"
+        required: true
+        type: string
+        default: VERIFY_ONLY
+      run_endpoint_smoke:
+        description: "Smoke Bayyinah/Mihwar endpoints when endpoint secrets are configured"
+        required: true
+        type: boolean
+        default: false
+      deploy_modal:
+        description: "Deploy Modal runtime; requires mode=activate and production approval"
+        required: true
+        type: boolean
+        default: false
+      deploy_render:
+        description: "Trigger Render deploy hook; requires mode=activate and production approval"
+        required: true
+        type: boolean
+        default: false
+      verify_public_surfaces:
+        description: "Check FRONTEND_URL/BACKEND_HEALTH_URL secrets when configured"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  SOVEREIGN_ORCHESTRATOR_MODE: ${{ inputs.mode }}
+  SOVEREIGN_ORCHESTRATOR_CONFIRM: ${{ inputs.confirm }}
+  RUN_ENDPOINT_SMOKE: ${{ inputs.run_endpoint_smoke }}
+  DEPLOY_MODAL: ${{ inputs.deploy_modal }}
+  DEPLOY_RENDER: ${{ inputs.deploy_render }}
+  VERIFY_PUBLIC_SURFACES: ${{ inputs.verify_public_surfaces }}
+  SOVEREIGN_ORCHESTRATOR_REPORT: artifacts/sovereign-platform-orchestrator.md
+
+concurrency:
+  group: sovereign-platform-orchestrator-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  orchestrate:
+    name: verify-and-optionally-activate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: ${{ inputs.mode == 'activate' && 'production' || 'sovereign-verification' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-agent.txt
+
+      - name: Install Node dependencies
+        run: npm ci --include=dev
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements-agent.txt
+
+      - name: Install Modal CLI for gated activation
+        if: ${{ inputs.mode == 'activate' && inputs.deploy_modal }}
+        run: python3 -m pip install --upgrade "modal>=0.64,<1.0"
+
+      - name: Run sovereign platform orchestrator
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          BAYYINAH_ENDPOINT: ${{ secrets.BAYYINAH_ENDPOINT }}
+          MIHWAR_ENDPOINT: ${{ secrets.MIHWAR_ENDPOINT }}
+          BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}
+          MIHWAR_API_TOKEN: ${{ secrets.MIHWAR_API_TOKEN }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
+        run: bash scripts/ci/sovereign-platform-orchestrator.sh
+
+      - name: Upload orchestration report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sovereign-platform-orchestrator-report
+          path: artifacts/sovereign-platform-orchestrator.md
+          if-no-files-found: warn
+
+      - name: Publish summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f artifacts/sovereign-platform-orchestrator.md ]; then
+            cat artifacts/sovereign-platform-orchestrator.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No orchestrator report was produced." >> "$GITHUB_STEP_SUMMARY"
+          fi
