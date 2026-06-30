@@ -91,7 +91,6 @@ else:
 class _ExternalProviderGuardMixin(_MixinBase):
     provider_factory: type[Any]
     api_key_env: str
-    route_name: str
 
     def test_missing_api_key_raises_runtime_error(self) -> None:
         with mock.patch.dict("os.environ", _env(), clear=True):
@@ -145,7 +144,6 @@ class _ExternalProviderGuardMixin(_MixinBase):
 class AnthropicProviderGuardTests(_ExternalProviderGuardMixin, TestCase):
     provider_factory = AnthropicProvider
     api_key_env = "ANTHROPIC_API_KEY"
-    route_name = "anthropic"
 
     def test_name(self) -> None:
         self.assertEqual(AnthropicProvider().name, "anthropic")
@@ -154,7 +152,6 @@ class AnthropicProviderGuardTests(_ExternalProviderGuardMixin, TestCase):
 class OpenAIProviderGuardTests(_ExternalProviderGuardMixin, TestCase):
     provider_factory = OpenAIProvider
     api_key_env = "OPENAI_API_KEY"
-    route_name = "openai"
 
     def test_name(self) -> None:
         self.assertEqual(OpenAIProvider().name, "openai")
