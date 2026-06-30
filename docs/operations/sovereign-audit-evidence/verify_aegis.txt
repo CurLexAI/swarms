@@ -1,0 +1,62 @@
+# Sovereign Audit Evidence
+Command: python3 scripts/verify_aegis.py
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:09:45Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+
+--- 1. SAMA swarm files ---
+✅ VERIFIED: sama_ingestion_swarm/agent_fetcher.py exists
+✅ VERIFIED: sama_ingestion_swarm/agent_parser.py exists
+✅ VERIFIED: sama_ingestion_swarm/agent_auditor.py exists
+✅ VERIFIED: sama_ingestion_swarm/orchestrator.py exists
+
+--- 2. Local provider controls ---
+✅ VERIFIED: src/policy/sovereign/providers/local_llama_cpp.py exists
+✅ VERIFIED: local_llama_cpp.py enforces sovereign/local URL validation
+✅ VERIFIED: local_llama_cpp.py does not embed external AI API endpoints
+✅ VERIFIED: local_llama_cpp.py does not request external API keys
+✅ VERIFIED: src/policy/sovereign/providers/local_ollama.py exists
+✅ VERIFIED: local_ollama.py enforces sovereign/local URL validation
+✅ VERIFIED: local_ollama.py does not embed external AI API endpoints
+✅ VERIFIED: local_ollama.py does not request external API keys
+
+--- 3. Router and audit-chain controls ---
+✅ VERIFIED: src/policy/sovereign/classification.py exists
+✅ VERIFIED: src/policy/sovereign/model_router.py exists
+✅ VERIFIED: src/policy/sovereign/audited_router.py exists
+✅ VERIFIED: src/policy/sovereign/provider_interface.py exists
+✅ VERIFIED: model_router blocks unavailable local providers
+✅ VERIFIED: model_router does not embed external AI provider endpoints
+✅ VERIFIED: model_router does not read external AI API keys
+✅ VERIFIED: audited_router exposes Qala audit adapter
+✅ VERIFIED: SAMA swarm records and verifies audit events
+
+--- 4. Qdrant/vector indexing boundary ---
+✅ VERIFIED: agent_auditor.py exists for vector boundary
+✅ VERIFIED: auditor defines VectorIndexer port
+✅ VERIFIED: auditor accepts vector_indexer by dependency injection
+✅ VERIFIED: auditor does not hard-code Qdrant Cloud endpoint
+✅ VERIFIED: SAMA swarm tests include Qdrant/vector mock
+✅ VERIFIED: Qdrant/vector path has a test double
+
+--- 5. Python source secret scan ---
+✅ VERIFIED: no literal secret patterns in 104 Python files
+
+--- 6. External AI egress environment ---
+✅ VERIFIED: OPENAI_API_KEY is absent from environment
+✅ VERIFIED: ANTHROPIC_API_KEY is absent from environment
+✅ VERIFIED: GOOGLE_API_KEY is absent from environment
+✅ VERIFIED: GEMINI_API_KEY is absent from environment
+✅ VERIFIED: VERTEX_API_KEY is absent from environment
+
+--- 7. Python tests ---
+   373 passed, 6 skipped in 3.06s
+✅ VERIFIED: python pytest suite
+
+============================================================
+AEGIS RESULT: 34 passed | 0 failed
+🛡️  AEGIS VERIFIED: local repository gate passed with collected evidence.
+======================================================================
+EXIT CODE: 0
+RESULT: PASS

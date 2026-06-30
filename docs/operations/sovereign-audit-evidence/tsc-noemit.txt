@@ -1,0 +1,9 @@
+# Sovereign Audit Evidence
+Command: npx tsc --noEmit
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:07:07Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+======================================================================
+EXIT CODE: 0
+RESULT: PASS

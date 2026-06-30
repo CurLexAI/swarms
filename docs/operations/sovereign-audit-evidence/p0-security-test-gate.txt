@@ -1,0 +1,15 @@
+# Sovereign Audit Evidence
+Command: bash scripts/commander/p0-security-test-gate.sh .
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:09:52Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+[P0] Running Bayyinah + Router + Aegis MCP security test gate
+.....................................................................
+----------------------------------------------------------------------
+Ran 69 tests in 0.035s
+
+OK
+======================================================================
+EXIT CODE: 0
+RESULT: PASS

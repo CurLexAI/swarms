@@ -1,0 +1,11 @@
+# Sovereign Audit Evidence
+Command: bash scripts/commander/public-surface-boundary-gate.sh .
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:06:11Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+[INFO] Public surface boundary gate
+[RESULT] PASS
+======================================================================
+EXIT CODE: 0
+RESULT: PASS

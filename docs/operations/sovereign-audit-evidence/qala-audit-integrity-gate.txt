@@ -1,0 +1,88 @@
+# Sovereign Audit Evidence
+Command: bash scripts/commander/qala-audit-integrity-gate.sh .
+Working dir: /home/ubuntu/swarms
+Timestamp (UTC): 2026-06-30T19:06:12Z
+Sovereign mode: ALLOW_EXTERNAL_AI=<unset> CORE_SWARM_ENABLE_LIVE_CALLS=<unset>
+======================================================================
+[qala-audit-integrity-gate] VERIFY: TypeScript/Node Qala audit chain
+TAP version 13
+# Subtest: first record chains from GENESIS
+ok 1 - first record chains from GENESIS
+  ---
+  duration_ms: 1.803646
+  ...
+# Subtest: subsequent records chain correctly
+ok 2 - subsequent records chain correctly
+  ---
+  duration_ms: 0.497773
+  ...
+# Subtest: verifyChain passes for a clean log
+ok 3 - verifyChain passes for a clean log
+  ---
+  duration_ms: 0.607447
+  ...
+# Subtest: modifying a payload breaks the chain
+ok 4 - modifying a payload breaks the chain
+  ---
+  duration_ms: 0.43761
+  ...
+# Subtest: modifying prev_hash breaks the chain
+ok 5 - modifying prev_hash breaks the chain
+  ---
+  duration_ms: 0.45184
+  ...
+# Subtest: rejects unknown event
+ok 6 - rejects unknown event
+  ---
+  duration_ms: 0.168252
+  ...
+# Subtest: rejects missing trace id
+ok 7 - rejects missing trace id
+  ---
+  duration_ms: 0.772666
+  ...
+# Subtest: rejects missing tenant
+ok 8 - rejects missing tenant
+  ---
+  duration_ms: 0.200807
+  ...
+# Subtest: payload defaults to empty object
+ok 9 - payload defaults to empty object
+  ---
+  duration_ms: 0.812104
+  ...
+# Subtest: append-only API has no update / delete
+ok 10 - append-only API has no update / delete
+  ---
+  duration_ms: 0.321352
+  ...
+# Subtest: payload key order does not change the hash
+ok 11 - payload key order does not change the hash
+  ---
+  duration_ms: 0.392076
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 51.097015
+[qala-audit-integrity-gate] VERIFY: Python Qala audit chain
+..............
+----------------------------------------------------------------------
+Ran 14 tests in 0.003s
+
+OK
+[qala-audit-integrity-gate] PASS: Qala audit append-only hash-chain integrity verified
+[INFO] Qal'a audit integrity gate (Q7)
+[INFO] repo=/home/ubuntu/swarms
+AUDIT_SINK_PATH: /home/ubuntu/swarms/artifacts/security/qala-audit.jsonl
+AUDIT_CHAIN_BROKEN at_record=1 message=prev_hash mismatch at record 1
+[FAIL] AUDIT_CHAIN_BROKEN: the sealed audit chain failed verification
+[RESULT] FAIL
+======================================================================
+EXIT CODE: 1
+RESULT: FAIL (exit 1)

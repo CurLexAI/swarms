@@ -17,11 +17,11 @@ class OpenAIProvider:
     name = "openai"
 
     def execute(self, request: ProviderRequest) -> ProviderResponse:
+        if os.environ.get("ALLOW_EXTERNAL_AI", "").lower() != "true":
+            raise RuntimeError("ALLOW_EXTERNAL_AI=true is required before using OpenAI route.")
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if not api_key:
             raise RuntimeError("OPENAI_API_KEY is not configured; OpenAI route is unavailable.")
-        if os.environ.get("ALLOW_EXTERNAL_AI", "").lower() != "true":
-            raise RuntimeError("ALLOW_EXTERNAL_AI=true is required before using OpenAI route.")
         raise NotImplementedError(
             "OpenAI transport is intentionally not implemented in the operations repo. "
             "Implement it in the product application boundary, not in repository governance code."
