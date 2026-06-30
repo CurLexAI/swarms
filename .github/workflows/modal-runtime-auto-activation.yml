@@ -35,7 +35,7 @@ jobs:
       preflight_status: ${{ steps.preflight_result.outputs.status }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -200,7 +200,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup Python
         uses: actions/setup-python@v5
         with:

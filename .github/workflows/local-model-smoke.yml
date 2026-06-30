@@ -37,7 +37,7 @@ jobs:
       COMPOSE_PROJECT_NAME: lexprim
       SOVEREIGN_NET: lexprim_mihwar-sovereign
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Start services
         run: |
