@@ -22,10 +22,9 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-import unittest
 from pathlib import Path
 from types import ModuleType
-from unittest import mock
+from unittest import TestCase, main, mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -49,7 +48,7 @@ rs = _load_runtime_security()
 _VALID_SHA = "0123456789abcdef0123456789abcdef01234567"
 
 
-class RequirePinnedRevisionTests(unittest.TestCase):
+class RequirePinnedRevisionTests(TestCase):
     ENV = "MIHWAR_MODEL_REVISION"
 
     def test_missing_revision_raises(self) -> None:
@@ -97,7 +96,7 @@ class RequirePinnedRevisionTests(unittest.TestCase):
             self.assertEqual(rs.require_pinned_revision(self.ENV), _VALID_SHA)
 
 
-class TrustRemoteCodeForTests(unittest.TestCase):
+class TrustRemoteCodeForTests(TestCase):
     REVISION_ENV = "BAYYINAH_MODEL_REVISION"
     ACK_ENV = "BAYYINAH_REMOTE_CODE_ACK"
 
@@ -147,4 +146,4 @@ class TrustRemoteCodeForTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    main()

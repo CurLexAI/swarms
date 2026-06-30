@@ -32,9 +32,9 @@ No network I/O is performed; the adapters never get past their guards.
 from __future__ import annotations
 
 import sys
-import unittest
 from pathlib import Path
-from unittest import mock
+from typing import TYPE_CHECKING
+from unittest import TestCase, main, mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -78,7 +78,17 @@ def _env(**overrides: str) -> dict[str, str]:
     return dict(overrides)
 
 
-class _ExternalProviderGuardMixin:
+# At runtime the mixin inherits ``object`` so unittest does not collect it as a
+# standalone test case (it has no ``provider_factory``); for type-checking it is
+# a ``TestCase`` so the assertion helpers resolve. Concrete subclasses below mix
+# in ``TestCase`` for real.
+if TYPE_CHECKING:
+    _MixinBase = TestCase
+else:
+    _MixinBase = object
+
+
+class _ExternalProviderGuardMixin(_MixinBase):
     provider_factory: type
     api_key_env: str
     route_name: str
@@ -128,7 +138,7 @@ class _ExternalProviderGuardMixin:
                 self.provider_factory().execute(_request())
 
 
-class AnthropicProviderGuardTests(_ExternalProviderGuardMixin, unittest.TestCase):
+class AnthropicProviderGuardTests(_ExternalProviderGuardMixin, TestCase):
     provider_factory = AnthropicProvider
     api_key_env = "ANTHROPIC_API_KEY"
     route_name = "anthropic"
@@ -137,7 +147,7 @@ class AnthropicProviderGuardTests(_ExternalProviderGuardMixin, unittest.TestCase
         self.assertEqual(AnthropicProvider().name, "anthropic")
 
 
-class OpenAIProviderGuardTests(_ExternalProviderGuardMixin, unittest.TestCase):
+class OpenAIProviderGuardTests(_ExternalProviderGuardMixin, TestCase):
     provider_factory = OpenAIProvider
     api_key_env = "OPENAI_API_KEY"
     route_name = "openai"
@@ -146,7 +156,7 @@ class OpenAIProviderGuardTests(_ExternalProviderGuardMixin, unittest.TestCase):
         self.assertEqual(OpenAIProvider().name, "openai")
 
 
-class ModalProviderGuardTests(unittest.TestCase):
+class ModalProviderGuardTests(TestCase):
     def test_name(self) -> None:
         self.assertEqual(ModalProvider().name, "modal_vllm")
 
@@ -165,4 +175,4 @@ class ModalProviderGuardTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    main()
