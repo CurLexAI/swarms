@@ -33,6 +33,9 @@
     "test:node:ts": "node --import tsx --test tests/*.test.ts",
     "test:node": "npm run test:node:js && npm run test:node:ts",
     "start": "node scripts/render/serve-public.mjs",
+    "test:render-public": "node --test tests/renderPublicServer.test.js",
+    "ollama:activate-local": "bash scripts/ollama/activate-local-models.sh",
+    "ollama:verify-local": "OLLAMA_PULL=0 bash scripts/ollama/activate-local-models.sh"
     "test:render-public": "node --test tests/renderPublicServer.test.js"
   },
   "dependencies": {
