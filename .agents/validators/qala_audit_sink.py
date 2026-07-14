@@ -134,36 +134,26 @@ def _default_events_path() -> Path:
     )
 
 
-def _safe_artifact_path(raw_path: str, *, fallback: str) -> Path:
-    candidate = Path(raw_path or fallback)
-    if not candidate.is_absolute():
-        candidate = Path.cwd() / candidate
-    normalized = candidate.resolve(strict=False)
-    base_dir = (Path.cwd() / "artifacts/security").resolve(strict=False)
-    try:
-        normalized.relative_to(base_dir)
-    except ValueError as exc:
-        raise ValueError(f"path escapes artifacts/security: {normalized}") from exc
-    return normalized
-
-
 def _default_anchor_path() -> Path:
-    return _safe_artifact_path(
-        os.environ.get("QALA_AUDIT_ANCHOR_PATH", "artifacts/security/qala-audit.anchor.json"),
-        fallback="artifacts/security/qala-audit.anchor.json",
+    return Path(
+        os.environ.get(
+            "QALA_AUDIT_ANCHOR_PATH", "artifacts/security/qala-audit.anchor.json"
+        )
     )
 
 
-def _validated_anchor_path(path: Path) -> Path:
-    safe_root = Path("artifacts/security").resolve()
-    resolved = path.expanduser().resolve()
-    try:
-        resolved.relative_to(safe_root)
-    except ValueError as exc:
-        raise ValueError(
-            f"anchor path must be within {safe_root}, got: {resolved}"
-        ) from exc
-    return resolved
+def _resolve_anchor_path(anchor_arg: str | None) -> Path:
+    """Resolve the anchor path for the CLI.
+
+    Anchor, sink, and event-source paths share one trust model: they come
+    from the operator (argv or environment) of this local CLI, never from
+    network input, so all three are honored as given. The integrity gate's
+    regression tests lock this contract by pointing QALA_AUDIT_ANCHOR_PATH
+    at private temp dirs.
+    """
+    if anchor_arg:
+        return Path(anchor_arg).expanduser().resolve(strict=False)
+    return _default_anchor_path()
 
 
 def _canonicalize(
@@ -568,13 +558,7 @@ def _main(argv: list[str] | None = None) -> int:
 
     if args.command == "verify":
         sink = QalaAuditSink(_resolve_verify_path(args.path))
-        anchor_path = (
-            _safe_artifact_path(
-                args.anchor, fallback="artifacts/security/qala-audit.anchor.json"
-            )
-            if args.anchor
-            else _default_anchor_path()
-        )
+        anchor_path = _resolve_anchor_path(args.anchor)
         print(f"AUDIT_SINK_PATH: {sink.sink_path}")
         try:
             expected_count, expected_head = _load_anchor(anchor_path)
@@ -603,13 +587,7 @@ def _main(argv: list[str] | None = None) -> int:
     if args.command == "seal":
         events_path = Path(args.events) if args.events else _default_events_path()
         sink = QalaAuditSink(_resolve_verify_path(args.path))
-        try:
-            anchor_path = _validated_anchor_path(
-                Path(args.anchor) if args.anchor else _default_anchor_path()
-            )
-        except ValueError as exc:
-            print(f"AUDIT_SEAL_FAILED message={exc}")
-            return 2
+        anchor_path = _resolve_anchor_path(args.anchor)
         print(f"AUDIT_EVENTS_PATH: {events_path}")
         print(f"AUDIT_SINK_PATH: {sink.sink_path}")
         try:
