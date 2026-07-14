@@ -546,7 +546,8 @@ def _main(argv: list[str] | None = None) -> int:
         default=None,
         help=(
             "Audit sink JSONL path (default: $QALA_AUDIT_SINK_PATH or "
-            "artifacts/security/qala-audit.jsonl)."
+            "artifacts/security/qala-audit.jsonl). Must resolve under "
+            "artifacts/security or the system temp directory."
         ),
     )
     verify_p.add_argument(
@@ -564,8 +565,22 @@ def _main(argv: list[str] | None = None) -> int:
         "seal",
         help="Deterministically build the sealed chain from the event source.",
     )
-    seal_p.add_argument("--events", default=None, help="Event source JSON path.")
-    seal_p.add_argument("--path", default=None, help="Output sealed JSONL path.")
+    seal_p.add_argument(
+        "--events",
+        default=None,
+        help=(
+            "Event source JSON path. Must resolve under artifacts/security "
+            "or the system temp directory."
+        ),
+    )
+    seal_p.add_argument(
+        "--path",
+        default=None,
+        help=(
+            "Output sealed JSONL path. Must resolve under artifacts/security "
+            "or the system temp directory."
+        ),
+    )
     seal_p.add_argument(
         "--anchor",
         default=None,
