@@ -524,16 +524,7 @@ def _anchor_document(record_count: int, head_hash: str) -> dict[str, Any]:
     }
 
 
-def _main(argv: list[str] | None = None) -> int:
-    """CLI verifier for the sealed audit chain (Q7).
-
-    Reuses ``QalaAuditSink.verify_chain`` — it does not re-implement the
-    chain logic. Exit codes are stable so a shell gate can branch on them:
-
-      0  -> chain intact (or empty/absent log)
-      10 -> AUDIT_CHAIN_BROKEN (tamper, insertion, truncation, gap)
-      2  -> AUDIT_READ_FAILED (I/O failure) — fail-closed for the gate
-    """
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="qala_audit_sink",
         description="Verify the tamper-evident Qal'a audit chain (Q7).",
@@ -600,6 +591,20 @@ def _main(argv: list[str] | None = None) -> int:
         ),
     )
 
+    return parser
+
+
+def _main(argv: list[str] | None = None) -> int:
+    """CLI verifier for the sealed audit chain (Q7).
+
+    Reuses ``QalaAuditSink.verify_chain`` — it does not re-implement the
+    chain logic. Exit codes are stable so a shell gate can branch on them:
+
+      0  -> chain intact (or empty/absent log)
+      10 -> AUDIT_CHAIN_BROKEN (tamper, insertion, truncation, gap)
+      2  -> AUDIT_READ_FAILED (I/O failure) — fail-closed for the gate
+    """
+    parser = _build_parser()
     args = parser.parse_args(argv)
 
     if args.command == "verify":
