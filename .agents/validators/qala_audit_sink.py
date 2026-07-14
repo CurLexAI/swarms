@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 import sys
+import tempfile
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -143,17 +144,30 @@ def _default_anchor_path() -> Path:
 
 
 def _resolve_anchor_path(anchor_arg: str | None) -> Path:
-    """Resolve the anchor path for the CLI.
+    """Resolve and confine the anchor path for the CLI.
 
-    Anchor, sink, and event-source paths share one trust model: they come
-    from the operator (argv or environment) of this local CLI, never from
-    network input, so all three are honored as given. The integrity gate's
-    regression tests lock this contract by pointing QALA_AUDIT_ANCHOR_PATH
-    at private temp dirs.
+    The anchor may come from ``--anchor`` or $QALA_AUDIT_ANCHOR_PATH. After
+    normalization it must live under one of the permitted roots: the repo's
+    ``artifacts/security`` directory (production ledger) or the system temp
+    directory (the integrity gate's regression tests point the anchor at
+    private temp dirs). Anything else fails closed.
     """
-    if anchor_arg:
-        return Path(anchor_arg).expanduser().resolve(strict=False)
-    return _default_anchor_path()
+    raw = anchor_arg or str(_default_anchor_path())
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    resolved = candidate.resolve(strict=False)
+    permitted_roots = (
+        (Path.cwd() / "artifacts" / "security").resolve(strict=False),
+        Path(tempfile.gettempdir()).resolve(strict=False),
+    )
+    for root in permitted_roots:
+        if resolved == root or str(resolved).startswith(str(root) + os.sep):
+            return resolved
+    raise ValueError(
+        "anchor path must be within artifacts/security or the system temp "
+        f"directory, got: {resolved}"
+    )
 
 
 def _canonicalize(
@@ -558,7 +572,11 @@ def _main(argv: list[str] | None = None) -> int:
 
     if args.command == "verify":
         sink = QalaAuditSink(_resolve_verify_path(args.path))
-        anchor_path = _resolve_anchor_path(args.anchor)
+        try:
+            anchor_path = _resolve_anchor_path(args.anchor)
+        except ValueError as exc:
+            print(f"AUDIT_READ_FAILED message={exc}")
+            return 2
         print(f"AUDIT_SINK_PATH: {sink.sink_path}")
         try:
             expected_count, expected_head = _load_anchor(anchor_path)
@@ -587,7 +605,11 @@ def _main(argv: list[str] | None = None) -> int:
     if args.command == "seal":
         events_path = Path(args.events) if args.events else _default_events_path()
         sink = QalaAuditSink(_resolve_verify_path(args.path))
-        anchor_path = _resolve_anchor_path(args.anchor)
+        try:
+            anchor_path = _resolve_anchor_path(args.anchor)
+        except ValueError as exc:
+            print(f"AUDIT_SEAL_FAILED message={exc}")
+            return 2
         print(f"AUDIT_EVENTS_PATH: {events_path}")
         print(f"AUDIT_SINK_PATH: {sink.sink_path}")
         try:
