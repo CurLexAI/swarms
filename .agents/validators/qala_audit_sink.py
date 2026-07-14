@@ -162,8 +162,11 @@ def _resolve_anchor_path(anchor_arg: str | None) -> Path:
         Path(tempfile.gettempdir()).resolve(strict=False),
     )
     for root in permitted_roots:
-        if resolved == root or str(resolved).startswith(str(root) + os.sep):
-            return resolved
+        try:
+            resolved.relative_to(root)
+        except ValueError:
+            continue
+        return resolved
     raise ValueError(
         "anchor path must be within artifacts/security or the system temp "
         f"directory, got: {resolved}"
@@ -543,7 +546,8 @@ def _main(argv: list[str] | None = None) -> int:
         help=(
             "Sealed anchor JSON path (default: $QALA_AUDIT_ANCHOR_PATH or "
             "artifacts/security/qala-audit.anchor.json). When present, the "
-            "record count and head hash are enforced to detect tail truncation."
+            "record count and head hash are enforced to detect tail truncation. "
+            "Must resolve under artifacts/security or the system temp directory."
         ),
     )
 
@@ -556,7 +560,11 @@ def _main(argv: list[str] | None = None) -> int:
     seal_p.add_argument(
         "--anchor",
         default=None,
-        help="Anchor JSON path. With --write-anchor, (re)writes it from the seal.",
+        help=(
+            "Anchor JSON path. With --write-anchor, (re)writes it from the "
+            "seal. Must resolve under artifacts/security or the system temp "
+            "directory."
+        ),
     )
     seal_p.add_argument(
         "--write-anchor",
