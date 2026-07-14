@@ -153,23 +153,19 @@ def _resolve_anchor_path(anchor_arg: str | None) -> Path:
     private temp dirs). Anything else fails closed.
     """
     raw = anchor_arg or str(_default_anchor_path())
-    candidate = Path(raw).expanduser()
-    if not candidate.is_absolute():
-        candidate = Path.cwd() / candidate
-    resolved = candidate.resolve(strict=False)
+    normalized = os.path.normpath(
+        os.path.join(os.getcwd(), os.path.expanduser(raw))
+    )
     permitted_roots = (
-        (Path.cwd() / "artifacts" / "security").resolve(strict=False),
-        Path(tempfile.gettempdir()).resolve(strict=False),
+        os.path.normpath(os.path.join(os.getcwd(), "artifacts", "security")),
+        os.path.normpath(tempfile.gettempdir()),
     )
     for root in permitted_roots:
-        try:
-            resolved.relative_to(root)
-        except ValueError:
-            continue
-        return resolved
+        if normalized == root or normalized.startswith(root + os.sep):
+            return Path(normalized)
     raise ValueError(
         "anchor path must be within artifacts/security or the system temp "
-        f"directory, got: {resolved}"
+        f"directory, got: {normalized}"
     )
 
 
@@ -579,69 +575,77 @@ def _main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "verify":
-        sink = QalaAuditSink(_resolve_verify_path(args.path))
-        try:
-            anchor_path = _resolve_anchor_path(args.anchor)
-        except ValueError as exc:
-            print(f"AUDIT_READ_FAILED message={exc}")
-            return 2
-        print(f"AUDIT_SINK_PATH: {sink.sink_path}")
-        try:
-            expected_count, expected_head = _load_anchor(anchor_path)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            print(f"AUDIT_READ_FAILED message=anchor unreadable: {exc}")
-            return 2
-        if expected_count is not None:
-            print(f"AUDIT_ANCHOR recordCount={expected_count} headHash={expected_head}")
-        else:
-            print("AUDIT_ANCHOR absent (count/head not enforced)")
-        result = sink.verify_chain(
-            expected_count=expected_count, expected_head_hash=expected_head
-        )
-        if result.ok:
-            print(f"AUDIT_CHAIN_OK records_verified={result.records_verified}")
-            return 0
-        if result.error == "AUDIT_CHAIN_BROKEN":
-            print(
-                f"AUDIT_CHAIN_BROKEN at_record={result.at_record} "
-                f"message={result.message}"
-            )
-            return 10
-        print(f"AUDIT_READ_FAILED message={result.message}")
-        return 2
+        return _cmd_verify(args)
 
     if args.command == "seal":
-        events_path = Path(args.events) if args.events else _default_events_path()
-        sink = QalaAuditSink(_resolve_verify_path(args.path))
-        try:
-            anchor_path = _resolve_anchor_path(args.anchor)
-        except ValueError as exc:
-            print(f"AUDIT_SEAL_FAILED message={exc}")
-            return 2
-        print(f"AUDIT_EVENTS_PATH: {events_path}")
-        print(f"AUDIT_SINK_PATH: {sink.sink_path}")
-        try:
-            events = _load_events(events_path)
-            head_hash = sink.seal_from_events(events)
-        except FileNotFoundError:
-            print(f"AUDIT_SEAL_FAILED message=event source not found: {events_path}")
-            return 2
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            print(f"AUDIT_SEAL_FAILED message={exc}")
-            return 2
-        count = len(events)
-        print(f"AUDIT_SEALED records={count} headHash={head_hash}")
-        if args.write_anchor:
-            anchor_path.parent.mkdir(parents=True, exist_ok=True)
-            anchor_path.write_text(
-                json.dumps(_anchor_document(count, head_hash), indent=2) + "\n",
-                encoding="utf-8",
-            )
-            print(f"AUDIT_ANCHOR_WRITTEN path={anchor_path}")
-        return 0
+        return _cmd_seal(args)
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover
     return 2  # pragma: no cover — parser.error exits before this
+
+
+def _cmd_verify(args: argparse.Namespace) -> int:
+    sink = QalaAuditSink(_resolve_verify_path(args.path))
+    try:
+        anchor_path = _resolve_anchor_path(args.anchor)
+    except ValueError as exc:
+        print(f"AUDIT_READ_FAILED message={exc}")
+        return 2
+    print(f"AUDIT_SINK_PATH: {sink.sink_path}")
+    try:
+        expected_count, expected_head = _load_anchor(anchor_path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"AUDIT_READ_FAILED message=anchor unreadable: {exc}")
+        return 2
+    if expected_count is not None:
+        print(f"AUDIT_ANCHOR recordCount={expected_count} headHash={expected_head}")
+    else:
+        print("AUDIT_ANCHOR absent (count/head not enforced)")
+    result = sink.verify_chain(
+        expected_count=expected_count, expected_head_hash=expected_head
+    )
+    if result.ok:
+        print(f"AUDIT_CHAIN_OK records_verified={result.records_verified}")
+        return 0
+    if result.error == "AUDIT_CHAIN_BROKEN":
+        print(
+            f"AUDIT_CHAIN_BROKEN at_record={result.at_record} "
+            f"message={result.message}"
+        )
+        return 10
+    print(f"AUDIT_READ_FAILED message={result.message}")
+    return 2
+
+
+def _cmd_seal(args: argparse.Namespace) -> int:
+    events_path = Path(args.events) if args.events else _default_events_path()
+    sink = QalaAuditSink(_resolve_verify_path(args.path))
+    try:
+        anchor_path = _resolve_anchor_path(args.anchor)
+    except ValueError as exc:
+        print(f"AUDIT_SEAL_FAILED message={exc}")
+        return 2
+    print(f"AUDIT_EVENTS_PATH: {events_path}")
+    print(f"AUDIT_SINK_PATH: {sink.sink_path}")
+    try:
+        events = _load_events(events_path)
+        head_hash = sink.seal_from_events(events)
+    except FileNotFoundError:
+        print(f"AUDIT_SEAL_FAILED message=event source not found: {events_path}")
+        return 2
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"AUDIT_SEAL_FAILED message={exc}")
+        return 2
+    count = len(events)
+    print(f"AUDIT_SEALED records={count} headHash={head_hash}")
+    if args.write_anchor:
+        anchor_path.parent.mkdir(parents=True, exist_ok=True)
+        anchor_path.write_text(
+            json.dumps(_anchor_document(count, head_hash), indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print(f"AUDIT_ANCHOR_WRITTEN path={anchor_path}")
+    return 0
 
 
 __all__ = [
