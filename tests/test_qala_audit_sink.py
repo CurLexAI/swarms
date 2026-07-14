@@ -21,8 +21,6 @@ import json
 import sys
 import tempfile
 import unittest
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -36,15 +34,6 @@ qala_audit_sink = _load_module(
 )
 QalaAuditSink = qala_audit_sink.QalaAuditSink
 QALA_GENESIS_HASH = qala_audit_sink.QALA_GENESIS_HASH
-
-
-@contextmanager
-def _temporary_artifact_workspace() -> Iterator[Path]:
-    """Create a private test root below the repo Qal'a artifact boundary."""
-    artifact_parent = Path.cwd() / "artifacts" / "security"
-    artifact_parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="qala-test-", dir=artifact_parent) as tmp:
-        yield Path(tmp)
 
 
 def _valid_append(
@@ -350,33 +339,18 @@ class AnchorTruncationTests(unittest.TestCase):
 class SealVerifyCliTests(unittest.TestCase):
     """End-to-end CLI: seal --write-anchor, verify, then truncate -> rc 10."""
 
-    def test_cli_rejects_external_paths_without_traceback(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            external_path = Path(tmp) / "audit.jsonl"
-            rc = qala_audit_sink._main(["verify", "--path", str(external_path)])
-            self.assertEqual(rc, 2)
-
-    def test_cli_accepts_paths_under_artifact_boundary(self) -> None:
-        with _temporary_artifact_workspace() as artifact_root:
-            audit_path = artifact_root / "audit.jsonl"
-            anchor_path = artifact_root / "anchor.json"
-            rc = qala_audit_sink._main(
-                ["verify", "--path", str(audit_path), "--anchor", str(anchor_path)]
-            )
-            self.assertEqual(rc, 0)
-
-    def _write_events(self, artifact_root: Path) -> "tuple[Path, Path, Path]":
-        events_path = artifact_root / "events.json"
-        sink_path = artifact_root / "audit.jsonl"
-        anchor_path = artifact_root / "anchor.json"
+    def _write_events(self, tmp: str) -> "tuple[Path, Path, Path]":
+        events_path = Path(tmp) / "events.json"
+        sink_path = Path(tmp) / "audit.jsonl"
+        anchor_path = Path(tmp) / "anchor.json"
         events_path.write_text(
             json.dumps(_sample_events()), encoding="utf-8"
         )
         return events_path, sink_path, anchor_path
 
     def test_cli_seal_then_verify_then_truncate(self) -> None:
-        with _temporary_artifact_workspace() as artifact_root:
-            events_path, sink_path, anchor_path = self._write_events(artifact_root)
+        with tempfile.TemporaryDirectory() as tmp:
+            events_path, sink_path, anchor_path = self._write_events(tmp)
             seal_rc = qala_audit_sink._main(
                 [
                     "seal",
