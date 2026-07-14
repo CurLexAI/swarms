@@ -621,7 +621,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     try:
         sink = QalaAuditSink(_resolve_verify_path(args.path))
         anchor_path = _resolve_anchor_path(args.anchor)
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         print(f"AUDIT_READ_FAILED message={exc}")
         return 2
     print(f"AUDIT_SINK_PATH: {sink.sink_path}")
@@ -655,7 +655,7 @@ def _cmd_seal(args: argparse.Namespace) -> int:
         events_path = _resolve_events_path(args.events)
         sink = QalaAuditSink(_resolve_verify_path(args.path))
         anchor_path = _resolve_anchor_path(args.anchor)
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         print(f"AUDIT_SEAL_FAILED message={exc}")
         return 2
     print(f"AUDIT_EVENTS_PATH: {events_path}")
@@ -672,11 +672,15 @@ def _cmd_seal(args: argparse.Namespace) -> int:
     count = len(events)
     print(f"AUDIT_SEALED records={count} headHash={head_hash}")
     if args.write_anchor:
-        anchor_path.parent.mkdir(parents=True, exist_ok=True)
-        anchor_path.write_text(
-            json.dumps(_anchor_document(count, head_hash), indent=2) + "\n",
-            encoding="utf-8",
-        )
+        try:
+            anchor_path.parent.mkdir(parents=True, exist_ok=True)
+            anchor_path.write_text(
+                json.dumps(_anchor_document(count, head_hash), indent=2) + "\n",
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            print(f"AUDIT_SEAL_FAILED message=anchor write failed: {exc}")
+            return 2
         print(f"AUDIT_ANCHOR_WRITTEN path={anchor_path}")
     return 0
 

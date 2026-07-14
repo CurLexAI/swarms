@@ -446,5 +446,42 @@ class CliPathConfinementTests(unittest.TestCase):
             self.assertFalse((outside_dir / "escape.json").exists())
 
 
+class CliIoFailureTests(unittest.TestCase):
+    """Constructor and anchor-write I/O failures return the documented
+    rc=2 instead of leaking a traceback."""
+
+    def test_verify_sink_below_file_component_returns_2(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            blocker = Path(tmp) / "blocker.txt"
+            blocker.write_text("not a directory", encoding="utf-8")
+            rc = qala_audit_sink._main(
+                [
+                    "verify",
+                    "--path", str(blocker / "nested" / "audit.jsonl"),
+                    "--anchor", str(Path(tmp) / "anchor.json"),
+                ]
+            )
+            self.assertEqual(rc, 2)
+
+    def test_seal_anchor_write_below_file_component_returns_2(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            events_path = Path(tmp) / "events.json"
+            events_path.write_text(
+                json.dumps(_sample_events()), encoding="utf-8"
+            )
+            blocker = Path(tmp) / "blocker.txt"
+            blocker.write_text("not a directory", encoding="utf-8")
+            rc = qala_audit_sink._main(
+                [
+                    "seal",
+                    "--events", str(events_path),
+                    "--path", str(Path(tmp) / "audit.jsonl"),
+                    "--anchor", str(blocker / "nested" / "anchor.json"),
+                    "--write-anchor",
+                ]
+            )
+            self.assertEqual(rc, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
