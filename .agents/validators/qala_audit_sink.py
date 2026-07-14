@@ -143,29 +143,36 @@ def _default_anchor_path() -> Path:
     )
 
 
-def _resolve_anchor_path(anchor_arg: str | None) -> Path:
-    """Resolve and confine the anchor path for the CLI.
+def _confine_cli_path(raw: str, *, kind: str) -> Path:
+    """Resolve and confine an operator-supplied CLI path.
 
-    The anchor may come from ``--anchor`` or $QALA_AUDIT_ANCHOR_PATH. After
-    normalization it must live under one of the permitted roots: the repo's
-    ``artifacts/security`` directory (production ledger) or the system temp
-    directory (the integrity gate's regression tests point the anchor at
-    private temp dirs). Anything else fails closed.
+    The path may come from argv or an environment override. After symlink
+    resolution (``os.path.realpath``, so a link planted under a permitted
+    root cannot escape it) the path must live under one of the permitted
+    roots: the repo's ``artifacts/security`` directory (production ledger)
+    or the system temp directory (the integrity gate's regression tests
+    point every path at private temp dirs). Anything else fails closed.
     """
-    raw = anchor_arg or str(_default_anchor_path())
-    normalized = os.path.normpath(
+    real = os.path.realpath(
         os.path.join(os.getcwd(), os.path.expanduser(raw))
     )
-    permitted_roots = (
-        os.path.normpath(os.path.join(os.getcwd(), "artifacts", "security")),
-        os.path.normpath(tempfile.gettempdir()),
+    artifacts_root = os.path.realpath(
+        os.path.join(os.getcwd(), "artifacts", "security")
     )
-    for root in permitted_roots:
-        if normalized == root or normalized.startswith(root + os.sep):
-            return Path(normalized)
+    if real.startswith(artifacts_root + os.sep):
+        return Path(real)
+    temp_root = os.path.realpath(tempfile.gettempdir())
+    if real.startswith(temp_root + os.sep):
+        return Path(real)
     raise ValueError(
-        "anchor path must be within artifacts/security or the system temp "
-        f"directory, got: {normalized}"
+        f"{kind} path must be within artifacts/security or the system temp "
+        f"directory, got: {real}"
+    )
+
+
+def _resolve_anchor_path(anchor_arg: str | None) -> Path:
+    return _confine_cli_path(
+        anchor_arg or str(_default_anchor_path()), kind="anchor"
     )
 
 
@@ -471,9 +478,15 @@ class QalaAuditSink:
 
 
 def _resolve_verify_path(path_arg: str | None) -> Path:
-    if path_arg:
-        return Path(path_arg)
-    return _default_sink_path()
+    return _confine_cli_path(
+        path_arg or str(_default_sink_path()), kind="audit sink"
+    )
+
+
+def _resolve_events_path(events_arg: str | None) -> Path:
+    return _confine_cli_path(
+        events_arg or str(_default_events_path()), kind="event source"
+    )
 
 
 def _load_events(events_path: Path) -> list[Mapping[str, Any]]:
@@ -585,8 +598,8 @@ def _main(argv: list[str] | None = None) -> int:
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:
-    sink = QalaAuditSink(_resolve_verify_path(args.path))
     try:
+        sink = QalaAuditSink(_resolve_verify_path(args.path))
         anchor_path = _resolve_anchor_path(args.anchor)
     except ValueError as exc:
         print(f"AUDIT_READ_FAILED message={exc}")
@@ -618,9 +631,9 @@ def _cmd_verify(args: argparse.Namespace) -> int:
 
 
 def _cmd_seal(args: argparse.Namespace) -> int:
-    events_path = Path(args.events) if args.events else _default_events_path()
-    sink = QalaAuditSink(_resolve_verify_path(args.path))
     try:
+        events_path = _resolve_events_path(args.events)
+        sink = QalaAuditSink(_resolve_verify_path(args.path))
         anchor_path = _resolve_anchor_path(args.anchor)
     except ValueError as exc:
         print(f"AUDIT_SEAL_FAILED message={exc}")
