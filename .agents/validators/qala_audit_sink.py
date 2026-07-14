@@ -467,10 +467,29 @@ class QalaAuditSink:
         return value if isinstance(value, str) else QALA_GENESIS_HASH
 
 
+def _resolve_cli_artifact_path(path_arg: str | None, *, fallback: str) -> Path:
+    """Resolve a CLI-controlled path inside the Qal'a audit artifact root.
+
+    CLI and environment-sourced paths are confined to ``artifacts/security``
+    so test convenience never expands the production audit boundary to shared
+    system roots such as ``/tmp``. Direct ``QalaAuditSink`` construction remains
+    injectable for unit tests and non-CLI adapters.
+    """
+    return _safe_artifact_path(path_arg or fallback, fallback=fallback)
+
+
 def _resolve_verify_path(path_arg: str | None) -> Path:
-    if path_arg:
-        return Path(path_arg)
-    return _default_sink_path()
+    return _resolve_cli_artifact_path(
+        path_arg or os.environ.get("QALA_AUDIT_SINK_PATH"),
+        fallback="artifacts/security/qala-audit.jsonl",
+    )
+
+
+def _resolve_events_path(path_arg: str | None) -> Path:
+    return _resolve_cli_artifact_path(
+        path_arg or os.environ.get("QALA_AUDIT_EVENTS_PATH"),
+        fallback="artifacts/security/qala-audit.events.json",
+    )
 
 
 def _load_events(events_path: Path) -> list[Mapping[str, Any]]:
@@ -567,14 +586,18 @@ def _main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "verify":
-        sink = QalaAuditSink(_resolve_verify_path(args.path))
-        anchor_path = (
-            _safe_artifact_path(
-                args.anchor, fallback="artifacts/security/qala-audit.anchor.json"
+        try:
+            sink = QalaAuditSink(_resolve_verify_path(args.path))
+            anchor_path = (
+                _safe_artifact_path(
+                    args.anchor, fallback="artifacts/security/qala-audit.anchor.json"
+                )
+                if args.anchor
+                else _default_anchor_path()
             )
-            if args.anchor
-            else _default_anchor_path()
-        )
+        except ValueError as exc:
+            print(f"AUDIT_READ_FAILED message={exc}")
+            return 2
         print(f"AUDIT_SINK_PATH: {sink.sink_path}")
         try:
             expected_count, expected_head = _load_anchor(anchor_path)
@@ -601,9 +624,9 @@ def _main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.command == "seal":
-        events_path = Path(args.events) if args.events else _default_events_path()
-        sink = QalaAuditSink(_resolve_verify_path(args.path))
         try:
+            events_path = _resolve_events_path(args.events)
+            sink = QalaAuditSink(_resolve_verify_path(args.path))
             anchor_path = _validated_anchor_path(
                 Path(args.anchor) if args.anchor else _default_anchor_path()
             )
