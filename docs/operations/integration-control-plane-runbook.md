@@ -19,7 +19,7 @@ The repository separates no-secrets validation from deployment actions. Render p
 ## Render operating rules
 
 1. Keep `render.yaml` as a blueprint only. Do not place deploy hooks, Render API tokens, or service IDs in the repository.
-2. Use `.github/workflows/render-preflight.yml` for PR/push validation of the Render blueprint and Modal MCP package build.
+2. Use `.github/workflows/render-preflight.yml` for PR/push validation of the Render blueprint, SR.BSM public server, and CDN SRI checks.
 3. Use `.github/workflows/render-deploy.yml` only through `workflow_dispatch`.
 4. Store `RENDER_DEPLOY_HOOK_URL` only as a GitHub Environment secret named `production`.
 5. Do not store the deploy hook as a repository variable or in `.env` files.
@@ -38,6 +38,7 @@ python3 scripts/security/static_audit.py .
 python3 scripts/verify_aegis.py
 python3 -m pytest -q tests/
 git diff --check
+npm run test:render-public
 npm run check
 npm run check:swarms-presence:strict
 npm run build --if-present

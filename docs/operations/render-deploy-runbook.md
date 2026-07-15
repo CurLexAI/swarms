@@ -42,15 +42,16 @@ Do not store deploy hooks in:
 
 ## Render Service Settings
 
-For the current Modal MCP Gateway Blueprint, Render should use:
+For the current SR.BSM public Render service, Render should use:
 
-- Service name: `curlexai-mcp-server`
-- Root directory: `.agents/mcp/modal-mcp`
-- Build command: `npm ci --include=dev && npm run build`
-- Start command: `node dist/server.js`
-- Health check path: `/health`
+- Service name: `SR.BSM`
+- Root directory: `.`
+- Build command: `npm ci --include=dev && npm run test:render-public && npm run check:cdn-sri`
+- Start command: `npm start`
+- Port: `10000`
+- Health check path: `/healthz`
 
-Runtime secrets for the service belong in the Render dashboard, not in GitHub, except for the single deploy-hook secret used by the gated workflow.
+This service serves the public trust surface only. Private Modal endpoints and agent runtimes remain backend-only and must not be exposed through this Render service.
 
 ## If Deploy Fails
 GitHub → Settings → Environments → production → Environment secrets
@@ -68,12 +69,14 @@ Do not store deploy hooks in:
 
 Use the Render dashboard to confirm these service settings:
 
-- Root Directory: `.agents/mcp/modal-mcp`
-- Build Command: `npm ci --include=dev && npm run build`
-- Start Command: `node dist/server.js`
-- Health Check Path: `/health`
+- Service Name: `SR.BSM`
+- Root Directory: `.`
+- Build Command: `npm ci --include=dev && npm run test:render-public && npm run check:cdn-sri`
+- Start Command: `npm start`
+- Port: `10000`
+- Health Check Path: `/healthz`
 
-Runtime secrets for the service belong in Render service environment variables, not in GitHub, except for the single GitHub Environment Secret used to trigger the deploy hook.
+The running service should not require private Modal or agent secrets. Keep the deploy hook only in the protected GitHub Environment secret store, and keep any future provider secrets in the Render dashboard rather than Git.
 
 ## If deploy fails
 

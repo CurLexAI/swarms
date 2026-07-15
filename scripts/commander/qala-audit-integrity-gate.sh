@@ -1,36 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
-ROOT="${1:-.}"
-cd "$ROOT"
-
-if [[ ! -f "src/security/qalaAuditSink.ts" ]]; then
-  echo "[qala-audit-integrity-gate] FAIL: src/security/qalaAuditSink.ts missing" >&2
-  exit 1
-fi
-
-if [[ ! -f ".agents/validators/qala_audit_sink.py" ]]; then
-  echo "[qala-audit-integrity-gate] FAIL: .agents/validators/qala_audit_sink.py missing" >&2
-  exit 1
-fi
-
-if [[ ! -f "tests/qalaAuditSink.test.js" ]]; then
-  echo "[qala-audit-integrity-gate] FAIL: tests/qalaAuditSink.test.js missing" >&2
-  exit 1
-fi
-
-if [[ ! -f "tests/test_qala_audit_sink.py" ]]; then
-  echo "[qala-audit-integrity-gate] FAIL: tests/test_qala_audit_sink.py missing" >&2
-  exit 1
-fi
-
-echo "[qala-audit-integrity-gate] VERIFY: TypeScript/Node Qala audit chain"
-node --test tests/qalaAuditSink.test.js
-
-echo "[qala-audit-integrity-gate] VERIFY: Python Qala audit chain"
-python3 -m unittest tests.test_qala_audit_sink
-
-echo "[qala-audit-integrity-gate] PASS: Qala audit append-only hash-chain integrity verified"
 # Qal'a Q7 — Sealed Audit Integrity Gate
 #
 # Verifies that the on-disk, append-only audit chain has not been
@@ -70,11 +38,24 @@ ok()   { echo "[OK]   $*"; }
 warn() { echo "[WARN] $*"; }
 fail() { echo "[FAIL] $*"; status="FAIL"; }
 info() { echo "[INFO] $*"; }
+require_repo_file() {
+  local file="$1"
+  if [[ ! -f "$file" ]]; then
+    fail "REPO_FILE_MISSING: $file not found"
+    echo "[RESULT] FAIL"
+    exit 1
+  fi
+}
 
 info "Qal'a audit integrity gate (Q7)"
-info "repo=$(pwd)"
+REPO_DIR="$(pwd)"
+require_repo_file "src/security/qalaAuditSink.ts"
+require_repo_file ".agents/validators/qala_audit_sink.py"
+require_repo_file "tests/qalaAuditSink.test.js"
+require_repo_file "tests/test_qala_audit_sink.py"
+info "repo=$REPO_DIR"
 
-VERIFIER=".agents/validators/qala_audit_sink.py"
+VERIFIER="$REPO_DIR/.agents/validators/qala_audit_sink.py"
 
 if [[ ! -f "$VERIFIER" ]]; then
   fail "VERIFIER_MISSING: $VERIFIER not found"
@@ -88,10 +69,38 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
+# Canonically validate configured paths early to prevent any escape or path traversal.
+# This runs the verifier's own path-confinement checks, which will raise ValueError
+# for any out-of-bound, relative-escaping, or absolute paths outside artifacts/security.
+info "validating paths against artifacts/security"
+if ! python3 -c "
+import sys, os
+from pathlib import Path
+sys.path.insert(0, os.path.join('$REPO_DIR', '.agents', 'validators'))
+import qala_audit_sink
+try:
+    # Resolve and validate each path. If they escape, _confine_cli_path raises ValueError.
+    qala_audit_sink._resolve_events_path(os.environ.get('QALA_AUDIT_EVENTS_PATH'))
+    qala_audit_sink._resolve_verify_path(os.environ.get('QALA_AUDIT_SINK_PATH'))
+    qala_audit_sink._resolve_anchor_path(os.environ.get('QALA_AUDIT_ANCHOR_PATH'))
+except ValueError as e:
+    print(f'PATH_VALIDATION_FAILED: {e}')
+    sys.exit(2)
+"; then
+  fail "PATH_VALIDATION_FAILED: one or more paths are invalid or escape artifacts/security"
+  echo "[RESULT] FAIL"
+  exit 1
+fi
+
 # Generated-artifact model: seal the chain from the merge-safe event source
 # before verifying. Skipped when no event source exists (pre-activation), which
 # preserves the "absent log PASSes" posture above.
 EVENTS_PATH="${QALA_AUDIT_EVENTS_PATH:-artifacts/security/qala-audit.events.json}"
+if [[ "$EVENTS_PATH" = /* ]]; then
+  fail "EVENT_SOURCE_OUTSIDE_AUDIT_WORKDIR: absolute event path rejected: $EVENTS_PATH"
+  echo "[RESULT] FAIL"
+  exit 1
+fi
 if [[ -f "$EVENTS_PATH" ]]; then
   info "sealing audit chain from event source: $EVENTS_PATH"
   set +e

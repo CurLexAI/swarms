@@ -184,7 +184,27 @@ python .agents/invoke.py bayyinah --diff
 
 # Deploy Modal agents after secrets are configured
 modal deploy .agents/modal_app.py
+
+# Aggregate local repository gate
+npm run check
+
+# Launch evidence and release readiness
+npm run deploy:evidence:validate
+bash scripts/commander/release-readiness-gate.sh .
+
+# Trusted-shell readiness helpers
+node scripts/dev-cli-doctor.mjs
+python3 scripts/check-secrets-manifest.py --phase modal-deploy
+python3 scripts/check-secrets-manifest.py --phase endpoint-smoke
+bash scripts/commander/modal-runtime-smoke.sh
 ```
+
+## Manual Workflow Entry Points
+
+- VERIFIED: `.github/workflows/render-deploy.yml` is the manual Render production path. It requires `workflow_dispatch`, `confirm_manual_gated_deploy=DEPLOY`, the protected `production` environment, and `RENDER_DEPLOY_HOOK_URL` in GitHub Environment secrets.
+- VERIFIED: `.github/workflows/local-model-smoke.yml` is the self-hosted Ollama smoke path. Supported inputs are `ollama_model`, `pull_model`, and optional `test_llama_server`.
+
+TODO: If operators standardize a canonical `gh workflow run ...` wrapper for these manual workflows, add the exact commands here. Current repository evidence confirms the workflow files and required inputs, but not one blessed CLI dispatch wrapper.
 
 ---
 
