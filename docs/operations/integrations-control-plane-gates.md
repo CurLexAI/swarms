@@ -20,12 +20,12 @@ VERIFIED: The repository workflows are separated into the following operational 
 
 ## Render boundary
 
-VERIFIED: `render.yaml` defines the Modal MCP Gateway service under `.agents/mcp/modal-mcp`, with `npm ci --include=dev && npm run build`, `node dist/server.js`, `/healthz`, and `autoDeploy: false`.
+VERIFIED: `render.yaml` defines the SR.BSM public Render service at repository root, with `npm ci --include=dev && npm run test:render-public && npm run check:cdn-sri`, `npm start`, `/healthz`, and `autoDeploy: false`.
 
 VERIFIED: Render deployment is manual-gated by `.github/workflows/render-deploy.yml` and uses `RENDER_DEPLOY_HOOK_URL` from protected GitHub Environment secrets. Do not add deploy hooks, plaintext endpoint URLs, or GitHub Variables as secret substitutes.
-VERIFIED: `render.yaml` defines the Modal MCP Gateway service under `.agents/mcp/modal-mcp`, with `npm ci --include=dev && npm run build`, `node dist/server.js`, and `/healthz`.
+VERIFIED: `render.yaml` defines the SR.BSM public Render service at repository root, with `NODE_ENV=production` as the only committed environment value. Private runtime secrets, deploy hooks, and provider tokens must stay out of the repository.
 
-VERIFIED: Render deployment is manual-gated by `autoDeploy: false` and uses `sync: false` for private tokens/endpoints. Do not add deploy hooks, plaintext endpoint URLs, or GitHub Variables as secret substitutes.
+VERIFIED: Render deployment is manual-gated by `autoDeploy: false` and keeps production mutation behind protected secrets and explicit operator approval.
 
 ## Modal / Qdrant boundary
 
@@ -81,12 +81,12 @@ VERIFIED by repository inspection: Copilot cloud agent is not a dependency for t
 
 ## Render preflight
 
-- `render.yaml` service: `curlexai-mcp-server`.
-- `rootDir`: `.agents/mcp/modal-mcp`.
-- `buildCommand`: `npm ci --include=dev && npm run build`.
-- `startCommand`: `node dist/server.js`.
+- `render.yaml` service: `SR.BSM`.
+- `rootDir`: `.`.
+- `buildCommand`: `npm ci --include=dev && npm run test:render-public && npm run check:cdn-sri`.
+- `startCommand`: `npm start`.
 - `healthCheckPath`: `/healthz`.
-- Secret-bearing values use `sync: false`; do not commit real tokens, deploy hooks, or endpoint secrets.
+- Committed environment values remain non-secret only; keep deploy hooks, provider tokens, and private runtime secrets out of the repository.
 
 ## Modal preflight
 
