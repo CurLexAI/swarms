@@ -53,15 +53,7 @@ require_repo_file "src/security/qalaAuditSink.ts"
 require_repo_file ".agents/validators/qala_audit_sink.py"
 require_repo_file "tests/qalaAuditSink.test.js"
 require_repo_file "tests/test_qala_audit_sink.py"
-AUDIT_WORKDIR="${QALA_AUDIT_WORKDIR:-$REPO_DIR}"
-if [[ ! -d "$AUDIT_WORKDIR" ]]; then
-  fail "AUDIT_WORKDIR_MISSING: $AUDIT_WORKDIR not found"
-  echo "[RESULT] FAIL"
-  exit 1
-fi
-AUDIT_WORKDIR="$(cd "$AUDIT_WORKDIR" && pwd)"
 info "repo=$REPO_DIR"
-info "audit_workdir=$AUDIT_WORKDIR"
 
 VERIFIER="$REPO_DIR/.agents/validators/qala_audit_sink.py"
 
@@ -77,6 +69,29 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
+# Canonically validate configured paths early to prevent any escape or path traversal.
+# This runs the verifier's own path-confinement checks, which will raise ValueError
+# for any out-of-bound, relative-escaping, or absolute paths outside artifacts/security.
+info "validating paths against artifacts/security"
+if ! python3 -c "
+import sys, os
+from pathlib import Path
+sys.path.insert(0, os.path.join('$REPO_DIR', '.agents', 'validators'))
+import qala_audit_sink
+try:
+    # Resolve and validate each path. If they escape, _confine_cli_path raises ValueError.
+    qala_audit_sink._resolve_events_path(os.environ.get('QALA_AUDIT_EVENTS_PATH'))
+    qala_audit_sink._resolve_verify_path(os.environ.get('QALA_AUDIT_SINK_PATH'))
+    qala_audit_sink._resolve_anchor_path(os.environ.get('QALA_AUDIT_ANCHOR_PATH'))
+except ValueError as e:
+    print(f'PATH_VALIDATION_FAILED: {e}')
+    sys.exit(2)
+"; then
+  fail "PATH_VALIDATION_FAILED: one or more paths are invalid or escape artifacts/security"
+  echo "[RESULT] FAIL"
+  exit 1
+fi
+
 # Generated-artifact model: seal the chain from the merge-safe event source
 # before verifying. Skipped when no event source exists (pre-activation), which
 # preserves the "absent log PASSes" posture above.
@@ -86,10 +101,10 @@ if [[ "$EVENTS_PATH" = /* ]]; then
   echo "[RESULT] FAIL"
   exit 1
 fi
-if [[ -f "$AUDIT_WORKDIR/$EVENTS_PATH" ]]; then
+if [[ -f "$EVENTS_PATH" ]]; then
   info "sealing audit chain from event source: $EVENTS_PATH"
   set +e
-  seal_output="$(cd "$AUDIT_WORKDIR" && python3 "$VERIFIER" seal)"
+  seal_output="$(python3 "$VERIFIER" seal)"
   seal_rc=$?
   set -e
   printf '%s\n' "$seal_output"
@@ -107,7 +122,7 @@ fi
 #   10 -> AUDIT_CHAIN_BROKEN — gate FAILs
 #   2+ -> runtime/read failure — gate FAILs (fail-closed)
 set +e
-verify_output="$(cd "$AUDIT_WORKDIR" && python3 "$VERIFIER" verify)"
+verify_output="$(python3 "$VERIFIER" verify)"
 py_rc=$?
 set -e
 
