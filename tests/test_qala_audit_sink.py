@@ -410,5 +410,113 @@ class SealVerifyCliTests(unittest.TestCase):
             self.assertEqual(broken_rc, 10)
 
 
+class CliPathConfinementTests(unittest.TestCase):
+    """The CLI confines --anchor/--path/--events to the permitted roots
+    (artifacts/security or the system temp directory), fail-closed."""
+
+    def _events_file(self, tmp: str) -> Path:
+        events_path = Path(tmp) / "events.json"
+        events_path.write_text(json.dumps(_sample_events()), encoding="utf-8")
+        return events_path
+
+    def test_outside_root_anchor_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            events_path = self._events_file(tmp)
+            outside = Path(__file__).resolve().parent / "nope-anchor.json"
+            rc = qala_audit_sink._main(
+                [
+                    "seal",
+                    "--events", str(events_path),
+                    "--path", str(Path(tmp) / "audit.jsonl"),
+                    "--anchor", str(outside),
+                ]
+            )
+            self.assertEqual(rc, 2)
+            self.assertFalse(outside.exists())
+
+    def test_outside_root_events_source_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(__file__).resolve().parent / "nope-events.json"
+            rc = qala_audit_sink._main(
+                [
+                    "seal",
+                    "--events", str(outside),
+                    "--path", str(Path(tmp) / "audit.jsonl"),
+                    "--anchor", str(Path(tmp) / "anchor.json"),
+                ]
+            )
+            self.assertEqual(rc, 2)
+
+    def test_outside_root_sink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(__file__).resolve().parent / "nope-audit.jsonl"
+            rc = qala_audit_sink._main(
+                [
+                    "verify",
+                    "--path", str(outside),
+                    "--anchor", str(Path(tmp) / "anchor.json"),
+                ]
+            )
+            self.assertEqual(rc, 2)
+
+    def test_symlink_under_temp_escaping_the_root_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            outside_dir = Path(__file__).resolve().parent
+            link = Path(tmp) / "link"
+            try:
+                link.symlink_to(outside_dir, target_is_directory=True)
+            except OSError:  # pragma: no cover — symlink-less filesystems
+                self.skipTest("symlinks unavailable on this filesystem")
+            events_path = self._events_file(tmp)
+            rc = qala_audit_sink._main(
+                [
+                    "seal",
+                    "--events", str(events_path),
+                    "--path", str(Path(tmp) / "audit.jsonl"),
+                    "--anchor", str(link / "escape.json"),
+                    "--write-anchor",
+                ]
+            )
+            self.assertEqual(rc, 2)
+            self.assertFalse((outside_dir / "escape.json").exists())
+
+
+class CliIoFailureTests(unittest.TestCase):
+    """Constructor and anchor-write I/O failures return the documented
+    rc=2 instead of leaking a traceback."""
+
+    def test_verify_sink_below_file_component_returns_2(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            blocker = Path(tmp) / "blocker.txt"
+            blocker.write_text("not a directory", encoding="utf-8")
+            rc = qala_audit_sink._main(
+                [
+                    "verify",
+                    "--path", str(blocker / "nested" / "audit.jsonl"),
+                    "--anchor", str(Path(tmp) / "anchor.json"),
+                ]
+            )
+            self.assertEqual(rc, 2)
+
+    def test_seal_anchor_write_below_file_component_returns_2(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            events_path = Path(tmp) / "events.json"
+            events_path.write_text(
+                json.dumps(_sample_events()), encoding="utf-8"
+            )
+            blocker = Path(tmp) / "blocker.txt"
+            blocker.write_text("not a directory", encoding="utf-8")
+            rc = qala_audit_sink._main(
+                [
+                    "seal",
+                    "--events", str(events_path),
+                    "--path", str(Path(tmp) / "audit.jsonl"),
+                    "--anchor", str(blocker / "nested" / "anchor.json"),
+                    "--write-anchor",
+                ]
+            )
+            self.assertEqual(rc, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -4,7 +4,12 @@ on:
   pull_request:
     paths:
       - "render.yaml"
-      - ".agents/mcp/modal-mcp/**"
+      - "package.json"
+      - "package-lock.json"
+      - "public/**"
+      - "scripts/render/**"
+      - "scripts/check-cdn-sri.mjs"
+      - "tests/renderPublicServer.test.js"
       - ".github/workflows/render-preflight.yml"
       - ".github/workflows/render-deploy.yml"
   push:
@@ -12,7 +17,12 @@ on:
       - main
     paths:
       - "render.yaml"
-      - ".agents/mcp/modal-mcp/**"
+      - "package.json"
+      - "package-lock.json"
+      - "public/**"
+      - "scripts/render/**"
+      - "scripts/check-cdn-sri.mjs"
+      - "tests/renderPublicServer.test.js"
       - ".github/workflows/render-preflight.yml"
       - ".github/workflows/render-deploy.yml"
   workflow_dispatch:

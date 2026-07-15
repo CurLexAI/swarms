@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 import sys
+import tempfile
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -134,36 +135,45 @@ def _default_events_path() -> Path:
     )
 
 
-def _safe_artifact_path(raw_path: str, *, fallback: str) -> Path:
-    candidate = Path(raw_path or fallback)
-    if not candidate.is_absolute():
-        candidate = Path.cwd() / candidate
-    normalized = candidate.resolve(strict=False)
-    base_dir = (Path.cwd() / "artifacts/security").resolve(strict=False)
-    try:
-        normalized.relative_to(base_dir)
-    except ValueError as exc:
-        raise ValueError(f"path escapes artifacts/security: {normalized}") from exc
-    return normalized
-
-
 def _default_anchor_path() -> Path:
-    return _safe_artifact_path(
-        os.environ.get("QALA_AUDIT_ANCHOR_PATH", "artifacts/security/qala-audit.anchor.json"),
-        fallback="artifacts/security/qala-audit.anchor.json",
+    return Path(
+        os.environ.get(
+            "QALA_AUDIT_ANCHOR_PATH", "artifacts/security/qala-audit.anchor.json"
+        )
     )
 
 
-def _validated_anchor_path(path: Path) -> Path:
-    safe_root = Path("artifacts/security").resolve()
-    resolved = path.expanduser().resolve()
-    try:
-        resolved.relative_to(safe_root)
-    except ValueError as exc:
-        raise ValueError(
-            f"anchor path must be within {safe_root}, got: {resolved}"
-        ) from exc
-    return resolved
+def _confine_cli_path(raw: str, *, kind: str) -> Path:
+    """Resolve and confine an operator-supplied CLI path.
+
+    The path may come from argv or an environment override. After symlink
+    resolution (``os.path.realpath``, so a link planted under a permitted
+    root cannot escape it) the path must live under one of the permitted
+    roots: the repo's ``artifacts/security`` directory (production ledger)
+    or the system temp directory (the integrity gate's regression tests
+    point every path at private temp dirs). Anything else fails closed.
+    """
+    real = os.path.realpath(
+        os.path.join(os.getcwd(), os.path.expanduser(raw))
+    )
+    artifacts_root = os.path.realpath(
+        os.path.join(os.getcwd(), "artifacts", "security")
+    )
+    if real.startswith(artifacts_root + os.sep):
+        return Path(real)
+    temp_root = os.path.realpath(tempfile.gettempdir())
+    if real.startswith(temp_root + os.sep):
+        return Path(real)
+    raise ValueError(
+        f"{kind} path must be within artifacts/security or the system temp "
+        f"directory, got: {real}"
+    )
+
+
+def _resolve_anchor_path(anchor_arg: str | None) -> Path:
+    return _confine_cli_path(
+        anchor_arg or str(_default_anchor_path()), kind="anchor"
+    )
 
 
 def _canonicalize(
@@ -489,6 +499,14 @@ def _resolve_events_path(path_arg: str | None) -> Path:
     return _resolve_cli_artifact_path(
         path_arg or os.environ.get("QALA_AUDIT_EVENTS_PATH"),
         fallback="artifacts/security/qala-audit.events.json",
+    return _confine_cli_path(
+        path_arg or str(_default_sink_path()), kind="audit sink"
+    )
+
+
+def _resolve_events_path(events_arg: str | None) -> Path:
+    return _confine_cli_path(
+        events_arg or str(_default_events_path()), kind="event source"
     )
 
 
@@ -527,16 +545,7 @@ def _anchor_document(record_count: int, head_hash: str) -> dict[str, Any]:
     }
 
 
-def _main(argv: list[str] | None = None) -> int:
-    """CLI verifier for the sealed audit chain (Q7).
-
-    Reuses ``QalaAuditSink.verify_chain`` — it does not re-implement the
-    chain logic. Exit codes are stable so a shell gate can branch on them:
-
-      0  -> chain intact (or empty/absent log)
-      10 -> AUDIT_CHAIN_BROKEN (tamper, insertion, truncation, gap)
-      2  -> AUDIT_READ_FAILED (I/O failure) — fail-closed for the gate
-    """
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="qala_audit_sink",
         description="Verify the tamper-evident Qal'a audit chain (Q7).",
@@ -549,7 +558,8 @@ def _main(argv: list[str] | None = None) -> int:
         default=None,
         help=(
             "Audit sink JSONL path (default: $QALA_AUDIT_SINK_PATH or "
-            "artifacts/security/qala-audit.jsonl)."
+            "artifacts/security/qala-audit.jsonl). Must resolve under "
+            "artifacts/security or the system temp directory."
         ),
     )
     verify_p.add_argument(
@@ -558,7 +568,8 @@ def _main(argv: list[str] | None = None) -> int:
         help=(
             "Sealed anchor JSON path (default: $QALA_AUDIT_ANCHOR_PATH or "
             "artifacts/security/qala-audit.anchor.json). When present, the "
-            "record count and head hash are enforced to detect tail truncation."
+            "record count and head hash are enforced to detect tail truncation. "
+            "Must resolve under artifacts/security or the system temp directory."
         ),
     )
 
@@ -566,12 +577,30 @@ def _main(argv: list[str] | None = None) -> int:
         "seal",
         help="Deterministically build the sealed chain from the event source.",
     )
-    seal_p.add_argument("--events", default=None, help="Event source JSON path.")
-    seal_p.add_argument("--path", default=None, help="Output sealed JSONL path.")
+    seal_p.add_argument(
+        "--events",
+        default=None,
+        help=(
+            "Event source JSON path. Must resolve under artifacts/security "
+            "or the system temp directory."
+        ),
+    )
+    seal_p.add_argument(
+        "--path",
+        default=None,
+        help=(
+            "Output sealed JSONL path. Must resolve under artifacts/security "
+            "or the system temp directory."
+        ),
+    )
     seal_p.add_argument(
         "--anchor",
         default=None,
-        help="Anchor JSON path. With --write-anchor, (re)writes it from the seal.",
+        help=(
+            "Anchor JSON path. With --write-anchor, (re)writes it from the "
+            "seal. Must resolve under artifacts/security or the system temp "
+            "directory."
+        ),
     )
     seal_p.add_argument(
         "--write-anchor",
@@ -583,6 +612,20 @@ def _main(argv: list[str] | None = None) -> int:
         ),
     )
 
+    return parser
+
+
+def _main(argv: list[str] | None = None) -> int:
+    """CLI verifier for the sealed audit chain (Q7).
+
+    Reuses ``QalaAuditSink.verify_chain`` — it does not re-implement the
+    chain logic. Exit codes are stable so a shell gate can branch on them:
+
+      0  -> chain intact (or empty/absent log)
+      10 -> AUDIT_CHAIN_BROKEN (tamper, insertion, truncation, gap)
+      2  -> AUDIT_READ_FAILED (I/O failure) — fail-closed for the gate
+    """
+    parser = _build_parser()
     args = parser.parse_args(argv)
 
     if args.command == "verify":
@@ -621,7 +664,46 @@ def _main(argv: list[str] | None = None) -> int:
             )
             return 10
         print(f"AUDIT_READ_FAILED message={result.message}")
+        return _cmd_verify(args)
+
+    if args.command == "seal":
+        return _cmd_seal(args)
+
+    parser.error(f"unknown command: {args.command}")  # pragma: no cover
+    return 2  # pragma: no cover — parser.error exits before this
+
+
+def _cmd_verify(args: argparse.Namespace) -> int:
+    try:
+        sink = QalaAuditSink(_resolve_verify_path(args.path))
+        anchor_path = _resolve_anchor_path(args.anchor)
+    except (OSError, ValueError) as exc:
+        print(f"AUDIT_READ_FAILED message={exc}")
         return 2
+    print(f"AUDIT_SINK_PATH: {sink.sink_path}")
+    try:
+        expected_count, expected_head = _load_anchor(anchor_path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"AUDIT_READ_FAILED message=anchor unreadable: {exc}")
+        return 2
+    if expected_count is not None:
+        print(f"AUDIT_ANCHOR recordCount={expected_count} headHash={expected_head}")
+    else:
+        print("AUDIT_ANCHOR absent (count/head not enforced)")
+    result = sink.verify_chain(
+        expected_count=expected_count, expected_head_hash=expected_head
+    )
+    if result.ok:
+        print(f"AUDIT_CHAIN_OK records_verified={result.records_verified}")
+        return 0
+    if result.error == "AUDIT_CHAIN_BROKEN":
+        print(
+            f"AUDIT_CHAIN_BROKEN at_record={result.at_record} "
+            f"message={result.message}"
+        )
+        return 10
+    print(f"AUDIT_READ_FAILED message={result.message}")
+    return 2
 
     if args.command == "seal":
         try:
@@ -634,7 +716,7 @@ def _main(argv: list[str] | None = None) -> int:
             print(f"AUDIT_SEAL_FAILED message={exc}")
             return 2
         print(f"AUDIT_EVENTS_PATH: {events_path}")
-        print(f"AUDIT_SINK_PATH: {sink.sink_path}")
+    print(f"AUDIT_SINK_PATH: {sink.sink_path}")
         try:
             events = _load_events(events_path)
             head_hash = sink.seal_from_events(events)
@@ -647,16 +729,40 @@ def _main(argv: list[str] | None = None) -> int:
         count = len(events)
         print(f"AUDIT_SEALED records={count} headHash={head_hash}")
         if args.write_anchor:
+
+def _cmd_seal(args: argparse.Namespace) -> int:
+    try:
+        events_path = _resolve_events_path(args.events)
+        sink = QalaAuditSink(_resolve_verify_path(args.path))
+        anchor_path = _resolve_anchor_path(args.anchor)
+    except (OSError, ValueError) as exc:
+        print(f"AUDIT_SEAL_FAILED message={exc}")
+        return 2
+    print(f"AUDIT_EVENTS_PATH: {events_path}")
+    print(f"AUDIT_SINK_PATH: {sink.sink_path}")
+    try:
+        events = _load_events(events_path)
+        head_hash = sink.seal_from_events(events)
+    except FileNotFoundError:
+        print(f"AUDIT_SEAL_FAILED message=event source not found: {events_path}")
+        return 2
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"AUDIT_SEAL_FAILED message={exc}")
+        return 2
+    count = len(events)
+    print(f"AUDIT_SEALED records={count} headHash={head_hash}")
+    if args.write_anchor:
+        try:
             anchor_path.parent.mkdir(parents=True, exist_ok=True)
             anchor_path.write_text(
                 json.dumps(_anchor_document(count, head_hash), indent=2) + "\n",
                 encoding="utf-8",
             )
-            print(f"AUDIT_ANCHOR_WRITTEN path={anchor_path}")
-        return 0
-
-    parser.error(f"unknown command: {args.command}")  # pragma: no cover
-    return 2  # pragma: no cover — parser.error exits before this
+        except OSError as exc:
+            print(f"AUDIT_SEAL_FAILED message=anchor write failed: {exc}")
+            return 2
+        print(f"AUDIT_ANCHOR_WRITTEN path={anchor_path}")
+    return 0
 
 
 __all__ = [
