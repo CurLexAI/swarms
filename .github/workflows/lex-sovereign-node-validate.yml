@@ -1,0 +1,35 @@
+name: Lex Sovereign Node validation
+
+on:
+  pull_request:
+    paths:
+      - ".agents/skills/lex-sovereign-node-onboarding.md"
+      - ".github/workflows/lex-sovereign-node-validate.yml"
+      - "config/lex-sovereign-node-*"
+      - "config/tailscale-lex-sovereign-node.grants.json"
+      - "scripts/lex-node/**"
+      - "tests/test_lex_sovereign_node.py"
+      - "windows-agent/Install-LexSovereignNode.ps1"
+  push:
+    branches:
+      - feat/lex-sovereign-node-onboarding-v1
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate registry
+        run: python scripts/lex-node/verify_registry.py config/lex-sovereign-node-registry.example.json
+      - name: Run unit tests
+        run: python -m unittest tests/test_lex_sovereign_node.py
+      - name: Check shell syntax
+        run: |
+          bash -n scripts/lex-node/install-lex-sovereign-node.sh
+          bash -n scripts/lex-node/rollback.sh
