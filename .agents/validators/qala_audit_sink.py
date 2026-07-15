@@ -154,33 +154,35 @@ def _confine_cli_path(raw: str, *, kind: str) -> Path:
     private temp dirs). Anything else fails closed.
     """
     try:
-        expanded = os.path.expanduser(raw)
+        expanded = Path(os.path.expanduser(raw))
+        cwd = Path.cwd()
         try:
-            real = os.path.realpath(os.path.abspath(os.path.join(os.getcwd(), expanded)))
-            resolved = Path(real).resolve(strict=False)
-            real = str(resolved)
+            candidate = expanded if expanded.is_absolute() else (cwd / expanded)
+            resolved = candidate.resolve(strict=False)
         except (OSError, RuntimeError) as exc:
             raise ValueError(f"Failed to resolve {kind} path {raw}: {exc}") from exc
 
         try:
-            artifacts_root = os.path.realpath(
-                os.path.join(os.getcwd(), "artifacts", "security")
-            )
-            artifacts_root_resolved = str(Path(artifacts_root).resolve(strict=False))
-            
-            temp_root = os.path.realpath(tempfile.gettempdir())
-            temp_root_resolved = str(Path(temp_root).resolve(strict=False))
+            artifacts_root_resolved = (cwd / "artifacts" / "security").resolve(strict=False)
+            temp_root_resolved = Path(tempfile.gettempdir()).resolve(strict=False)
         except (OSError, RuntimeError) as exc:
             raise ValueError(f"Failed to resolve permitted roots: {exc}") from exc
 
-        if real.startswith(artifacts_root_resolved + os.sep) or real == artifacts_root_resolved:
-            return Path(real)
-        if real.startswith(temp_root_resolved + os.sep) or real == temp_root_resolved:
-            return Path(real)
+        try:
+            resolved.relative_to(artifacts_root_resolved)
+            return resolved
+        except ValueError:
+            pass
+
+        try:
+            resolved.relative_to(temp_root_resolved)
+            return resolved
+        except ValueError:
+            pass
 
         raise ValueError(
             f"{kind} path must be within artifacts/security or the system temp "
-            f"directory, got: {real}"
+            f"directory, got: {resolved}"
         )
     except (OSError, RuntimeError) as exc:
         raise ValueError(f"Path verification error for {raw}: {exc}") from exc
