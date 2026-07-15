@@ -1,3 +1,4 @@
+# Licensed under MIT
 #!/usr/bin/env python3
 """Create a signed heartbeat payload; transport is intentionally external."""
 import argparse, base64, hashlib, hmac, json, os, secrets
