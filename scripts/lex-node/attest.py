@@ -1,3 +1,4 @@
+# Licensed under MIT
 #!/usr/bin/env python3
 """Create a deterministic HMAC-SHA256 node attestation without exposing its key."""
 import argparse, base64, hashlib, hmac, json, os, secrets
