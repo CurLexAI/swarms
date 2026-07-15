@@ -360,6 +360,10 @@ class SealVerifyCliTests(unittest.TestCase):
     """End-to-end CLI: seal --write-anchor, verify, then truncate -> rc 10."""
 
     def test_cli_rejects_external_paths_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            external_path = Path(tmp) / "audit.jsonl"
+            rc = qala_audit_sink._main(["verify", "--path", str(external_path)])
+            self.assertEqual(rc, 2)
         external_path = Path("/outside-confinement/audit.jsonl")
         rc = qala_audit_sink._main(["verify", "--path", str(external_path)])
         self.assertEqual(rc, 2)

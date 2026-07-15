@@ -49,6 +49,16 @@ GATE = REPO_ROOT / "scripts" / "commander" / "qala-audit-integrity-gate.sh"
 VERIFIER = REPO_ROOT / ".agents" / "validators" / "qala_audit_sink.py"
 
 
+@contextmanager
+def _temporary_artifact_workspace() -> Iterator[Path]:
+    """Create a private test root below the repo Qal'a artifact boundary."""
+    artifact_parent = REPO_ROOT / "artifacts" / "security"
+    artifact_parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix="qala-test-", dir=artifact_parent) as tmp:
+        yield Path(tmp)
+
+
+def _run_gate(env_overrides: dict[str, str]) -> "subprocess.CompletedProcess[str]":
 import uuid
 import shutil
 
@@ -132,6 +142,7 @@ def _append_valid(sink: Any, payload: dict[str, Any]) -> Any:
 
 class AuditIntegrityGateTests(unittest.TestCase):
     def test_sealed_chain_matching_anchor_passes(self) -> None:
+        with _temporary_artifact_workspace() as artifact_root:
         with _temporary_artifact_workspace() as (workspace, artifact_root):
             events = artifact_root / "events.json"
             sink = artifact_root / "audit.jsonl"
@@ -166,6 +177,7 @@ class AuditIntegrityGateTests(unittest.TestCase):
         # updating the anchor. The re-seal produces a still-link-valid 2-record
         # chain (the old forward-only walk would PASS), but the anchor pins
         # count=3, so the gate must FAIL — closing the tail-truncation gap.
+        with _temporary_artifact_workspace() as artifact_root:
         with _temporary_artifact_workspace() as (workspace, artifact_root):
             events = artifact_root / "events.json"
             sink = artifact_root / "audit.jsonl"
@@ -200,6 +212,8 @@ class AuditIntegrityGateTests(unittest.TestCase):
     def test_tampered_runtime_chain_without_event_source_fails(self) -> None:
         # No event source (a live runtime ledger). The gate skips sealing and
         # verifies the chain as-is; a tampered record must FAIL.
+        with _temporary_artifact_workspace() as artifact_root:
+            sink = artifact_root / "audit.jsonl"
         with _temporary_artifact_workspace() as (workspace, artifact_root):
             events = artifact_root / "no-events.json"
             sink = artifact_root / "audit.jsonl"
@@ -221,6 +235,9 @@ class AuditIntegrityGateTests(unittest.TestCase):
             result = _run_gate(
                 workspace,
                 {
+                    "QALA_AUDIT_EVENTS_PATH": str(artifact_root / "no-events.json"),
+                    "QALA_AUDIT_SINK_PATH": str(sink),
+                    "QALA_AUDIT_ANCHOR_PATH": str(artifact_root / "no-anchor.json"),
                     "QALA_AUDIT_EVENTS_PATH": events_rel,
                     "QALA_AUDIT_SINK_PATH": sink_rel,
                     "QALA_AUDIT_ANCHOR_PATH": anchor_rel,
@@ -260,6 +277,7 @@ class AuditIntegrityGateTests(unittest.TestCase):
             self.assertNotIn("Traceback", result.stderr)
 
     def test_absent_log_no_anchor_passes(self) -> None:
+        with _temporary_artifact_workspace() as artifact_root:
         with _temporary_artifact_workspace() as (workspace, artifact_root):
             events = artifact_root / "no-events.json"
             sink = artifact_root / "does-not-exist.jsonl"
@@ -272,6 +290,9 @@ class AuditIntegrityGateTests(unittest.TestCase):
             result = _run_gate(
                 workspace,
                 {
+                    "QALA_AUDIT_EVENTS_PATH": str(artifact_root / "no-events.json"),
+                    "QALA_AUDIT_SINK_PATH": str(artifact_root / "does-not-exist.jsonl"),
+                    "QALA_AUDIT_ANCHOR_PATH": str(artifact_root / "no-anchor.json"),
                     "QALA_AUDIT_EVENTS_PATH": events_rel,
                     "QALA_AUDIT_SINK_PATH": sink_rel,
                     "QALA_AUDIT_ANCHOR_PATH": anchor_rel,
