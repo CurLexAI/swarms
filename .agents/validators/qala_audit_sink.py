@@ -147,35 +147,51 @@ def _confine_cli_path(raw: str, *, kind: str) -> Path:
     """Resolve and confine an operator-supplied CLI path.
 
     The path may come from argv or an environment override. After symlink
-    resolution (``os.path.realpath``, so a link planted under a permitted
-    root cannot escape it) the path must live under one of the permitted
-    roots: the repo's ``artifacts/security`` directory (production ledger)
-    or the system temp directory (the integrity gate's regression tests
-    point every path at private temp dirs). Anything else fails closed.
+    resolution (wrapping any OSError or RuntimeError in a ValueError),
+    the path must live under one of the permitted roots: the repo's
+    ``artifacts/security`` directory (production ledger) or the system temp
+    directory (the integrity gate's regression tests point every path at
+    private temp dirs). Anything else fails closed.
     """
-    real = os.path.realpath(
-        os.path.join(os.getcwd(), os.path.expanduser(raw))
-    )
-    artifacts_root = os.path.realpath(
-        os.path.join(os.getcwd(), "artifacts", "security")
-    )
-    if real.startswith(artifacts_root + os.sep):
-        return Path(real)
-    temp_root = os.path.realpath(tempfile.gettempdir())
-    if real.startswith(temp_root + os.sep):
-        return Path(real)
-    raise ValueError(
-        f"{kind} path must be within artifacts/security or the system temp "
-        f"directory, got: {real}"
-    )
+    try:
+        expanded = Path(os.path.expanduser(raw))
+        cwd = Path.cwd()
+        try:
+            candidate = expanded if expanded.is_absolute() else (cwd / expanded)
+            resolved = candidate.resolve(strict=False)
+        except (OSError, RuntimeError) as exc:
+            raise ValueError(f"Failed to resolve {kind} path {raw}: {exc}") from exc
+
+        try:
+            artifacts_root_resolved = (cwd / "artifacts" / "security").resolve(strict=False)
+            temp_root_resolved = Path(tempfile.gettempdir()).resolve(strict=False)
+        except (OSError, RuntimeError) as exc:
+            raise ValueError(f"Failed to resolve permitted roots: {exc}") from exc
+
+        try:
+            resolved.relative_to(artifacts_root_resolved)
+            return resolved
+        except ValueError:
+            pass
+
+        try:
+            resolved.relative_to(temp_root_resolved)
+            return resolved
+        except ValueError:
+            pass
+
+        raise ValueError(
+            f"{kind} path must be within artifacts/security or the system temp "
+            f"directory, got: {resolved}"
+        )
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(f"Path verification error for {raw}: {exc}") from exc
 
 
 def _resolve_anchor_path(anchor_arg: str | None) -> Path:
     return _confine_cli_path(
         anchor_arg or str(_default_anchor_path()), kind="anchor"
     )
-
-
 def _canonicalize(
     *,
     event: str,

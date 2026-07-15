@@ -364,6 +364,9 @@ class SealVerifyCliTests(unittest.TestCase):
             external_path = Path(tmp) / "audit.jsonl"
             rc = qala_audit_sink._main(["verify", "--path", str(external_path)])
             self.assertEqual(rc, 2)
+        external_path = Path("/outside-confinement/audit.jsonl")
+        rc = qala_audit_sink._main(["verify", "--path", str(external_path)])
+        self.assertEqual(rc, 2)
 
     def test_cli_accepts_paths_under_artifact_boundary(self) -> None:
         with _temporary_artifact_workspace() as artifact_root:
