@@ -1,3 +1,4 @@
+# Licensed under MIT
 #!/usr/bin/env python3
 """Dependency-free fail-closed validation for the Lex node registry."""
 import json, re, sys
