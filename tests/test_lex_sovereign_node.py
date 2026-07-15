@@ -1,3 +1,4 @@
+# Licensed under MIT
 import json, os, subprocess, sys, tempfile, unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
