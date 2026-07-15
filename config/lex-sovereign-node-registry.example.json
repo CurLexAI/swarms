@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "node_id": "lex-node-example-001",
+  "display_name": "Example Lex Sovereign Node",
+  "role": "lex-sovereign-node",
+  "network": {
+    "tailscale_tag": "tag:lex-sovereign-node",
+    "control_plane_dns_name": "lex-control.internal"
+  },
+  "attestation": {
+    "algorithm": "HMAC-SHA256",
+    "key_env": "LEX_NODE_ATTESTATION_KEY"
+  },
+  "heartbeat": {
+    "algorithm": "HMAC-SHA256",
+    "key_env": "LEX_NODE_HEARTBEAT_KEY",
+    "ttl_seconds": 300
+  },
+  "status": "pending-enrollment"
+}

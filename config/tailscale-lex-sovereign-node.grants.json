@@ -1,0 +1,15 @@
+{
+  "grants": [
+    {
+      "src": ["tag:lex-sovereign-node"],
+      "dst": ["tag:lex-control-plane"],
+      "ip": ["tcp:443"]
+    }
+  ],
+  "tests": [
+    {
+      "src": "tag:lex-sovereign-node",
+      "accept": ["tag:lex-control-plane:443"]
+    }
+  ]
+}
