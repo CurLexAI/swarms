@@ -97,14 +97,15 @@ def _confine_registry_path(path_value: "str | Path") -> Path:
     real = os.path.realpath(
         os.path.join(os.getcwd(), os.path.expanduser(str(path_value)))
     )
-    permitted_roots = (
-        os.path.realpath(os.getcwd()),
-        os.path.realpath("/var/lib/lex-sovereign-node"),
-        os.path.realpath(tempfile.gettempdir()),
-    )
-    for root in permitted_roots:
-        if real == root or real.startswith(root + os.sep):
-            return Path(real)
+    cwd_root = os.path.realpath(os.getcwd())
+    if real == cwd_root or real.startswith(cwd_root + os.sep):
+        return Path(real)
+    state_root = os.path.realpath("/var/lib/lex-sovereign-node")
+    if real == state_root or real.startswith(state_root + os.sep):
+        return Path(real)
+    temp_root = os.path.realpath(tempfile.gettempdir())
+    if real == temp_root or real.startswith(temp_root + os.sep):
+        return Path(real)
     fail(
         "registry path must be under the working directory, "
         "/var/lib/lex-sovereign-node, or the system temp directory"
