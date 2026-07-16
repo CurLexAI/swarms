@@ -5,7 +5,6 @@ import json
 import os
 import re
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -91,8 +90,11 @@ def _confine_registry_path(path_value: "str | Path") -> Path:
     """Normalize the operator-supplied registry path and confine it.
 
     Permitted roots: the current working directory (validating a candidate
-    registry from a checkout), the installed node state directory, and the
-    system temp directory (test fixtures). Anything else fails closed.
+    registry from a checkout) and the installed node state directory. The
+    shared system temp tree is deliberately NOT permitted: the privileged
+    installer validates and then reopens the registry path as root, and a
+    world-writable location would allow a swap between those two steps.
+    Anything outside the permitted roots fails closed.
     """
     real = os.path.realpath(
         os.path.join(os.getcwd(), os.path.expanduser(str(path_value)))
@@ -103,12 +105,9 @@ def _confine_registry_path(path_value: "str | Path") -> Path:
     state_root = os.path.realpath("/var/lib/lex-sovereign-node")
     if real == state_root or real.startswith(state_root + os.sep):
         return Path(real)
-    temp_root = os.path.realpath(tempfile.gettempdir())
-    if real == temp_root or real.startswith(temp_root + os.sep):
-        return Path(real)
     raise ValueError(
-        "registry path must be under the working directory, "
-        "/var/lib/lex-sovereign-node, or the system temp directory"
+        "registry path must be under the working directory or "
+        "/var/lib/lex-sovereign-node"
     )
 
 
@@ -126,8 +125,8 @@ def main() -> int:
     if len(sys.argv) != 2:
         raise SystemExit(
             "usage: verify_registry.py REGISTRY.json\n"
-            "REGISTRY.json must reside under the working directory, "
-            "/var/lib/lex-sovereign-node, or the system temp directory"
+            "REGISTRY.json must reside under the working directory "
+            "or /var/lib/lex-sovereign-node"
         )
     try:
         load_registry(sys.argv[1])
