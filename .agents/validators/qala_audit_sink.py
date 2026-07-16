@@ -21,7 +21,6 @@ import hashlib
 import json
 import os
 import sys
-import tempfile
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -147,45 +146,27 @@ def _confine_cli_path(raw: str, *, kind: str) -> Path:
     """Resolve and confine an operator-supplied CLI path.
 
     The path may come from argv or an environment override. After symlink
-    resolution (wrapping any OSError or RuntimeError in a ValueError),
-    the path must live under one of the permitted roots: the repo's
-    ``artifacts/security`` directory (production ledger) or the system temp
-    directory (the integrity gate's regression tests point every path at
-    private temp dirs). Anything else fails closed.
+    resolution (wrapping any OSError or RuntimeError in a ValueError), the
+    path must live under the permitted root: the ``artifacts/security``
+    directory below the current working directory. Test suites that need
+    scratch space run from a private workspace containing its own
+    ``artifacts/security`` instead of widening this boundary. Anything
+    outside fails closed.
     """
     try:
-        expanded = Path(os.path.expanduser(raw))
-        cwd = Path.cwd()
-        try:
-            candidate = expanded if expanded.is_absolute() else (cwd / expanded)
-            resolved = candidate.resolve(strict=False)
-        except (OSError, RuntimeError) as exc:
-            raise ValueError(f"Failed to resolve {kind} path {raw}: {exc}") from exc
-
-        try:
-            artifacts_root_resolved = (cwd / "artifacts" / "security").resolve(strict=False)
-            temp_root_resolved = Path(tempfile.gettempdir()).resolve(strict=False)
-        except (OSError, RuntimeError) as exc:
-            raise ValueError(f"Failed to resolve permitted roots: {exc}") from exc
-
-        try:
-            resolved.relative_to(artifacts_root_resolved)
-            return resolved
-        except ValueError:
-            pass
-
-        try:
-            resolved.relative_to(temp_root_resolved)
-            return resolved
-        except ValueError:
-            pass
-
-        raise ValueError(
-            f"{kind} path must be within artifacts/security or the system temp "
-            f"directory, got: {resolved}"
+        real = os.path.realpath(
+            os.path.join(os.getcwd(), os.path.expanduser(raw))
+        )
+        artifacts_root = os.path.realpath(
+            os.path.join(os.getcwd(), "artifacts", "security")
         )
     except (OSError, RuntimeError) as exc:
-        raise ValueError(f"Path verification error for {raw}: {exc}") from exc
+        raise ValueError(f"Failed to resolve {kind} path {raw}: {exc}") from exc
+    if real == artifacts_root or real.startswith(artifacts_root + os.sep):
+        return Path(real)
+    raise ValueError(
+        f"{kind} path must be within artifacts/security, got: {real}"
+    )
 
 
 def _resolve_anchor_path(anchor_arg: str | None) -> Path:
@@ -493,28 +474,7 @@ class QalaAuditSink:
         return value if isinstance(value, str) else QALA_GENESIS_HASH
 
 
-def _resolve_cli_artifact_path(path_arg: str | None, *, fallback: str) -> Path:
-    """Resolve a CLI-controlled path inside the Qal'a audit artifact root.
-
-    CLI and environment-sourced paths are confined to ``artifacts/security``
-    so test convenience never expands the production audit boundary to shared
-    system roots such as ``/tmp``. Direct ``QalaAuditSink`` construction remains
-    injectable for unit tests and non-CLI adapters.
-    """
-    return _safe_artifact_path(path_arg or fallback, fallback=fallback)
-
-
 def _resolve_verify_path(path_arg: str | None) -> Path:
-    return _resolve_cli_artifact_path(
-        path_arg or os.environ.get("QALA_AUDIT_SINK_PATH"),
-        fallback="artifacts/security/qala-audit.jsonl",
-    )
-
-
-def _resolve_events_path(path_arg: str | None) -> Path:
-    return _resolve_cli_artifact_path(
-        path_arg or os.environ.get("QALA_AUDIT_EVENTS_PATH"),
-        fallback="artifacts/security/qala-audit.events.json",
     return _confine_cli_path(
         path_arg or str(_default_sink_path()), kind="audit sink"
     )
@@ -575,7 +535,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Audit sink JSONL path (default: $QALA_AUDIT_SINK_PATH or "
             "artifacts/security/qala-audit.jsonl). Must resolve under "
-            "artifacts/security or the system temp directory."
+            "artifacts/security below the working directory."
         ),
     )
     verify_p.add_argument(
@@ -585,7 +545,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Sealed anchor JSON path (default: $QALA_AUDIT_ANCHOR_PATH or "
             "artifacts/security/qala-audit.anchor.json). When present, the "
             "record count and head hash are enforced to detect tail truncation. "
-            "Must resolve under artifacts/security or the system temp directory."
+            "Must resolve under artifacts/security below the working directory."
         ),
     )
 
@@ -598,7 +558,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Event source JSON path. Must resolve under artifacts/security "
-            "or the system temp directory."
+            "below the working directory."
         ),
     )
     seal_p.add_argument(
@@ -606,7 +566,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Output sealed JSONL path. Must resolve under artifacts/security "
-            "or the system temp directory."
+            "below the working directory."
         ),
     )
     seal_p.add_argument(
@@ -614,7 +574,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Anchor JSON path. With --write-anchor, (re)writes it from the "
-            "seal. Must resolve under artifacts/security or the system temp "
+            "seal. Must resolve under artifacts/security below the working "
             "directory."
         ),
     )
@@ -645,41 +605,6 @@ def _main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "verify":
-        try:
-            sink = QalaAuditSink(_resolve_verify_path(args.path))
-            anchor_path = (
-                _safe_artifact_path(
-                    args.anchor, fallback="artifacts/security/qala-audit.anchor.json"
-                )
-                if args.anchor
-                else _default_anchor_path()
-            )
-        except ValueError as exc:
-            print(f"AUDIT_READ_FAILED message={exc}")
-            return 2
-        print(f"AUDIT_SINK_PATH: {sink.sink_path}")
-        try:
-            expected_count, expected_head = _load_anchor(anchor_path)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            print(f"AUDIT_READ_FAILED message=anchor unreadable: {exc}")
-            return 2
-        if expected_count is not None:
-            print(f"AUDIT_ANCHOR recordCount={expected_count} headHash={expected_head}")
-        else:
-            print("AUDIT_ANCHOR absent (count/head not enforced)")
-        result = sink.verify_chain(
-            expected_count=expected_count, expected_head_hash=expected_head
-        )
-        if result.ok:
-            print(f"AUDIT_CHAIN_OK records_verified={result.records_verified}")
-            return 0
-        if result.error == "AUDIT_CHAIN_BROKEN":
-            print(
-                f"AUDIT_CHAIN_BROKEN at_record={result.at_record} "
-                f"message={result.message}"
-            )
-            return 10
-        print(f"AUDIT_READ_FAILED message={result.message}")
         return _cmd_verify(args)
 
     if args.command == "seal":
@@ -721,30 +646,6 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     print(f"AUDIT_READ_FAILED message={result.message}")
     return 2
 
-    if args.command == "seal":
-        try:
-            events_path = _resolve_events_path(args.events)
-            sink = QalaAuditSink(_resolve_verify_path(args.path))
-            anchor_path = _validated_anchor_path(
-                Path(args.anchor) if args.anchor else _default_anchor_path()
-            )
-        except ValueError as exc:
-            print(f"AUDIT_SEAL_FAILED message={exc}")
-            return 2
-        print(f"AUDIT_EVENTS_PATH: {events_path}")
-    print(f"AUDIT_SINK_PATH: {sink.sink_path}")
-        try:
-            events = _load_events(events_path)
-            head_hash = sink.seal_from_events(events)
-        except FileNotFoundError:
-            print(f"AUDIT_SEAL_FAILED message=event source not found: {events_path}")
-            return 2
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            print(f"AUDIT_SEAL_FAILED message={exc}")
-            return 2
-        count = len(events)
-        print(f"AUDIT_SEALED records={count} headHash={head_hash}")
-        if args.write_anchor:
 
 def _cmd_seal(args: argparse.Namespace) -> int:
     try:
