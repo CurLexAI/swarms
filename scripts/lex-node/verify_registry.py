@@ -106,7 +106,7 @@ def _confine_registry_path(path_value: "str | Path") -> Path:
     temp_root = os.path.realpath(tempfile.gettempdir())
     if real == temp_root or real.startswith(temp_root + os.sep):
         return Path(real)
-    fail(
+    raise ValueError(
         "registry path must be under the working directory, "
         "/var/lib/lex-sovereign-node, or the system temp directory"
     )

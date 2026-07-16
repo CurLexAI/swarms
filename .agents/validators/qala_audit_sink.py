@@ -154,24 +154,19 @@ def _confine_cli_path(raw: str, *, kind: str) -> Path:
     outside fails closed.
     """
     try:
-        expanded = Path(os.path.expanduser(raw))
-        cwd = Path.cwd()
-        try:
-            candidate = expanded if expanded.is_absolute() else (cwd / expanded)
-            resolved = candidate.resolve(strict=False)
-            artifacts_root = (cwd / "artifacts" / "security").resolve(strict=False)
-        except (OSError, RuntimeError) as exc:
-            raise ValueError(f"Failed to resolve {kind} path {raw}: {exc}") from exc
-
-        try:
-            resolved.relative_to(artifacts_root)
-        except ValueError:
-            raise ValueError(
-                f"{kind} path must be within artifacts/security, got: {resolved}"
-            ) from None
-        return resolved
+        real = os.path.realpath(
+            os.path.join(os.getcwd(), os.path.expanduser(raw))
+        )
+        artifacts_root = os.path.realpath(
+            os.path.join(os.getcwd(), "artifacts", "security")
+        )
     except (OSError, RuntimeError) as exc:
-        raise ValueError(f"Path verification error for {raw}: {exc}") from exc
+        raise ValueError(f"Failed to resolve {kind} path {raw}: {exc}") from exc
+    if real == artifacts_root or real.startswith(artifacts_root + os.sep):
+        return Path(real)
+    raise ValueError(
+        f"{kind} path must be within artifacts/security, got: {real}"
+    )
 
 
 def _resolve_anchor_path(anchor_arg: str | None) -> Path:
