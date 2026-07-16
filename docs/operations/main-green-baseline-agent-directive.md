@@ -60,6 +60,13 @@ they pass a dependency-safety review per
 `.agents/policies/dependency-build-safety.md`. Otherwise `--ignore-scripts` is
 mandatory.
 
+Note on workflow parity: the official workflows install with
+`npm ci --include=dev` (no `--ignore-scripts` — VERIFIED at `main.yml:58` and
+`ci-local.yml:40`). If a CI failure cannot be reproduced under
+`--ignore-scripts`, a workflow-exact reinstall (`npm ci --include=dev`) is
+permitted **after** the dependency-safety review passes, so local reproduction
+matches CI. The safe form remains the default.
+
 Python deps:
 
 ```bash
@@ -100,8 +107,10 @@ python3 -m pytest -q tests/
 npm test
 npm run test:security
 npm run test:node
-npx tsc --noEmit         # known tracked blocker: src/runners/ ships only agentRunner.d.ts;
-                         # do not fabricate fixes that mask it (CLAUDE.md "Known TS blocker")
+npx tsc --noEmit         # DIAGNOSTIC-ONLY, expected to fail: src/runners/ ships only
+                         # agentRunner.d.ts, a tracked blocker (CLAUDE.md "Known TS blocker").
+                         # Record its result as the tracked blocker — it is NOT a baseline
+                         # requirement and must not be "fixed" by masking the missing module.
 npm run check
 ```
 
@@ -174,8 +183,16 @@ env -u BAYYINAH_ENDPOINT \
     -u MIHWAR_API_TOKEN \
     -u MODAL_TOKEN_ID \
     -u MODAL_TOKEN_SECRET \
+    -u PUBLIC_SURFACE_ORIGIN \
+    -u PUBLIC_SURFACE_APEX \
     bash scripts/commander/release-readiness-gate.sh .
 ```
+
+`PUBLIC_SURFACE_ORIGIN`/`PUBLIC_SURFACE_APEX` are also unset because the gate
+performs outbound `curl` checks against them when both are present (VERIFIED at
+`release-readiness-gate.sh:92-96`) — unsetting them makes the
+no-outbound-network intent explicit and avoids an accidental BLOCK from an
+unreachable surface.
 
 Exit-code semantics (VERIFIED against the script):
 
@@ -255,7 +272,12 @@ READY FOR HUMAN REVIEW applies only to the repository baseline and requires:
 - Python tests successful.
 - Ruff successful.
 - `mypy --strict .` successful.
-- TypeScript validation successful.
+- TypeScript validation successful — meaning the TS checks that actually gate
+  CI (`npm run check`: runtime-policy check/test, service-divergence, build
+  steps in Main CI). `npx tsc --noEmit` is NOT part of this requirement: it is
+  the tracked "Known TS blocker" (CLAUDE.md) and is recorded as
+  `UNVERIFIED`/tracked-blocker, not fixed by masking the missing
+  `src/runners` module.
 - Node unit/security checks successful.
 - Windows Agent build successful when the project exists and is in repository
   scope (if no required workflow builds it, record `NOT_APPLICABLE` with direct
@@ -317,3 +339,4 @@ protection settings, report `ADMIN ACTION REQUIRED` — do not guess.
 | 5 | P5 constrained to diagnostic-only; no Modal→Ollama migration, provider rewiring, or topology change | §7 |
 | +1 | Dependency installation preflight (`--ignore-scripts`) | §2.2 |
 | +2 | `BRANCH PROTECTION` section in the final report | §10.3 |
+| R1 | Review round: `tsc --noEmit` scoped as diagnostic-only tracked blocker (not a baseline requirement); workflow-parity note on `npm ci`; `PUBLIC_SURFACE_ORIGIN`/`APEX` added to the `env -u` form | §2.2, §4, §6.2, §9 |
