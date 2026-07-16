@@ -2,8 +2,10 @@
 #!/usr/bin/env python3
 """Dependency-free fail-closed validation for the Lex node registry."""
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -85,8 +87,32 @@ def verify(data: "dict[str, Any]") -> bool:
     return True
 
 
+def _confine_registry_path(path_value: "str | Path") -> Path:
+    """Normalize the operator-supplied registry path and confine it.
+
+    Permitted roots: the current working directory (validating a candidate
+    registry from a checkout), the installed node state directory, and the
+    system temp directory (test fixtures). Anything else fails closed.
+    """
+    real = os.path.realpath(
+        os.path.join(os.getcwd(), os.path.expanduser(str(path_value)))
+    )
+    permitted_roots = (
+        os.path.realpath(os.getcwd()),
+        os.path.realpath("/var/lib/lex-sovereign-node"),
+        os.path.realpath(tempfile.gettempdir()),
+    )
+    for root in permitted_roots:
+        if real == root or real.startswith(root + os.sep):
+            return Path(real)
+    fail(
+        "registry path must be under the working directory, "
+        "/var/lib/lex-sovereign-node, or the system temp directory"
+    )
+
+
 def load_registry(path_value: "str | Path") -> "dict[str, Any]":
-    path = Path(path_value).expanduser().resolve(strict=True)
+    path = _confine_registry_path(path_value)
     if path.suffix.lower() != ".json" or not path.is_file():
         fail("registry must be a JSON file")
     with path.open(encoding="utf-8") as handle:

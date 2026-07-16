@@ -16,7 +16,7 @@ import verify_registry  # noqa: E402
 
 class RegistryTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.data: "dict[str, Any]" = json.loads(
+        self.data: dict[str, Any] = json.loads(
             (ROOT / "config" / "lex-sovereign-node-registry.example.json").read_text()
         )
 
