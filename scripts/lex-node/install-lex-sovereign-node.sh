@@ -21,6 +21,13 @@ if [[ "$APPLY" != true ]]; then
   echo "Dry run complete. Re-run with --apply after approval."
   exit 0
 fi
+# Enforce the documented registry-source boundary (working directory or
+# the state root) and validate content BEFORE copying anything.
+python3 "$(dirname "$0")/verify_registry.py" "$REGISTRY"
+echo "Validated registry source $REGISTRY"
+# Canonicalize before the allowlist check so ../ segments cannot escape
+# the permitted state root.
+STATE_DIR="$(realpath -m -- "$STATE_DIR")"
 case "$STATE_DIR" in /var/lib/lex-sovereign-node|/var/lib/lex-sovereign-node/*) ;; *) echo "unsafe state directory" >&2; exit 65;; esac
 install -d -m 0700 -o root -g root "$STATE_DIR"
 # TOCTOU defense: copy the operator's registry ONCE into a root-owned
