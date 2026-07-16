@@ -124,7 +124,11 @@ def load_registry(path_value: "str | Path") -> "dict[str, Any]":
 
 def main() -> int:
     if len(sys.argv) != 2:
-        raise SystemExit("usage: verify_registry.py REGISTRY.json")
+        raise SystemExit(
+            "usage: verify_registry.py REGISTRY.json\n"
+            "REGISTRY.json must reside under the working directory, "
+            "/var/lib/lex-sovereign-node, or the system temp directory"
+        )
     try:
         load_registry(sys.argv[1])
     except (OSError, json.JSONDecodeError, ValueError) as error:

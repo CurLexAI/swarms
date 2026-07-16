@@ -53,6 +53,20 @@ class RegistryTests(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_load_registry_accepts_temp_path(self) -> None:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(self.data, f)
+            path = f.name
+        try:
+            value = verify_registry.load_registry(path)
+            self.assertEqual(value["node_id"], self.data["node_id"])
+        finally:
+            os.unlink(path)
+
+    def test_load_registry_rejects_path_outside_permitted_roots(self) -> None:
+        with self.assertRaises(ValueError):
+            verify_registry.load_registry("/nonexistent-root/registry.json")
+
     def test_heartbeat_is_signed(self) -> None:
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
             json.dump(self.data, f)

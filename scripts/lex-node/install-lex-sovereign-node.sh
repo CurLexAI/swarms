@@ -4,7 +4,7 @@ IFS=$'\n\t'
 STATE_DIR="/var/lib/lex-sovereign-node"
 REGISTRY=""
 APPLY=false
-usage(){ echo "Usage: $0 --registry FILE [--state-dir DIR] [--apply]" >&2; }
+usage(){ echo "Usage: $0 --registry FILE [--state-dir DIR] [--apply] (FILE must reside under the invoking directory, /var/lib/lex-sovereign-node, or the system temp directory)" >&2; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --registry) REGISTRY="${2:?}"; shift 2 ;;
