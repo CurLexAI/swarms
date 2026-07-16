@@ -80,6 +80,40 @@ class RegistryTests(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_confine_only_checks_path_without_reading_content(self) -> None:
+        with _private_workspace() as workspace:
+            # Not valid JSON — --confine-only must still pass because it
+            # checks the path boundary only and never reads the file.
+            path = workspace / "registry.json"
+            path.write_text("not json at all", encoding="utf-8")
+            run = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "lex-node" / "verify_registry.py"),
+                    "--confine-only",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                cwd=workspace,
+            )
+            self.assertEqual(run.returncode, 0, msg=run.stdout + run.stderr)
+
+    def test_confine_only_rejects_outside_path(self) -> None:
+        with _private_workspace() as workspace:
+            run = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "lex-node" / "verify_registry.py"),
+                    "--confine-only",
+                    "/nonexistent-root/registry.json",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=workspace,
+            )
+            self.assertEqual(run.returncode, 2)
+
     def test_attestation_requires_key(self) -> None:
         with _private_workspace() as workspace:
             path = self._write_registry(workspace)

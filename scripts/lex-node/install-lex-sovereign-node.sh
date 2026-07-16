@@ -22,24 +22,24 @@ if [[ "$APPLY" != true ]]; then
   exit 0
 fi
 # Enforce the documented registry-source boundary (working directory or
-# the state root) and validate content BEFORE copying anything.
-python3 "$(dirname "$0")/verify_registry.py" "$REGISTRY"
-echo "Validated registry source $REGISTRY"
+# the state root) on the PATH ONLY — the source content is never read
+# here, so there is no approve-then-swap window on the source file.
+python3 "$(dirname "$0")/verify_registry.py" --confine-only "$REGISTRY"
+echo "Confirmed registry source path boundary for $REGISTRY"
 # Canonicalize before the allowlist check so ../ segments cannot escape
 # the permitted state root.
 STATE_DIR="$(realpath -m -- "$STATE_DIR")"
 case "$STATE_DIR" in /var/lib/lex-sovereign-node|/var/lib/lex-sovereign-node/*) ;; *) echo "unsafe state directory" >&2; exit 65;; esac
 install -d -m 0700 -o root -g root "$STATE_DIR"
-# TOCTOU defense: copy the operator's registry ONCE into a root-owned
-# staging file inside the state directory, validate that exact copy, then
-# atomically rename it into place. The original path is never reopened
-# after validation, so swapping the source file or a path component
-# between validation and install has no effect.
+# TOCTOU defense: the source is read exactly ONCE — copied into a
+# root-owned staging file inside the state directory. Content validation
+# and the atomic rename both operate on that immutable snapshot only, so
+# no source swap can change what was validated versus what is installed.
 STAGING="$(mktemp --suffix=.json "$STATE_DIR/registry.staging.XXXXXX")"
 trap 'rm -f "$STAGING"' EXIT
 install -m 0600 -o root -g root "$REGISTRY" "$STAGING"
 python3 "$(dirname "$0")/verify_registry.py" "$STAGING"
-echo "Validated staged registry copy"
+echo "Validated staged registry snapshot"
 mv -f "$STAGING" "$STATE_DIR/registry.json"
 trap - EXIT
 echo "Installation complete. Network enrollment and transport remain operator-managed."

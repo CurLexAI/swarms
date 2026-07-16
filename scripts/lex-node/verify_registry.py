@@ -122,18 +122,32 @@ def load_registry(path_value: "str | Path") -> "dict[str, Any]":
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
+    args = sys.argv[1:]
+    confine_only = False
+    if args and args[0] == "--confine-only":
+        confine_only = True
+        args = args[1:]
+    if len(args) != 1:
         raise SystemExit(
-            "usage: verify_registry.py REGISTRY.json\n"
+            "usage: verify_registry.py [--confine-only] REGISTRY.json\n"
             "REGISTRY.json must reside under the working directory "
-            "or /var/lib/lex-sovereign-node"
+            "or /var/lib/lex-sovereign-node. --confine-only checks the "
+            "path boundary without reading the file (for callers that "
+            "validate content on a private snapshot instead)."
         )
     try:
-        load_registry(sys.argv[1])
+        if confine_only:
+            _confine_registry_path(args[0])
+        else:
+            load_registry(args[0])
     except (OSError, json.JSONDecodeError, ValueError) as error:
         print("registry validation failed: " + str(error), file=sys.stderr)
         return 2
-    print("registry validation passed")
+    print(
+        "registry path confinement passed"
+        if confine_only
+        else "registry validation passed"
+    )
     return 0
 
 
