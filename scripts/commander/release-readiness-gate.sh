@@ -1,11 +1,25 @@
 #!/usr/bin/env bash
 set -u -o pipefail
 
+# Release readiness gate — three-section verdict model:
+#   1) REPOSITORY BASELINE      — static gates/tests (required, BLOCK on failure)
+#   2) LOCAL OLLAMA RUNTIME     — official sovereign path (required for READY;
+#                                 unexecuted smoke => HOLD, never READY)
+#   3) PUBLIC RUNTIME           — Modal (legacy/optional) + public surface checks
+#
+# Modal is NOT a precondition for local sovereign readiness. Missing Modal
+# secrets mark the Modal checks LEGACY-OPTIONAL/SKIPPED without holding the
+# verdict. READY is impossible unless the Local Ollama smoke fully verifies:
+#   - SELF_HOSTED_OLLAMA_SMOKE_NOT_EXECUTED
+#   - LOCAL_GENERATION_NOT_VERIFIED
+#   - OLLAMA_NO_CLOUD_NOT_VERIFIED
+
 REPO_ROOT="${1:-.}"
 cd "$REPO_ROOT" || exit 1
 
 block_failures=0
 hold_flags=0
+local_ollama_smoke_verified=0
 
 run_required_check() {
   local label="$1"
@@ -33,6 +47,12 @@ run_optional_runtime_check() {
   echo
 }
 
+hold_with_reason() {
+  local reason_code="$1"
+  echo "[HOLD] $reason_code"
+  hold_flags=$((hold_flags + 1))
+}
+
 require_env() {
   local name="$1"
   if [ -n "${!name:-}" ]; then
@@ -45,6 +65,10 @@ require_env() {
 
 echo "=== RELEASE READINESS GATE ==="
 echo "repo=$(pwd)"
+echo "runtime-path policy: local_ollama=OFFICIAL_SOVEREIGN_PATH modal=LEGACY_OPTIONAL"
+echo
+
+echo "=== SECTION 1: REPOSITORY BASELINE ==="
 echo
 
 run_required_check "Python syntax compile" "python3 -m py_compile .agents/*.py"
@@ -66,7 +90,114 @@ run_required_check "TypeScript check" "npx tsc --noEmit"
 run_required_check "Aggregate repo check" "npm run check"
 run_required_check "Node full tests" "npm test"
 
-echo "=== SECRET STATE (presence only) ==="
+echo "=== SECTION 2: LOCAL OLLAMA RUNTIME (OFFICIAL SOVEREIGN PATH) ==="
+OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
+OLLAMA_SMOKE_MODEL="${OLLAMA_SMOKE_MODEL:-qwen2.5:0.5b}"
+OLLAMA_CURL_MAX_TIME="${OLLAMA_CURL_MAX_TIME:-15}"
+echo "OLLAMA_BASE_URL=${OLLAMA_BASE_URL}"
+echo
+
+ollama_url_is_local() {
+  python3 - "$OLLAMA_BASE_URL" <<'PY'
+import sys
+from urllib.parse import urlparse
+
+parsed = urlparse(sys.argv[1])
+allowed_hosts = {"localhost", "127.0.0.1", "::1", "ollama"}
+if parsed.scheme not in {"http", "https"} or parsed.hostname not in allowed_hosts:
+    raise SystemExit(1)
+PY
+}
+
+manifest_declares_no_cloud_inference() {
+  python3 - config/ollama.local.models.json <<'PY'
+import json
+import sys
+from pathlib import Path
+
+data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+policy = data.get("policy", {})
+if policy.get("egress") != "none_for_inference":
+    raise SystemExit(1)
+if policy.get("trustBoundary") != "LOCAL_CONTROL_PLANE":
+    raise SystemExit(1)
+PY
+}
+
+ollama_generation_smoke() {
+  python3 - "$OLLAMA_BASE_URL" "$OLLAMA_SMOKE_MODEL" <<'PY'
+import json
+import sys
+import urllib.request
+
+base_url = sys.argv[1].rstrip("/")
+model = sys.argv[2]
+payload = json.dumps(
+    {"model": model, "prompt": "Reply with the single word: VERIFIED", "stream": False}
+).encode("utf-8")
+request = urllib.request.Request(
+    f"{base_url}/api/generate",
+    data=payload,
+    headers={"Content-Type": "application/json"},
+)
+with urllib.request.urlopen(request, timeout=120) as response:
+    body = json.loads(response.read().decode("utf-8"))
+if not str(body.get("response", "")).strip():
+    raise SystemExit("local generation returned an empty response")
+print(f"local generation ok: model={model} bytes={len(body.get('response', ''))}")
+PY
+}
+
+if curl -fsS --max-time "$OLLAMA_CURL_MAX_TIME" "${OLLAMA_BASE_URL%/}/api/tags" >/dev/null 2>&1; then
+  echo "[INFO] Self-hosted Ollama reachable at ${OLLAMA_BASE_URL}"
+  echo
+  section2_holds=0
+
+  echo "[CHECK] Sovereign model-set presence (manifest)"
+  if bash scripts/ollama/activate-local-models.sh; then
+    echo "[PASS] Sovereign model-set presence (manifest)"
+  else
+    hold_with_reason "LOCAL_MODEL_SET_INCOMPLETE"
+    section2_holds=$((section2_holds + 1))
+  fi
+  echo
+
+  echo "[CHECK] Local generation smoke (${OLLAMA_SMOKE_MODEL})"
+  if ollama_generation_smoke; then
+    echo "[PASS] Local generation smoke"
+  else
+    hold_with_reason "LOCAL_GENERATION_NOT_VERIFIED"
+    section2_holds=$((section2_holds + 1))
+  fi
+  echo
+
+  echo "[CHECK] No-cloud posture (local-only base URL + manifest egress policy)"
+  if ollama_url_is_local && manifest_declares_no_cloud_inference; then
+    echo "[PASS] No-cloud posture"
+  else
+    hold_with_reason "OLLAMA_NO_CLOUD_NOT_VERIFIED"
+    section2_holds=$((section2_holds + 1))
+  fi
+  echo
+
+  if [ "$section2_holds" -eq 0 ]; then
+    local_ollama_smoke_verified=1
+    echo "LOCAL_OLLAMA_SMOKE=VERIFIED"
+  else
+    echo "LOCAL_OLLAMA_SMOKE=HOLD"
+  fi
+else
+  echo "[INFO] Self-hosted Ollama is NOT reachable at ${OLLAMA_BASE_URL}"
+  hold_with_reason "SELF_HOSTED_OLLAMA_SMOKE_NOT_EXECUTED"
+  hold_with_reason "LOCAL_GENERATION_NOT_VERIFIED"
+  hold_with_reason "OLLAMA_NO_CLOUD_NOT_VERIFIED"
+  echo "LOCAL_OLLAMA_SMOKE=HOLD"
+fi
+echo
+
+echo "=== SECTION 3: PUBLIC RUNTIME (MODAL = LEGACY/OPTIONAL) ==="
+echo
+echo "--- Secret state (presence only) ---"
 missing_runtime_secret=0
 for secret_name in BAYYINAH_ENDPOINT MIHWAR_ENDPOINT BAYYINAH_API_TOKEN MIHWAR_API_TOKEN MODAL_TOKEN_ID MODAL_TOKEN_SECRET; do
   if ! require_env "$secret_name"; then
@@ -80,12 +211,12 @@ if [ "$missing_runtime_secret" -eq 0 ]; then
   run_optional_runtime_check "Mihwar smoke test" "modal run .agents/modal_app.py::test_mihwar"
   run_optional_runtime_check "Bayyinah smoke test" "modal run .agents/modal_app.py::test_bayyinah"
 else
-  echo "[HOLD] Runtime smoke checks skipped (missing runtime secrets)"
-  hold_flags=$((hold_flags + 1))
+  echo "[LEGACY-OPTIONAL] Modal runtime checks skipped (missing Modal secrets)."
+  echo "[LEGACY-OPTIONAL] Modal is not required for local sovereign readiness; this does not hold the verdict."
   echo
 fi
 
-echo "=== PUBLIC SURFACE CHECKS ==="
+echo "--- Public surface checks ---"
 PUBLIC_SURFACE_ORIGIN="${PUBLIC_SURFACE_ORIGIN:-}"
 PUBLIC_SURFACE_APEX="${PUBLIC_SURFACE_APEX:-}"
 
@@ -134,9 +265,17 @@ fi
 echo
 
 echo "=== VERDICT ==="
+echo "sections: repository_baseline | local_ollama_runtime | public_runtime"
+echo "block_failures=${block_failures} hold_flags=${hold_flags} local_ollama_smoke_verified=${local_ollama_smoke_verified}"
+
 if [ "$block_failures" -gt 0 ]; then
   echo "BLOCK"
   exit 1
+fi
+
+if [ "$local_ollama_smoke_verified" -ne 1 ]; then
+  echo "HOLD (READY forbidden until Local Ollama smoke is VERIFIED)"
+  exit 2
 fi
 
 if [ "$hold_flags" -gt 0 ]; then

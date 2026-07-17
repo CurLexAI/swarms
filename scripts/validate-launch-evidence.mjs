@@ -7,6 +7,7 @@ const requiredPhaseNames = [
   'Governance',
   'Secrets',
   'Local gates',
+  'Local Ollama smoke',
   'Modal deploy',
   'Modal CLI smoke',
   'Endpoint smoke',
@@ -15,6 +16,11 @@ const requiredPhaseNames = [
   'Device/connectivity pilot',
   'Limited live',
   'Full live',
+];
+const localOllamaBlockerCodes = [
+  'SELF_HOSTED_OLLAMA_SMOKE_NOT_EXECUTED',
+  'LOCAL_GENERATION_NOT_VERIFIED',
+  'OLLAMA_NO_CLOUD_NOT_VERIFIED',
 ];
 const requiredSecretNames = [
   'MODAL_TOKEN_ID',
@@ -42,10 +48,31 @@ if (!allowedVerdicts.has(evidence.final_verdict)) {
   fail('final_verdict must be READY, WAIT, HOLD, or REJECT');
 }
 
+const localOllamaPhase = evidence.phases?.find((phase) => phase.name === 'Local Ollama smoke');
+
 if (evidence.final_verdict === 'READY') {
   const unresolved = evidence.phases?.flatMap((phase) => phase.blockers ?? []) ?? [];
   if (unresolved.length > 0) {
     fail('READY verdict is forbidden while phase blockers remain');
+  }
+  if (localOllamaPhase?.status !== 'VERIFIED') {
+    fail('READY verdict is forbidden until the Local Ollama smoke phase is VERIFIED');
+  }
+}
+
+if (evidence.runtime_paths?.local_ollama?.role !== 'OFFICIAL_SOVEREIGN_PATH') {
+  fail('runtime_paths.local_ollama.role must be OFFICIAL_SOVEREIGN_PATH');
+}
+if (evidence.runtime_paths?.modal?.role !== 'LEGACY_OPTIONAL') {
+  fail('runtime_paths.modal.role must be LEGACY_OPTIONAL');
+}
+
+if (localOllamaPhase && localOllamaPhase.status !== 'VERIFIED') {
+  const phaseBlockers = new Set(localOllamaPhase.blockers ?? []);
+  for (const code of localOllamaBlockerCodes) {
+    if (!phaseBlockers.has(code)) {
+      fail(`Local Ollama smoke phase must carry blocker ${code} until VERIFIED`);
+    }
   }
 }
 

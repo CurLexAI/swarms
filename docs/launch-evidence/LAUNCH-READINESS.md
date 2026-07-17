@@ -1,21 +1,48 @@
-# Launch Readiness — Qarar / Bayyinah Activation Ladder
+# Launch Readiness — Sovereign Local Runtime Activation Ladder
 
-**Final verdict: `WAIT / NO-GO`**
+**Final verdict: `HOLD`**
 
-Phases 1–3 are complete and verified in the local launch-evidence branch after
-PR #336 was merged into repository history. Phases 4–11 remain blocked pending
-merge of the endpoint-token isolation hardening, owner-provisioned secrets, and
-explicit production approval. No live runtime evidence exists, so `READY` is not
-permissible (documentation-only evidence may never yield `READY`).
+The official execution path is the **self-hosted Local Ollama runtime**. Modal is
+retained only as a **legacy/optional** public runtime path and is no longer a
+precondition for readiness. `READY` is forbidden until a real Local Ollama smoke
+run verifies reachability, model-set presence, local generation, and no-cloud
+egress posture. No live local-runtime evidence exists yet, so the verdict stays
+`HOLD` (documentation-only evidence may never yield `READY`).
 
-- Base: local `work` branch @ `e33c28b0bc0c124114ddf9fb7f96497f5e7aa179`
 - Principle: **verification before activation** — no deploy/merge/mutation/live
   control without explicit approval.
 - Machine-readable evidence: `docs/launch-evidence/launch-evidence.json`
+  (validated by `npm run deploy:evidence:validate`)
 - Governance: `docs/launch-evidence/LAUNCH-GOVERNANCE.md`
 - Secrets: `docs/launch-evidence/secrets-manifest.md` (+ `.json`, validator)
 
 ---
+
+## Runtime-path doctrine
+
+| Path | Role | Consequence |
+|---|---|---|
+| **Local Ollama runtime** | `OFFICIAL_SOVEREIGN_PATH` | Required for `READY`; its smoke gates the final verdict |
+| **Modal** | `LEGACY_OPTIONAL` | Never blocks local sovereign readiness; only gates the public-runtime section |
+
+`scripts/commander/release-readiness-gate.sh` splits its output into three
+sections and computes the verdict from them:
+
+1. **Repository Baseline** — static gates, tests, and policy checks (failure ⇒ `BLOCK`).
+2. **Local Ollama Runtime** — the official sovereign path (unexecuted or failed
+   smoke ⇒ `HOLD`; `READY` is impossible without `LOCAL_OLLAMA_SMOKE=VERIFIED`).
+3. **Public Runtime** — Modal (legacy/optional; missing Modal secrets are
+   reported as `LEGACY-OPTIONAL` skips and do not hold the verdict) plus
+   public-surface header checks.
+
+### Local Ollama HOLD reason codes
+
+| Code | Meaning | Cleared by |
+|---|---|---|
+| `SELF_HOSTED_OLLAMA_SMOKE_NOT_EXECUTED` | No smoke run reached a live self-hosted Ollama | Running the gate on the sovereign model host with Ollama up |
+| `LOCAL_GENERATION_NOT_VERIFIED` | No successful local `/api/generate` round-trip | Non-empty generation response from a manifest model |
+| `OLLAMA_NO_CLOUD_NOT_VERIFIED` | Local-only URL + `egress: none_for_inference` posture not confirmed | `OLLAMA_BASE_URL` on the local allowlist and manifest policy intact |
+| `LOCAL_MODEL_SET_INCOMPLETE` | Manifest models missing from the live runtime | `scripts/ollama/activate-local-models.sh` passing (18/18 present) |
 
 ## Discovery (template vs. this repo)
 
@@ -23,47 +50,29 @@ This repo is the **agent operations & validation layer** (ADR-0001), not the pro
 monorepo. Several template-referenced paths do not exist here and are
 `NOT_APPLICABLE`: `src/server.js`, `src/app.js`, `data/agents/index.json`,
 `data/agents/*.yaml`, `backend/app/services/tree_builder.py` (forbidden zone; the
-"known indentation blocker" does not exist here), and a `deploy:evidence:validate`
-npm script. Canonical assets that **do** exist: `package.json` (`npm run check`),
+"known indentation blocker" does not exist here). Canonical assets that **do**
+exist: `package.json` (`npm run check`, `npm run deploy:evidence:validate`),
 `.agents/` (`validate.py`, `modal_app.py`, `config/agents.yaml`),
-`agents/registry.yaml` (legacy fallback), `scripts/commander/*` gates, and the
-deploy/smoke workflows.
+`agents/registry.yaml` (legacy fallback), `scripts/commander/*` gates,
+`scripts/ollama/activate-local-models.sh`, `config/ollama.local.models.json`,
+and the deploy/smoke workflows.
 
 ## Phase ladder status
 
-| # | Phase | Status | Evidence |
-|---|---|---|---|
-| 1 | Governance | ✅ VERIFIED | `LAUNCH-GOVERNANCE.md` authored; ADR-0001 + Q8 policy present |
-| 2 | Secrets | ✅ VERIFIED | manifest + validator; `--all` exit=1 fail-closed (6 required UNSET, names only) |
-| 3 | Local gates | ✅ VERIFIED | `npm run check`/`test`/`build` exit 0; `validate.py`/`py_compile` exit 0; commander gates PASS after **#336** landed in repository history |
-| 4 | Modal deploy | ⛔ BLOCKED | prepared command below; needs `MODAL_TOKEN_*` + approval |
-| 5 | Modal CLI smoke | ⛔ BLOCKED | depends on Phase 4 |
-| 6 | Endpoint smoke | ⛔ BLOCKED | needs `BAYYINAH_ENDPOINT`/`MIHWAR_ENDPOINT` plus `BAYYINAH_API_TOKEN`/`MIHWAR_API_TOKEN` live and cross-token negative smoke passing |
-| 6 | Endpoint smoke | ⛔ BLOCKED | needs live `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`, `BAYYINAH_API_TOKEN`, `MIHWAR_API_TOKEN`; accepted verdict is `VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION` only |
-| 7 | Bayyinah PR gate | ⛔ BLOCKED | runs on PRs; non-approving when secrets absent; merge-block via branch protection UNVERIFIED |
-| 8 | Control boundary | ⛔ BLOCKED | needs running runtime for live boundary tests |
-| 9 | Device/connectivity pilot | ⬜ NOT_STARTED | needs Phases 4–8 green + allowlisted device + operator |
-| 10 | Limited live | ⬜ NOT_STARTED | needs rate limits, monitoring, rollback, error budget, audit export |
-| 11 | Full live | ⬜ NOT_STARTED | needs all gates green + no CRITICAL/HIGH + stable smoke + tested incident path |
-
-## Command log summary (patch validation, 2026-06-03 UTC)
-
-| Command | Exit | Label |
-|---|---:|---|
-| `pytest -q tests/test_modal_activation_tooling.py tests/test_modal_endpoint_token_contract.py tests/test_integrations_control_plane_gates.py -q` | 0 | VERIFIED |
-| `python3 .agents/validate.py` | 0 | VERIFIED |
-| `python3 -m py_compile .agents/*.py scripts/check-secrets-manifest.py` | 0 | VERIFIED |
-| `bash scripts/commander/modal-boundary-gate.sh .` | 0 | VERIFIED (expected WARN for missing runtime secrets) |
-| `bash scripts/commander/p0-security-test-gate.sh .` | 0 | VERIFIED (58 tests) |
-| `bash scripts/commander/agent-presence-gate.sh` | 0 | VERIFIED (expected WARN for missing runtime secrets) |
-| `bash scripts/commander/modal-runtime-smoke.sh` | 2 | VERIFIED fail-closed HOLD: `UNVERIFIED_SECRET_MISSING`, no endpoint contacted |
-| `python3 scripts/check-secrets-manifest.py --all` | 1 | VERIFIED fail-closed: 6 required secrets UNSET |
-| `python3 scripts/check-secrets-manifest.py --phase endpoint-smoke` | 1 | VERIFIED fail-closed: 4 endpoint-smoke secrets UNSET |
-| `python3 scripts/check-secrets-manifest.py --phase bayyinah-pr-gate` | 1 | VERIFIED fail-closed: 2 PR-gate tokens UNSET |
-| `npm run test:unit` | 0 | VERIFIED |
-| `npm run check` | 0 | VERIFIED |
-| `git diff --check` | 0 | VERIFIED |
-| `python3 -m pytest -q tests/` | 2 | UNVERIFIED full-suite environment: missing local Python deps `httpx` and `requests` |
+| # | Phase | Section | Status | Evidence |
+|---|---|---|---|---|
+| 1 | Governance | baseline | ✅ VERIFIED | `LAUNCH-GOVERNANCE.md` authored; ADR-0001 + Q8 policy present |
+| 2 | Secrets | baseline | ✅ VERIFIED | manifest + validator; `--all` exit=1 fail-closed (names only) |
+| 3 | Local gates | baseline | ✅ VERIFIED | `npm run check`/`test`/`build` exit 0; `validate.py`/`py_compile` exit 0; commander gates PASS |
+| 4 | **Local Ollama smoke** | **local runtime** | ⛔ **HOLD** | `SELF_HOSTED_OLLAMA_SMOKE_NOT_EXECUTED`, `LOCAL_GENERATION_NOT_VERIFIED`, `OLLAMA_NO_CLOUD_NOT_VERIFIED` |
+| 5 | Modal deploy | public (legacy/optional) | ⬜ WAIT | manual, approval-gated; not required for local readiness |
+| 6 | Modal CLI smoke | public (legacy/optional) | ⬜ WAIT | depends on Phase 5 |
+| 7 | Endpoint smoke | public (legacy/optional) | ⬜ WAIT | accepted verdict remains `VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION` only |
+| 8 | Bayyinah PR gate | baseline | ⛔ BLOCKED | merge-block via branch protection UNVERIFIED |
+| 9 | Control boundary | local runtime | ⛔ BLOCKED | needs running local runtime for live boundary tests |
+| 10 | Device/connectivity pilot | local runtime | ⬜ NOT_STARTED | needs Phase 4 green + allowlisted device + operator |
+| 11 | Limited live | local runtime | ⬜ NOT_STARTED | needs rate limits, monitoring, rollback, error budget, audit export |
+| 12 | Full live | local runtime | ⬜ NOT_STARTED | needs all gates green + no CRITICAL/HIGH + stable smoke + tested incident path |
 
 ## Deploy-trigger audit (no-auto-deploy rule)
 
@@ -72,46 +81,51 @@ deploy/smoke workflows.
 | `modal-deploy.yml` | No | `workflow_dispatch` + confirm `DEPLOY_MODAL` + `production` | ✅ VERIFIED |
 | `render-deploy.yml` | No | `workflow_dispatch` + confirm `DEPLOY` + `production` | ✅ VERIFIED |
 | `modal-runtime-auto-activation.yml` | No | deploy job requires `workflow_dispatch && confirm==ACTIVATE`; push/schedule reach **smoke-only** job | ✅ VERIFIED |
+| `local-model-smoke.yml` | No | `workflow_dispatch` only, self-hosted runner only | ✅ VERIFIED |
 
-## Prepared (NOT executed) — Phase 4+ commands
+## Prepared (NOT executed) — Local Ollama smoke commands
 
 ```bash
-# Phase 2 precheck (per phase):
-python3 scripts/check-secrets-manifest.py --phase modal-deploy   # must PASS first
+# On the sovereign model host (self-hosted; Ollama must be running locally):
+docker compose up -d ollama                      # or a native local ollama serve
 
-# Phase 4 — Modal deploy (manual, approval-gated; DO NOT auto-run):
+# Model-set presence against config/ollama.local.models.json (18 models):
+bash scripts/ollama/activate-local-models.sh     # OLLAMA_PULL=1 to pull missing
+
+# Full three-section readiness gate (emits LOCAL_OLLAMA_SMOKE=VERIFIED|HOLD):
+bash scripts/commander/release-readiness-gate.sh .
+
+# Legacy/optional Modal path (only with explicit approval + secrets present):
 #   GitHub → Actions → "modal-deploy" → Run workflow → confirm_deploy = DEPLOY_MODAL
-#   (production environment reviewers must approve)
-
-# Phase 5 — Modal CLI smoke (after approved deploy only):
-bash scripts/commander/modal-runtime-smoke.sh
-
-# Phase 6 — Endpoint smoke (after deploy; requires live endpoints + split tokens):
-#   verify Bayyinah/Mihwar HTTP 200, each endpoint rejects the other endpoint's
-#   token, logs expose no secrets, and the workflow emits only:
-#   VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION
 ```
 
 ## Blocker list by severity
 
 | Severity | ID | Blocker | Remediation | Owner action |
 |---|---|---|---|---|
-| HIGH | B1 | Endpoint-token isolation hardening is not launch evidence until merged and CI-reviewed | Merge this hardening PR after checks pass | No (agent-fixed; awaits review/merge) |
-| HIGH | B2 | Required Modal/agent secrets UNSET | Provision in GitHub Actions / secret manager | **Yes** |
-| HIGH | B3 | No live `VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION` run exists | Run manual Modal Runtime Activation after B1/B2 | **Yes** |
+| HIGH | B1 | `SELF_HOSTED_OLLAMA_SMOKE_NOT_EXECUTED` — no live Local Ollama smoke run exists | Run the readiness gate on the sovereign model host | **Yes** |
+| HIGH | B2 | `LOCAL_GENERATION_NOT_VERIFIED` — no verified local generation round-trip | Same smoke run; requires a pulled manifest model | **Yes** |
+| HIGH | B3 | `OLLAMA_NO_CLOUD_NOT_VERIFIED` — no-cloud posture not live-confirmed | Same smoke run with local-only `OLLAMA_BASE_URL` | **Yes** |
 | MEDIUM | B4 | Bayyinah PR gate merge-blocking unverified | Confirm branch protection requires the check | **Yes** |
-| LOW | B5 | SonarCloud/CodeQL duplicate-run CI noise (env-gated) | Repo CI config cleanup | Yes |
+| MEDIUM | B5 | Legacy/optional Modal path unexecuted (deploy/CLI/endpoint smokes) | Only if the Modal path is still wanted; not required for local readiness | Yes (optional) |
+| LOW | B6 | SonarCloud/CodeQL duplicate-run CI noise (env-gated) | Repo CI config cleanup | Yes |
 
-No CRITICAL blockers.
+No CRITICAL blockers beyond the standing rule that limited/full live stay
+blocked until every prior gate is verified.
+
+## Standing restrictions (unchanged on this branch)
+
+- No deploy. No merge. No secrets committed or echoed. No production activation.
+- `READY` requires: zero `BLOCK` failures, `LOCAL_OLLAMA_SMOKE=VERIFIED`, and
+  zero remaining `HOLD` flags — enforced by both
+  `scripts/commander/release-readiness-gate.sh` and
+  `scripts/validate-launch-evidence.mjs`.
 
 ## Verdict
 
-**`HOLD`** — proceed to Phase 4 only after: (1) endpoint-token isolation hardening
-is merged and CI-reviewed, (2) the owner provisions `MODAL_TOKEN_ID`,
-`MODAL_TOKEN_SECRET`, `BAYYINAH_ENDPOINT`, `MIHWAR_ENDPOINT`,
-`BAYYINAH_API_TOKEN`, and `MIHWAR_API_TOKEN` with distinct endpoint tokens, and
-(3) the owner grants explicit production approval. Re-run
-`check-secrets-manifest.py --phase modal-deploy`,
-`check-secrets-manifest.py --phase endpoint-smoke`, and the local gates
-immediately before activation. The only acceptable live endpoint launch verdict
-is `VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION`.
+**`HOLD`** — proceed only after a real Local Ollama smoke run on the sovereign
+model host clears `SELF_HOSTED_OLLAMA_SMOKE_NOT_EXECUTED`,
+`LOCAL_GENERATION_NOT_VERIFIED`, and `OLLAMA_NO_CLOUD_NOT_VERIFIED`. The
+legacy/optional Modal path may be exercised later under explicit approval; its
+only acceptable live endpoint verdict remains
+`VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION`.
