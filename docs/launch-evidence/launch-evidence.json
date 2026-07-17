@@ -1,14 +1,45 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "repository": "CurLexAI/swarms",
-  "generated_utc": "2026-06-04T00:00:00Z",
+  "generated_utc": "2026-07-17T00:00:00Z",
   "production_principle": "verification before activation",
-  "final_verdict": "WAIT",
+  "final_verdict": "HOLD",
   "no_auto_deploy_rule": true,
+  "runtime_paths": {
+    "local_ollama": {
+      "role": "OFFICIAL_SOVEREIGN_PATH",
+      "description": "Self-hosted local Ollama runtime is the official sovereign execution path. READY is forbidden until the Local Ollama smoke is VERIFIED.",
+      "evidence": [
+        "scripts/ollama/activate-local-models.sh",
+        "config/ollama.local.models.json",
+        ".github/workflows/local-model-smoke.yml"
+      ]
+    },
+    "modal": {
+      "role": "LEGACY_OPTIONAL",
+      "description": "Modal is a legacy/optional public runtime path. It is not a precondition for local sovereign readiness and only gates the public runtime section.",
+      "evidence": [
+        ".agents/modal_app.py",
+        "scripts/commander/modal-runtime-smoke.sh"
+      ]
+    }
+  },
+  "readiness_sections": {
+    "repository_baseline": "Static gates, tests, and policy checks that run without any runtime.",
+    "local_ollama_runtime": "Official sovereign path: self-hosted Ollama reachability, model-set presence, local generation smoke, and no-cloud egress verification.",
+    "public_runtime": "Legacy/optional Modal path plus public-surface header checks; never required for local sovereign readiness."
+  },
+  "ready_requires": [
+    "LOCAL_OLLAMA_SMOKE_VERIFIED",
+    "LOCAL_GENERATION_VERIFIED",
+    "OLLAMA_NO_CLOUD_VERIFIED",
+    "ALL_PHASE_BLOCKERS_RESOLVED"
+  ],
   "phases": [
     {
       "order": 1,
       "name": "Governance",
+      "section": "repository_baseline",
       "status": "VERIFIED",
       "evidence": [
         "docs/launch-evidence/LAUNCH-GOVERNANCE.md"
@@ -18,6 +49,7 @@
     {
       "order": 2,
       "name": "Secrets",
+      "section": "repository_baseline",
       "status": "VERIFIED_NAME_MANIFEST_ONLY",
       "evidence": [
         "docs/launch-evidence/secrets-manifest.md"
@@ -29,6 +61,7 @@
     {
       "order": 3,
       "name": "Local gates",
+      "section": "repository_baseline",
       "status": "VERIFIED_WITH_WARNINGS",
       "evidence": [
         "docs/launch-evidence/LAUNCH-READINESS.md#command-log-summary-phase-3-this-run",
@@ -40,7 +73,25 @@
     },
     {
       "order": 4,
+      "name": "Local Ollama smoke",
+      "section": "local_ollama_runtime",
+      "status": "HOLD",
+      "evidence": [
+        "scripts/ollama/activate-local-models.sh",
+        "config/ollama.local.models.json",
+        "scripts/commander/release-readiness-gate.sh"
+      ],
+      "blockers": [
+        "SELF_HOSTED_OLLAMA_SMOKE_NOT_EXECUTED",
+        "LOCAL_GENERATION_NOT_VERIFIED",
+        "OLLAMA_NO_CLOUD_NOT_VERIFIED"
+      ]
+    },
+    {
+      "order": 5,
       "name": "Modal deploy",
+      "section": "public_runtime",
+      "optional": true,
       "status": "WAIT",
       "evidence": [
         ".github/workflows/modal-runtime-activation.yml"
@@ -51,8 +102,10 @@
       ]
     },
     {
-      "order": 5,
+      "order": 6,
       "name": "Modal CLI smoke",
+      "section": "public_runtime",
+      "optional": true,
       "status": "WAIT",
       "evidence": [],
       "blockers": [
@@ -60,8 +113,10 @@
       ]
     },
     {
-      "order": 6,
+      "order": 7,
       "name": "Endpoint smoke",
+      "section": "public_runtime",
+      "optional": true,
       "status": "WAIT",
       "evidence": [
         "WAIT until VERIFIED_ENDPOINT_SMOKE_AND_TOKEN_ISOLATION is emitted by approved smoke"
@@ -72,8 +127,9 @@
       ]
     },
     {
-      "order": 7,
+      "order": 8,
       "name": "Bayyinah PR gate",
+      "section": "repository_baseline",
       "status": "WAIT",
       "evidence": [
         ".github/workflows/agent-review.yml"
@@ -84,8 +140,9 @@
       ]
     },
     {
-      "order": 8,
+      "order": 9,
       "name": "Control boundary",
+      "section": "local_ollama_runtime",
       "status": "WAIT",
       "evidence": [],
       "blockers": [
@@ -93,8 +150,9 @@
       ]
     },
     {
-      "order": 9,
+      "order": 10,
       "name": "Device/connectivity pilot",
+      "section": "local_ollama_runtime",
       "status": "HOLD",
       "evidence": [],
       "blockers": [
@@ -102,8 +160,9 @@
       ]
     },
     {
-      "order": 10,
+      "order": 11,
       "name": "Limited live",
+      "section": "local_ollama_runtime",
       "status": "HOLD",
       "evidence": [],
       "blockers": [
@@ -111,8 +170,9 @@
       ]
     },
     {
-      "order": 11,
+      "order": 12,
       "name": "Full live",
+      "section": "local_ollama_runtime",
       "status": "HOLD",
       "evidence": [],
       "blockers": [
@@ -188,7 +248,12 @@
     {
       "command": "npm run deploy:evidence:validate --if-present",
       "result": "PASS",
-      "notes": "Evidence schema and WAIT verdict validated."
+      "notes": "Evidence schema and HOLD verdict validated."
+    },
+    {
+      "command": "bash scripts/ollama/activate-local-models.sh",
+      "result": "SKIPPED_UNVERIFIED",
+      "notes": "Self-hosted Ollama runtime not reachable from this environment; local smoke must run on the sovereign model host."
     }
   ],
   "blockers_by_severity": {
@@ -196,15 +261,18 @@
       "Limited live and full live are blocked until every prior gate is verified."
     ],
     "HIGH": [
+      "Self-hosted Local Ollama smoke has not been executed (SELF_HOSTED_OLLAMA_SMOKE_NOT_EXECUTED).",
+      "Local generation on the sovereign Ollama runtime is not verified (LOCAL_GENERATION_NOT_VERIFIED).",
+      "No-cloud egress posture of the local Ollama runtime is not verified (OLLAMA_NO_CLOUD_NOT_VERIFIED).",
       "Required secret presence is not verified in approved secret stores.",
-      "Modal deploy is not approved or executed.",
-      "Modal CLI smoke is not executed.",
-      "Endpoint smoke and cross-token negative smoke are not executed.",
       "Bayyinah PR gate blocking behavior is not live verified.",
       "Control boundary is not runtime verified.",
       "Device/connectivity pilot is not executed."
     ],
     "MEDIUM": [
+      "Legacy/optional Modal path: deploy is not approved or executed.",
+      "Legacy/optional Modal path: Modal CLI smoke is not executed.",
+      "Legacy/optional Modal path: endpoint smoke and cross-token negative smoke are not executed.",
       "Node integration tests may require backend endpoint environment variables."
     ],
     "LOW": [
