@@ -4,27 +4,33 @@
 - **Commit audited:** `6410ec7`
 - **Scope:** full repository — boundary/policy gates, security layer (Qala/Aegis), sovereignty
   posture, local-model readiness, agent readiness, CI/CD supply chain, dependencies.
-- **Method:** every claim below is backed by executed command output or file content in this
-  worktree. Evidence labels follow `CLAUDE.md`.
+- **Revision:** rev2. Incorporates automated review feedback on rev1; ten claims corrected or
+  re-scoped, one rejected with evidence, one new finding added. See §7 for the change log.
+
+Every material claim below carries exactly one evidence label per `CLAUDE.md`:
+`VERIFIED` (command output / file content), `INFERRED` (derived, not directly proven),
+`UNVERIFIED` (not checked or blocked), `SKIPPED_UNVERIFIED` (blocked by missing secrets),
+`NOT_APPLICABLE`.
 
 ---
 
 ## 1. Verdict summary
 
-| Axis | Verdict |
-|---|---|
-| Hardening (التحصين) | **محصّن جزئيًا** — Partially hardened |
-| Sovereignty (السيادة) | **سيادي جزئيًا** — Partially sovereign |
-| Local model readiness | **BLOCKED** — config/manifest tag drift + no runtime to smoke |
-| Agent readiness | **PARTIALLY_APPLIED** — assets and gates green, runtime unverified |
+| Axis | Verdict | Label |
+|---|---|---|
+| Hardening (التحصين) | **محصّن جزئيًا** — Partially hardened | `INFERRED` |
+| Sovereignty (السيادة) | **سيادي جزئيًا** — Partially sovereign | `INFERRED` |
+| Local model readiness | **BLOCKED** (no runtime smoke) | `VERIFIED` |
+| Agent readiness | **PARTIALLY_APPLIED** | `INFERRED` |
 
-Rationale in §5.
+Rationale in §5. The verdicts are `INFERRED` because they aggregate verified sub-results into a
+judgement; each supporting sub-result carries its own label.
 
 ---
 
-## 2. What passed (VERIFIED)
+## 2. What passed
 
-All of the following were executed in this worktree and returned success.
+All executed in this worktree. Each row is `VERIFIED` — command run, output observed.
 
 | Check | Result |
 |---|---|
@@ -41,54 +47,89 @@ All of the following were executed in this worktree and returned success.
 | `p0-security-test-gate.sh` | PASS — 69 tests |
 | `master-audit-gate.sh` | **PASS failures=0 warnings=2** |
 | `npx tsc --noEmit` | **EXIT 0 — clean** |
-| Secret scan (`git grep` for key/token/PEM shapes) | No matches outside docs/tests |
+| `git grep` for key/token/PEM shapes | No matches outside docs/tests |
 | `git grep modal.run` in client/public surfaces | **No matches** — Modal stays backend-only |
-| `.env.example` | All values are `__SET_IN_SECRET_STORE__` placeholders — no real credentials |
-| `ALLOW_EXTERNAL_AI` enforcement | `openai_provider.py:20`, `anthropic_provider.py:16` both raise unless explicitly `true` — fail-closed |
-| `.agents/gateway/mcp_server.py` | Returns HTTP 501; no Modal URL/token embedded — ADR-0005 respected |
-| `docker-compose.yml` / `.secure.yml` | Ollama + llama.cpp are `expose`-only (no host ports); secure compose binds `127.0.0.1` only |
 
-**Notable correction to repo documentation:** `CLAUDE.md` records a "Known TS blocker"
-(`npx tsc --noEmit` failing on `src/runners/agentRunner`). That blocker is **stale** — after
-`npm ci`, type-checking now exits 0 with no diagnostics. `CLAUDE.md` should be updated.
+Additional verified observations:
+
+- **`.env.example` — `VERIFIED`, scoped.** Every *secret-bearing* variable uses a placeholder
+  (`__SET_IN_SECRET_STORE__`): `MIHWAR_HMAC_SECRET`, `MCP_BEARER_TOKEN`, `GITHUB_TOKEN`,
+  `GITHUB_WEBHOOK_SECRET`, `QDRANT_API_KEY`, `ENTRA_TENANT_ID`, `RAPTOR_TELEGRAM_BOT_TOKEN`,
+  `QUICKNODE_RPC_URL` and others. The file *also* contains non-secret concrete values — public
+  URLs (`CORS_ORIGINS=https://lexprim.com,…`, `MCP_SERVER_URL=https://sr-bsm.onrender.com/healthz`),
+  internal service URLs (`OLLAMA_BASE_URL=http://ollama:11434`), model ids, booleans and numeric
+  limits. No credential material is present. *(rev1 said "all values are placeholders" — false;
+  corrected.)*
+- **OpenAI and Anthropic adapters fail closed — `VERIFIED`.** `openai_provider.py:20` and
+  `anthropic_provider.py:16` each raise unless `ALLOW_EXTERNAL_AI=true`. **This does not extend
+  to every external provider — see MEDIUM-5.**
+- **`.agents/gateway/mcp_server.py` — `VERIFIED`.** Returns HTTP 501; no Modal URL or token
+  embedded. ADR-0005 respected.
+- **Compose networking — `VERIFIED`.** `docker-compose.yml` gives Ollama and llama.cpp
+  `expose:` only (no published host ports); `docker-compose.secure.yml` binds every service to
+  `127.0.0.1`.
+
+**Documentation correction — `VERIFIED`.** `CLAUDE.md` records a "Known TS blocker"
+(`npx tsc --noEmit` failing on `src/runners/agentRunner`). After `npm ci`, type-checking exits 0
+with no diagnostics. The note is stale.
 
 ---
 
 ## 3. Findings
 
-### CRITICAL-1 — Qala KSA-PII redaction is bypassed by Arabic-Indic numerals
+### CRITICAL-1 — Qala KSA-PII detection is bypassed by Arabic-Indic numerals
 
 **Files:** `.agents/validators/qala_ksa_pii.py:54-63`, `src/security/qalaKsaPii.ts:34-37`
 (identical defect in both mirrors)
 
-Every KSA identifier pattern is written against ASCII digits only (`\d` in Python `re` matches
-Unicode digits, but the *literal* leading-digit anchors `1`, `2`, `7` and the `SA` IBAN prefix
-are ASCII, and the JS `\d` is ASCII-only by definition). Saudi documents routinely render
-identifiers in Arabic-Indic numerals (U+0660–U+0669).
-
-**Reproduced:**
+**The defect — `VERIFIED`.** Every KSA identifier pattern anchors on ASCII digits: the literal
+leading digits `1`/`2`/`7`, the `SA` IBAN prefix, and (in the TypeScript mirror) `\d`, which is
+ASCII-only in JavaScript by definition. Reproduced:
 
 ```
 ascii_natid              hits=1  redacted='[KSA_NATIONAL_ID:10…78]'
-arabic_indic_natid       hits=0  redacted='١٠١٢٣٤٥٦٧٨'        <-- NOT REDACTED
+arabic_indic_natid       hits=0  redacted='١٠١٢٣٤٥٦٧٨'        <-- NOT DETECTED
 ascii_mobile             hits=1  redacted='[KSA_MOBILE:05…78]'
-arabic_indic_mobile      hits=0  redacted='٠٥١٢٣٤٥٦٧٨'        <-- NOT REDACTED
-natid_hyphenated         hits=0  redacted='101-234-5678'      <-- NOT REDACTED
-natid_spaced             hits=0  redacted='1012 345 678'      <-- NOT REDACTED
+arabic_indic_mobile      hits=0  redacted='٠٥١٢٣٤٥٦٧٨'        <-- NOT DETECTED
+natid_hyphenated         hits=0  redacted='101-234-5678'      <-- NOT DETECTED
+natid_spaced             hits=0  redacted='1012 345 678'      <-- NOT DETECTED
 ```
 
-**Impact.** `redact_ksa_pii` is the declared redaction engine for
-`models.config.json → data_classification.redaction_engine` and feeds the Qala audit sink.
-A National ID, Iqama, or mobile number written in Arabic numerals — the *native* form for an
-Arabic-first KSA platform — passes through unredacted into audit records and into any
-egress path guarded by `has_ksa_pii`. This directly undermines any PDPL redaction claim.
+**The defect reaches live control logic — `VERIFIED`.** `detect_ksa_pii` is the detection
+primitive; `has_ksa_pii` and `redact_ksa_pii` are thin wrappers over it (`qala_ksa_pii.py:136,144`).
+Two call sites outside tests consume it:
 
-**Immediate fix.** Normalize before matching, in both mirrors:
-1. Fold U+0660–U+0669 (Arabic-Indic) and U+06F0–U+06F9 (Extended Arabic-Indic) to ASCII on a
-   working copy, run the existing patterns, then map spans back to the original string so
-   `_mask` and replacement offsets stay correct.
-2. Tolerate common separators (`-`, space, `‑`, NBSP) inside the 10-digit shapes.
-3. Add the reproduction cases above as regression tests in `tests/` and to the TS test suite.
+1. **`.agents/validators/qala_input_gate.py:146`** — on any hit, appends a **`CRITICAL`** finding:
+   *"Input contains sovereign KSA identifiers and must be redacted before model invocation"*,
+   which feeds `_resolve_verdict` and the gate's `APPROVE`/`REQUEST_CHANGES`/`BLOCKED` outcome.
+   With Arabic-Indic numerals, `pii_hits` is empty, the CRITICAL finding is never raised, and
+   **the input gate approves the payload.**
+2. **`.agents/validators/classification_validator.py:122`** — on any hit, escalates the data
+   classification and records `ksa_pii_detected`. With Arabic-Indic numerals, **no escalation
+   occurs** and the payload retains its default `PUBLIC`/`INTERNAL` classification — which is the
+   input to the sovereignty routing decision.
+
+`qala_input_gate` is a registered runtime module (`.agents/config/agents.yaml:144`,
+`module: "validators.qala_input_gate"`) and a required file in `master-audit-gate.sh:181`.
+
+**Impact — `INFERRED`.** An identifier written in the numeral system native to Saudi documents
+silently defeats both the input gate and classification escalation. The failure is silent: the
+gate returns a clean verdict rather than an error, so nothing downstream can tell detection was
+skipped. Any PDPL redaction claim resting on this layer is unsupported for Arabic-numeral input.
+
+*(An automated review asserted this was a standalone-detector defect with no live caller. That
+search covered only `redact_ksa_pii`/`has_ksa_pii`/`redactKsaPii`/`hasKsaPii` and omitted
+`detect_ksa_pii` — the primitive both wrappers call and the one actually wired into the two
+call sites above. The finding stands at CRITICAL.)*
+
+**Immediate fix.**
+1. Normalize before matching, in both mirrors: fold U+0660–U+0669 (Arabic-Indic) and
+   U+06F0–U+06F9 (Extended Arabic-Indic) to ASCII on a working copy, run the existing patterns,
+   then map spans back to the original string so `_mask` and replacement offsets stay correct.
+2. Tolerate common separators (`-`, space, U+2011, NBSP) inside the 10-digit shapes.
+3. Add the six reproduction cases above as regression tests with **explicit expected categories
+   and expected redacted output** in both the Python and TypeScript suites (see MEDIUM-3 for why
+   a cross-language equality assertion is insufficient).
 
 ---
 
@@ -96,10 +137,8 @@ egress path guarded by `has_ksa_pii`. This directly undermines any PDPL redactio
 
 **File:** `.agents/mcp/aegis_gateway.py:71-95`
 
-The injection pattern set is five English-only regexes. On an Arabic-first platform this leaves
-the primary working language unguarded.
-
-**Reproduced** (`inspect_prompt_injection`):
+**`VERIFIED`.** The pattern set is five English-only regexes. Reproduced against
+`inspect_prompt_injection`:
 
 ```
 en_ignore      findings=1
@@ -110,55 +149,41 @@ en_b64_hint    findings=0     base64-encoded 'ignore all previous instructions'
 en_reveal      findings=1
 ```
 
-**Impact.** `aegis_gateway.py:241-250` blocks `tools/call` on injection findings. An Arabic
-injection string reaches the tool boundary with `findings=0` and is allowed.
+**Impact — `VERIFIED` (code path) / `INFERRED` (consequence).** `aegis_gateway.py:241-250` blocks
+`tools/call` on injection findings. An Arabic injection string yields `findings=0` and is allowed
+through the tool boundary. On an Arabic-first platform this leaves the primary working language
+unguarded.
 
-**Immediate fix.** Add an Arabic pattern set covering the same five intents
-(تجاهل/تخطَّ التعليمات، اكشف/اطبع مطالبة النظام، أظهر الأسرار/المفاتيح، عطّل الحماية،
-تصرف كـ…), plus a pre-normalization pass that strips zero-width characters (U+200B–U+200F,
-U+FEFF), collapses intra-word whitespace, and folds Arabic diacritics — the spacing bypass
-above defeats the English patterns too.
-
----
-
-### HIGH-2 — `js-yaml` HIGH-severity DoS on the agent-config parsing path
-
-**Evidence:** `npm audit` (both with and without `--omit=dev`)
-
-```
-js-yaml  5.0.0 - 5.2.1
-Severity: high
-js-yaml: Exponential parsing time in flow collections leads to denial of service
-GHSA-pm4m-ph32-ghv5
-fix available via `npm audit fix`
-```
-
-`package.json` pins `"js-yaml": "^5.2.1"` as a **production** dependency, and it is imported
-directly by the core adapter (`src/services/unifiedAgentAdapter.ts:4` and its `.js` companion)
-to parse `.agents/config/agents.yaml`.
-
-**Immediate fix.** `npm audit fix`, then re-run `npm run check` (the
-`check:service-divergence` step must stay green) and commit the lockfile.
+**Immediate fix.** Add an Arabic pattern set covering the same five intents (تجاهل/تخطَّ
+التعليمات، اكشف/اطبع مطالبة النظام، أظهر الأسرار/المفاتيح، عطّل الحماية، تصرف كـ…), plus a
+pre-normalization pass that strips zero-width characters (U+200B–U+200F, U+FEFF), collapses
+intra-word whitespace, and folds Arabic diacritics — the spacing bypass defeats the English
+patterns too.
 
 ---
 
-### HIGH-3 — `auto-merge-safe-deps.yml` fails **open** and can merge unverified PRs to `main`
+### HIGH-2 — `auto-merge-safe-deps.yml` fails **open**
 
 **File:** `.github/workflows/auto-merge-safe-deps.yml` (added in `6410ec7`, the tip commit)
 
-Three fail-open paths combine:
+**`VERIFIED` — three fail-open paths in the workflow's own filtering:**
 
 1. `getCheckRuns()` swallows API errors and **returns `[]`** — an empty list satisfies both the
    "no incomplete checks" and "no failed checks" filters, so an API blip reads as *all checks
    passed*.
 2. `getCombinedStatus()` returns `null` on error, and every subsequent status assertion is
    guarded by `if (combinedStatus && …)` — `null` skips all of them.
-3. The accepted combined-status set is `["success", "pending"]` — a PR whose CI has **not
-   finished** is explicitly treated as mergeable.
+3. The accepted combined-status set is `["success", "pending"]` — CI that has **not finished** is
+   treated as mergeable.
 
 The job runs on a 6-hour `schedule` with `contents: write` + `pull-requests: write` and a GitHub
-App token, and `allowedLabels` includes `github_actions` — so a workflow-file bump can be merged
-to `main` with zero passing checks.
+App token, and `allowedLabels` includes `github_actions`.
+
+**Impact — `UNVERIFIED`.** The workflow will **attempt** `pulls.merge` after zero successful
+checks. Whether that attempt *succeeds* additionally depends on branch-protection rules and
+whether the App can bypass them; `pulls.merge` can still be rejected by repository protections.
+Branch protection could not be inspected — the GitHub API returned 403 through the audit sandbox
+(see LOW-3). The fail-open filtering is proven; the end-to-end merge outcome is not.
 
 **Immediate fix.**
 - Require **at least one** completed check run with a `success` conclusion; treat a zero-check
@@ -166,96 +191,76 @@ to `main` with zero passing checks.
 - Let `getCheckRuns` / `getCombinedStatus` propagate errors (or return a sentinel) so an API
   failure skips the PR instead of approving it.
 - Remove `"pending"` from the accepted combined-status set.
-- Consider dropping `github_actions` from `allowedLabels`, or gating it behind a required
-  review — automated workflow edits are the highest-value supply-chain target in this repo.
+- Consider dropping `github_actions` from `allowedLabels`, or gating it behind a required review.
+- Independently, confirm branch protection on `main` requires status checks — that is the control
+  that decides whether the fail-open filtering is exploitable.
 
-> Governance note: `CLAUDE.md` prohibition #8 forbids merging without explicit user approval.
-> An unattended auto-merge bot is in tension with that rule. It is your call to keep it, but the
-> fail-open behavior above should be fixed regardless.
-
----
-
-### HIGH-4 — Local-model readiness is blocked by model-tag drift
-
-Three sources disagree on which Ollama tags must exist:
-
-| Source | Mihwar tag | Notes |
-|---|---|---|
-| `.agents/config/agents.yaml:31` | `deepseek-coder-v2:latest` | canonical runtime profile |
-| `config/ollama.local.models.json:15` | `deepseek-coder-v2:16b` | what the activation script provisions |
-| `models.config.json:40` | `deepseek-coder-v2:16b` | reference config |
-| `agents/registry.yaml:87,426` | `deepseek-coder-v2:latest` | legacy fallback |
-
-`scripts/ollama/activate-local-models.sh` enforces **exactly the 18 models** in the manifest.
-`deepseek-coder-v2:latest` is not among them, so a fully "activated" host still would not carry
-the tag Mihwar is configured to call — Mihwar fails at first invocation with a model-not-found.
-
-Additionally, `.agents/config/agents.yaml:8-16` declares a `local_providers` block containing
-`general: "qwen3.6:latest"` and `local_identity: "allam-7b"`. Neither appears in the manifest,
-and `git grep` shows **no code reads that block at all** — it is dead configuration pointing at
-model tags that are never provisioned.
-
-**Runtime state here:** `OLLAMA_PULL=0 bash scripts/ollama/activate-local-models.sh` →
-`ERROR: Ollama is not reachable` (no local runtime in this container). Manifest itself loaded
-and validated cleanly: `Sovereign Ollama manifest loaded: 18 models.`
-
-**Immediate fix.** Pin `agents.yaml` (and `agents/registry.yaml`) to `deepseek-coder-v2:16b` so
-all four sources agree; either delete the unused `local_providers` block or wire it up and add
-its tags to the manifest. Add a gate asserting every model tag referenced in `agents.yaml`
-exists in `config/ollama.local.models.json`.
+> Governance note: `CLAUDE.md` prohibition #8 forbids merging without explicit user approval. An
+> unattended auto-merge bot is in tension with that rule. Keeping it is your call; the fail-open
+> behavior should be fixed regardless.
 
 ---
 
-### MEDIUM-1 — `models.config.json` contradicts the sovereign policy and itself
+### MEDIUM-1 — `js-yaml` advisory on the agent-config parsing path (dependency hygiene)
 
-**File:** `models.config.json`
+**`VERIFIED`.** `npm audit` (with and without `--omit=dev`):
 
-```jsonc
-"openai":    { "enabled": true,  ... }
-"anthropic": { "enabled": true,  ... }
-"task_routing": {
-  "critical_arabic_legal": { "primary": "anthropic", ... },
-  "long_context":          { "primary": "anthropic", ... },
-  "fast_draft":            { "primary": "openai",    ... }
-}
+```
+js-yaml  5.0.0 - 5.2.1
+Severity: high
+js-yaml: Exponential parsing time in flow collections leads to denial of service
+GHSA-pm4m-ph32-ghv5 — fix available via `npm audit fix`
 ```
 
-Its own `data_classification` block lists `contains_legal_arabic` and `classification_critical`
-under `sovereign_only_triggers` — so the file routes exactly the traffic it declares
-sovereign-only to two external US providers.
+`package.json` pins `"js-yaml": "^5.2.1"` as a **production** dependency, imported directly by
+`src/services/unifiedAgentAdapter.ts:4` and its `.js` companion.
 
-**Mitigating (VERIFIED):** the canonical enforcement path is *not* this file. `git grep` finds
-`models.config.json` referenced only in a comment (`.agents/providers/modal_provider.py:17`).
-`src/policy/runtime-policy.ts` recognizes only `ollama-*-local` providers as local and
-**fails closed** — `tests/runtime-policy.test.ts` proves public long-context and vision requests
-are rejected rather than escalated to cloud, *even after* `humanApprovedCloudEgress`.
+**Exploitability — `UNVERIFIED`, and assessed low.** `loadRegistry()` parses a repository-owned
+file, or an operator-selected path from `AGENT_REGISTRY_PATH`, at adapter construction. No
+request-controlled YAML reaches `yaml.load`. An attacker able to supply the exponential input
+would already need to alter repository files or deployment environment variables. Treat this as
+**dependency hygiene with a HIGH upstream advisory**, not a remotely reachable DoS in this
+application. *(rev1 filed this as HIGH on the strength of the advisory alone; re-scoped.)*
 
-So this is doctrinal drift, not an active egress hole. It is still the file an operator is most
-likely to read as authoritative.
-
-**Immediate fix.** Set `openai.enabled` / `anthropic.enabled` to `false` with a
-`DISABLED_SOVEREIGN_POLICY` status (mirroring how `modal_vllm` is already marked), repoint the
-three `task_routing` entries at `local_ollama`, and add a header line naming
-`src/policy/runtime-policy.ts` as the enforcing authority.
+**Immediate fix.** `npm audit fix`, re-run `npm run check` (the `check:service-divergence` step
+must stay green), commit the lockfile. A Dependabot PR for this bump is already open.
 
 ---
 
-### MEDIUM-2 — Two divergent implementations of the same provider
+### MEDIUM-2 — Ollama model-tag drift (metadata, not a runtime blocker)
 
-`.agents/providers/local_ollama.py` (99 lines) and `src/policy/sovereign/providers/local_ollama.py`
-(102 lines) are **completely different implementations** under the same name — different
-docstrings, different imports, different transport. Only the `.agents/` copy carries the
-egress-residency rationale (the deliberate `localhost`-over-`127.0.0.1` choice that keeps
-`qala-egress-residency-gate.sh` green). The same duplication exists for `local_llama_cpp.py`.
+**`VERIFIED` — four sources disagree:**
 
-**Immediate fix.** Pick one as canonical and have the other re-export it, or fold them into a
-single module.
+| Source | Mihwar tag |
+|---|---|
+| `.agents/config/agents.yaml:31` | `deepseek-coder-v2:latest` |
+| `config/ollama.local.models.json:15` | `deepseek-coder-v2:16b` |
+| `models.config.json:40` | `deepseek-coder-v2:16b` |
+| `agents/registry.yaml:87,426` | `deepseek-coder-v2:latest` |
+
+**No runtime path consumes the `agents.yaml` model id — `VERIFIED`.** `.agents/invoke.py` reads
+`model.get('id')` only to print the inventory (lines 310-316) and otherwise invokes the Modal
+classes, whose model is the Hugging Face constant in `.agents/modal_app.py`.
+`.agents/mcp/server.py:229-230` selects `deepseek-coder-v2:16b` from its own env default —
+already consistent with the manifest. `unifiedAgentAdapter.ts` contains no `model` field usage at
+all. *(rev1 claimed Mihwar would fail at first invocation with model-not-found. Unsupported —
+withdrawn. The drift is real but confined to metadata and operator-facing inventory output.)*
+
+Additionally — `VERIFIED` — `.agents/config/agents.yaml:8-16` declares a `local_providers` block
+with `general: "qwen3.6:latest"` and `local_identity: "allam-7b"`. Neither appears in the
+manifest, and `git grep` shows **no code reads that block**. Dead configuration.
+
+**Immediate fix.** Pin `agents.yaml` and `agents/registry.yaml` to `deepseek-coder-v2:16b` so all
+four sources agree; delete the unused `local_providers` block or wire it up and add its tags to
+the manifest. Add a consistency gate asserting every model tag in `agents.yaml` exists in
+`config/ollama.local.models.json` — cheap, and it prevents the drift becoming a real blocker if a
+consuming path is added later.
 
 ---
 
 ### MEDIUM-3 — `check:service-divergence` covers far less than `CLAUDE.md` claims
 
-**File:** `scripts/check-service-divergence.mjs:5-8`
+**File:** `scripts/check-service-divergence.mjs:5-8` — `VERIFIED`
 
 ```js
 const pairs = [
@@ -264,81 +269,186 @@ const pairs = [
 ];
 ```
 
-`CLAUDE.md` states the gate catches drift for `sovereignCyberRadar`, `auditLogger`, `logger`,
-and the Qala mirrors `qalaTrace` / `qalaKsaPii` / `qalaAuditSink`. **None of those are in the
-pair list**, and the Python↔TypeScript Qala mirrors are not covered by any gate at all.
+`CLAUDE.md` states the gate catches drift for `sovereignCyberRadar`, `auditLogger`, `logger`, and
+the Qala mirrors `qalaTrace` / `qalaKsaPii` / `qalaAuditSink`. None are in the pair list, and the
+Python↔TypeScript Qala mirrors are covered by no gate at all.
 
-This is precisely the blind spot that lets CRITICAL-1 exist identically in
-`qala_ksa_pii.py` and `qalaKsaPii.ts` with nothing asserting they agree.
+**Scope note — `INFERRED`.** This gate would *not* have caught CRITICAL-1: both mirrors carry the
+same defect, so any equality assertion between them passes. Divergence checking and correctness
+checking are different problems, and CRITICAL-1 is a correctness gap that no equality test can
+detect. *(rev1 implied the divergence gate was the blind spot responsible; that was wrong.)*
 
-**Immediate fix.** Add the four missing `.ts`/`.js` pairs to the list, and add a behavioral
-parity test that runs the same PII/injection corpus through both the Python and TypeScript
-Qala implementations and asserts identical hit counts.
-
----
-
-### MEDIUM-4 — Unpinned container images in `docker-compose.yml`
-
-`ollama/ollama:latest`, `linuxserver/wireguard:latest`, `ghcr.io/ggerganov/llama.cpp:server`.
-`docker-compose.secure.yml` does this correctly (`ollama/ollama:0.12.10`, `qdrant/qdrant:v1.15.3`,
-`postgres:16`, `redis:7`). A sovereign runtime that pulls `:latest` cannot reproduce or attest
-the model runtime it actually ran.
-
-**Immediate fix.** Pin to digests (`@sha256:…`) or at minimum to the same explicit versions used
-in the secure compose file.
+**Immediate fix.** Add the four missing `.ts`/`.js` pairs. Separately, add behavioral tests that
+assert **explicit expected detections and redactions** for each PII/injection corpus case in both
+languages. Cross-language equality may supplement those assertions but cannot replace them.
 
 ---
 
-### LOW-1 — GitHub Actions referenced by mutable tags, not SHAs
+### MEDIUM-4 — Container images pinned to mutable tags in both compose files
 
-No workflow pins an action to a commit SHA. Sixteen distinct mutable refs are in use, including
-`actions/github-script@v7`, which in `auto-merge-safe-deps.yml` executes with `contents: write`
-and a GitHub App token. Pin to full SHAs, at least for the write-capable workflows.
+**`VERIFIED`.**
 
-### LOW-2 — `repo-rename-gate.sh` cannot run without `gh`
+- `docker-compose.yml`: `ollama/ollama:latest`, `linuxserver/wireguard:latest`,
+  `ghcr.io/ggerganov/llama.cpp:server` — floating.
+- `docker-compose.secure.yml`: `ollama/ollama:0.12.10`, `qdrant/qdrant:v1.15.3` — explicit
+  versions but still **mutable registry tags**; `postgres:16` and `redis:7` additionally float
+  across minor releases.
 
-`NO-GO: GitHub CLI 'gh' is required for canonical repository verification.` Environmental (no
-`gh` in this container), not a repository defect. `SKIPPED_UNVERIFIED`.
+**Impact — `INFERRED`.** Neither file is digest-reproducible. A sovereign runtime that cannot
+attest the exact image it ran cannot attest the model runtime either. *(rev1 called the secure
+compose file correct and proposed its tags as the remediation target; that would have left the
+"secure" runtime unattestable. Both files need the same treatment.)*
 
-### LOW-3 — `release-readiness-gate.sh` returns `BLOCK` for environmental reasons
+**Immediate fix.** Pin every image to a digest (`@sha256:…`) in **both** files. If digest pinning
+is judged too costly to maintain, narrow the finding explicitly to "avoid `:latest`" and record
+that digest-level attestation is out of scope.
 
-`block_failures=1 hold_flags=4`. The single block failure is the **strict** swarm-presence
-monitor, whose only `FAILED` entry is `GitHub repository metadata: Forbidden (403)` — the
-sandbox proxy, not the repo. The four holds are the un-executed Ollama smoke (no runtime) and
-unset `PUBLIC_SURFACE_ORIGIN` / `PUBLIC_SURFACE_APEX`. Modal holds are correctly classified
-`LEGACY-OPTIONAL` and do not gate the verdict.
+---
+
+### MEDIUM-5 — `ALLOW_EXTERNAL_AI` is not a universal external-provider kill switch
+
+**`VERIFIED`.** `.agents/providers/huggingface_provider.py` contains **zero** references to
+`ALLOW_EXTERNAL_AI` (`grep -c` → 0). It performs backend inference against
+`https://router.huggingface.co/v1` (`_DEFAULT_BASE_URL`, line 22) gated only on its own switches:
+`HF_INTEGRATION_MODE` (default `"disabled"`, line 59) and `HF_TOKEN` (line 25).
+
+**The gate over-reports — `VERIFIED`.** `scripts/commander/master-audit-gate.sh:197-199` greps
+only `openai_provider.py` and `anthropic_provider.py`, then prints the unqualified
+`ok "external provider adapters are fail-closed behind ALLOW_EXTERNAL_AI"`. That message asserts
+more than the check establishes. `router.huggingface.co` is present in the egress allowlist, so
+the egress gate does not flag it either.
+
+**Impact — `INFERRED`.** Hugging Face egress remains opt-in and disabled by default, so this is
+not an open channel. But an operator who sets `ALLOW_EXTERNAL_AI=false` and reads the gate's OK
+line would reasonably conclude all external inference is off; a third path exists behind a
+separate, independently-set switch.
+
+**Immediate fix.** Either add the `ALLOW_EXTERNAL_AI` guard to `huggingface_provider.py` so the
+kill switch is genuinely universal, or extend the gate to check all three adapters and reword its
+OK message to name the providers actually verified. Update the §4 sovereignty summary to describe
+`HF_INTEGRATION_MODE` as a distinct gate.
+
+*(Surfaced by automated review of rev1; rev1 repeated the gate's over-broad message uncritically.)*
+
+---
+
+### MEDIUM-6 — `models.config.json` contradicts the sovereign policy and itself
+
+**`VERIFIED`.**
+
+```jsonc
+"openai":    { "enabled": true, … }
+"anthropic": { "enabled": true, … }
+"task_routing": {
+  "critical_arabic_legal": { "primary": "anthropic", … },
+  "long_context":          { "primary": "anthropic", … },
+  "fast_draft":            { "primary": "openai",    … }
+}
+```
+
+Its own `data_classification` block lists `contains_legal_arabic` and `classification_critical`
+under `sovereign_only_triggers` — so the file routes exactly the traffic it declares
+sovereign-only to two external providers.
+
+**Mitigating — `VERIFIED`.** This file is not on the enforcement path: `git grep` finds
+`models.config.json` referenced only in a comment (`.agents/providers/modal_provider.py:17`).
+`src/policy/runtime-policy.ts` recognizes only `ollama-*-local` providers as local and fails
+closed; `tests/runtime-policy.test.ts` proves public long-context and vision requests are
+rejected rather than escalated to cloud, **even after** `humanApprovedCloudEgress`.
+
+**Impact — `INFERRED`.** Doctrinal drift, not an active egress hole. It remains the file an
+operator is most likely to read as authoritative.
+
+**Immediate fix.** Set `openai.enabled` / `anthropic.enabled` to `false` with a
+`DISABLED_SOVEREIGN_POLICY` status (mirroring `modal_vllm`), repoint the three `task_routing`
+entries at `local_ollama`, and add a header naming `src/policy/runtime-policy.ts` as the
+enforcing authority.
+
+---
+
+### LOW-1 — Two same-named providers implement two different contracts
+
+**`VERIFIED`.** `.agents/providers/local_ollama.py` (99 lines) and
+`src/policy/sovereign/providers/local_ollama.py` (102 lines) share the class name
+`LocalOllamaProvider` but are **not interchangeable**:
+
+| | `.agents/providers/` | `src/policy/sovereign/providers/` |
+|---|---|---|
+| Contract | sync `Provider.execute(ProviderRequest) → ProviderResponse` | async `LLMProvider.generate()` |
+| Deps | standard library only (`urllib`) | `httpx`, Pydantic models |
+| Model | per-request | configured on the instance |
+| URL guard | — | `require_sovereign_local_url` |
+
+Only the `.agents/` copy carries the egress-residency rationale (the deliberate
+`localhost`-over-`127.0.0.1` choice that keeps `qala-egress-residency-gate.sh` green); only the
+`src/policy/` copy validates the URL boundary at call time.
+
+**Impact — `INFERRED`.** Not duplication — two legitimate layers with a confusing shared name.
+*(rev1 filed this as MEDIUM duplication and proposed collapsing one into a re-export of the other.
+That would break the other caller's interface and could remove the URL-boundary validation;
+withdrawn.)*
+
+**Immediate fix.** Document the two layers and their distinct contracts. If convergence is
+desired, introduce an explicit adapter rather than a re-export. Consider renaming one class to
+remove the collision.
+
+### LOW-2 — Most GitHub Actions are referenced by mutable tags
+
+**`VERIFIED`.** 7 of 80 `uses:` references are pinned to full commit SHAs — in
+`qarar-fastconnect-deploy.yml`, `copilot-setup-steps.yml`, `opencode.yml`, `sonarcloud.yml`
+(e.g. `actions/checkout@9c091bb…`, `docker/build-push-action@53b7df9…`,
+`SonarSource/sonarcloud-github-action@ffc3010…`). The remaining 73 use mutable tags, **including
+`actions/github-script@v7` in the write-capable `auto-merge-safe-deps.yml`**. *(rev1 stated no
+workflow pins to a SHA — false; the generating grep excluded SHA-pinned lines by construction.)*
+
+**Immediate fix.** Extend the existing SHA-pinning convention to the remaining workflows,
+prioritising those with `contents: write`.
+
+### LOW-3 — Environmental limits on this audit
+
+- `repo-rename-gate.sh` → `NO-GO: GitHub CLI 'gh' is required`. No `gh` in the audit container.
+  `SKIPPED_UNVERIFIED`.
+- `release-readiness-gate.sh` → `BLOCK`, `block_failures=1 hold_flags=4`. The single block failure
+  is the **strict** swarm-presence monitor, whose only `FAILED` entry is
+  `GitHub repository metadata: Forbidden (403)` — the sandbox proxy, not the repo. The four holds
+  are the un-executed Ollama smoke and unset `PUBLIC_SURFACE_ORIGIN`/`PUBLIC_SURFACE_APEX`. Modal
+  holds are correctly classified `LEGACY-OPTIONAL` and do not gate the verdict. `VERIFIED` as an
+  environmental result.
+- Branch protection on `main` — `UNVERIFIED` (403). Blocks closing out HIGH-2's impact.
 
 ### LOW-4 — Stale documentation
 
-`CLAUDE.md` "Known TS blocker" no longer reproduces (§2). It should be removed so the real
+`CLAUDE.md` "Known TS blocker" no longer reproduces (§2). `VERIFIED`. Remove it so the real
 blocker list stays credible.
 
 ---
 
 ## 4. Sovereignty assessment
 
-**Strong (VERIFIED):**
-- Egress residency gate green: 0 unapproved hosts, 0 IP literals.
+**Strong — all `VERIFIED`:**
+- Egress residency gate: 0 unapproved hosts, 0 IP literals.
 - No `*.modal.run` reference in any public or client surface.
-- External providers hard-fail unless `ALLOW_EXTERNAL_AI=true`; the flag is unset and
-  `master-audit-gate.sh` asserts it.
-- `core_coding_swarm.py:346` refuses to run *at all* when external AI is enabled — an
-  unusually strong inversion, and correct.
-- Canonical `runtime-policy.ts` fails closed: public long-context and vision requests are
-  **rejected** rather than escalated to cloud, and remain blocked even after human cloud-egress
-  approval. Proven by 8 passing tests.
+- OpenAI and Anthropic adapters hard-fail unless `ALLOW_EXTERNAL_AI=true`; the flag is unset.
+- `core_coding_swarm.py:346` refuses to run **at all** when external AI is enabled — an unusually
+  strong inversion, and correct.
+- `runtime-policy.ts` fails closed: public long-context and vision requests are rejected rather
+  than escalated to cloud, and stay blocked even after human cloud-egress approval. 8 passing tests.
 - Local inference containers are internal-only (`expose`) or loopback-bound.
 
 **Weak:**
-- The sovereignty guarantee is *policy-shaped*, but the PII redaction that makes
-  "redact-then-egress" safe is bypassable in the platform's own native numeral system
-  (CRITICAL-1). Sovereignty of routing without sovereignty of redaction is incomplete.
-- `models.config.json` publishes a contradictory, cloud-first routing table (MEDIUM-1).
-- No local runtime has ever been smoke-tested in evidence (`LOCAL_GENERATION_NOT_VERIFIED`),
-  and the configured Mihwar tag is not provisionable from the manifest (HIGH-4).
+- The redaction layer that makes "redact-then-egress" safe is bypassable in the platform's own
+  native numeral system, and the bypass silently disables both the input gate's CRITICAL finding
+  and classification escalation (CRITICAL-1). `VERIFIED` mechanism, `INFERRED` consequence.
+  Sovereignty of routing without sovereignty of detection is incomplete.
+- `ALLOW_EXTERNAL_AI` is not universal — Hugging Face egress sits behind a separate switch, and
+  the audit gate's OK message overstates coverage (MEDIUM-5). `VERIFIED`.
+- `models.config.json` publishes a contradictory, cloud-first routing table (MEDIUM-6). `VERIFIED`.
+- No local runtime has been smoke-tested in evidence (`LOCAL_GENERATION_NOT_VERIFIED`).
+  `SKIPPED_UNVERIFIED`.
 
-**Verdict: سيادي جزئيًا (partially sovereign).** The control plane is sovereign by
-construction and by test; the data plane's redaction guarantee is not yet sound.
+**Verdict — `INFERRED`: سيادي جزئيًا (partially sovereign).** The control plane is sovereign by
+construction and by test; the detection layer beneath it is not yet sound, and the kill switch is
+not yet universal.
 
 ---
 
@@ -346,35 +456,63 @@ construction and by test; the data plane's redaction guarantee is not yet sound.
 
 ### Local models — `BLOCKED`
 - Manifest is well-formed and self-validating (18 models, uniqueness + `required` enforced).
-- Activation script correctly refuses non-loopback `OLLAMA_BASE_URL` and requires an explicit
-  `OLLAMA_PULL=1`.
-- **Blocked by:** HIGH-4 tag drift — activation provisions a set that does not contain
-  Mihwar's configured tag. No Ollama runtime available here, so
-  `SELF_HOSTED_OLLAMA_SMOKE_NOT_EXECUTED` / `LOCAL_GENERATION_NOT_VERIFIED` remain
-  `SKIPPED_UNVERIFIED`.
+  `VERIFIED`.
+- Activation script refuses non-loopback `OLLAMA_BASE_URL` and requires an explicit
+  `OLLAMA_PULL=1`. `VERIFIED`.
+- **Blocking reason — `VERIFIED`:** no Ollama runtime is reachable in this environment
+  (`OLLAMA_PULL=0 bash scripts/ollama/activate-local-models.sh` →
+  `ERROR: Ollama is not reachable`), so `SELF_HOSTED_OLLAMA_SMOKE_NOT_EXECUTED` and
+  `LOCAL_GENERATION_NOT_VERIFIED` remain `SKIPPED_UNVERIFIED`. The block rests on the missing
+  smoke test, **not** on the tag drift (MEDIUM-2), which no runtime path consumes.
 
 ### Agents — `PARTIALLY_APPLIED`
-- All 7 required agent assets present and valid; catalog, registry, router, and validators
-  in place; 405 Python + 141 Node tests green; P0 security gate green.
-- Mihwar and Bayyinah profiles are complete (model, tier, context, GPU, tasks).
-- **Gaps:** `Qarar Router` and `Search Agent` render as `Model: ?  Size: ?  Context: ?` in
-  `invoke.py info` — incomplete profiles. `agent-presence-gate.sh` warns
-  `Mihwar gate condition not found` in `.github/workflows/agent-review.yml`. No endpoint or
-  token secrets are set, so no agent has been invoked end-to-end — activation remains
-  `UNVERIFIED` per repo doctrine.
+- All 7 required agent assets present and valid; catalog, registry, router and validators in
+  place; 405 Python + 141 Node tests green; P0 security gate green. `VERIFIED`.
+- Mihwar and Bayyinah profiles are complete (model, tier, context, GPU, tasks). `VERIFIED`.
+- **Gaps — `VERIFIED`:** `Qarar Router` and `Search Agent` render as `Model: ? Size: ? Context: ?`
+  in `invoke.py info`. `agent-presence-gate.sh` warns `Mihwar gate condition not found` in
+  `.github/workflows/agent-review.yml`.
+- No endpoint or token secrets are set, so no agent has been invoked end-to-end. Activation
+  remains `SKIPPED_UNVERIFIED`.
 
 ---
 
 ## 6. Priority fix order
 
-1. **CRITICAL-1** — Arabic-Indic numeral normalization in both Qala PII mirrors + regression tests.
-2. **HIGH-3** — Close the three fail-open paths in `auto-merge-safe-deps.yml`.
-3. **HIGH-2** — `npm audit fix` for `js-yaml`.
-4. **HIGH-1** — Arabic injection patterns + Unicode normalization in `aegis_gateway.py`.
-5. **HIGH-4** — Reconcile model tags across the four sources; add a tag-consistency gate.
-6. **MEDIUM-1** — Disable external providers in `models.config.json`; repoint task routing.
-7. **MEDIUM-3** — Extend `check:service-divergence`; add Python↔TS Qala parity test.
-8. **MEDIUM-2 / MEDIUM-4 / LOW-1** — De-duplicate providers, pin images, pin action SHAs.
+1. **CRITICAL-1** — Arabic-Indic numeral normalization in both Qala mirrors, with explicit
+   expected-value regression tests.
+2. **HIGH-2** — Close the three fail-open paths in `auto-merge-safe-deps.yml`; confirm branch
+   protection on `main`.
+3. **HIGH-1** — Arabic injection patterns + Unicode normalization in `aegis_gateway.py`.
+4. **MEDIUM-5** — Make `ALLOW_EXTERNAL_AI` universal, or correct the gate's claim.
+5. **MEDIUM-1** — `npm audit fix` for `js-yaml`.
+6. **MEDIUM-6** — Disable external providers in `models.config.json`; repoint task routing.
+7. **MEDIUM-2 / MEDIUM-3 / MEDIUM-4** — Tag-consistency gate; extend divergence pairs and add
+   behavioral PII tests; digest-pin both compose files.
+8. **LOW-1 / LOW-2 / LOW-4** — Document the two provider layers; extend SHA pinning; drop the
+   stale TS-blocker note.
+
+---
+
+## 7. Revision log (rev1 → rev2)
+
+Automated review raised 11 points on rev1. Ten were correct and are applied; one was rejected
+with evidence; one new finding was added.
+
+| # | Point | Disposition |
+|---|---|---|
+| 1 | Report lacked per-claim evidence labels | **Applied** — labels added throughout |
+| 2 | `.env.example` "all placeholders" false | **Applied** — §2 rescoped to secret-bearing vars |
+| 3 | "No workflow SHA-pins actions" false | **Applied** — LOW-2 now states 7 of 80 pinned |
+| 4 | Model tag drift ≠ runtime failure | **Applied** — HIGH-4 → MEDIUM-2, claim withdrawn |
+| 5 | js-yaml advisory ≠ reachable impact | **Applied** — HIGH-3 → MEDIUM-1, dependency hygiene |
+| 6 | Auto-merge outcome depends on branch protection | **Applied** — impact marked `UNVERIFIED` |
+| 7 | Providers are two contracts, not duplicates | **Applied** — MEDIUM-2 → LOW-1, fix rewritten |
+| 8 | Secure compose also unpinned | **Applied** — MEDIUM-4 now covers both files |
+| 9 | Parity test can't catch a shared defect | **Applied** — MEDIUM-3 rewritten |
+| 10 | Commander `Status` must be one value | **Applied** — see below |
+| 11 | PII bypass has no live caller | **Rejected** — the cited search omitted `detect_ksa_pii`, which is called by `qala_input_gate.py:146` and `classification_validator.py:122`. CRITICAL-1 stands. |
+| + | Hugging Face outside `ALLOW_EXTERNAL_AI` | **Added** as MEDIUM-5 |
 
 ---
 
@@ -382,22 +520,27 @@ construction and by test; the data plane's redaction guarantee is not yet sound.
 
 ```text
 Execution Verdict:
-- Status: VERIFIED_FIXED (audit complete) / findings NOT_STARTED
+- Status: UNVERIFIED
 - Scope: Full-repository deep audit at 6410ec7 — gates, security layer, sovereignty,
-  local-model readiness, agent readiness, CI/CD supply chain, dependencies.
+  local-model readiness, agent readiness, CI/CD supply chain, dependencies. Audit only;
+  no remediation attempted. Finding remediation status: NOT_STARTED for all findings.
 - Canonical Path: /home/user/swarms
 - Files Touched: docs/operations/deep-repo-audit-2026-07-30.md (new, report only)
-- Blockers: no Ollama runtime in container; no gh CLI; GitHub API 403 via sandbox proxy;
-  no agent endpoint/token secrets set.
-- Hot Surface Risk: HIGH — .github/workflows/auto-merge-safe-deps.yml can merge to main
-  fail-open; .agents/validators/qala_ksa_pii.py + src/security/qalaKsaPii.ts miss
-  Arabic-Indic PII.
-- What Was Actually Changed: nothing in code, config, or workflows. Audit report added only.
+- Blockers: no Ollama runtime in container; no gh CLI; GitHub API 403 via sandbox proxy
+  (blocks branch-protection verification); no agent endpoint/token secrets set.
+- Hot Surface Risk: HIGH — .agents/validators/qala_ksa_pii.py + src/security/qalaKsaPii.ts
+  miss Arabic-Indic PII, silently disabling the qala_input_gate CRITICAL finding and
+  classification escalation; .github/workflows/auto-merge-safe-deps.yml fails open on
+  check-run and status API errors.
+- What Was Actually Changed: nothing in code, config, or workflows. Audit report only.
 - What Was Actually Verified: 405 pytest + 141 node tests pass; npm run check passes;
-  8 commander gates pass; master-audit-gate PASS failures=0; tsc --noEmit clean;
-  no secrets or modal.run leakage; PII and injection bypasses reproduced with live output.
+  8 commander gates pass; master-audit-gate PASS failures=0; tsc --noEmit clean; no secrets
+  or modal.run leakage; PII and injection bypasses reproduced with live output; PII call
+  sites traced to qala_input_gate.py:146 and classification_validator.py:122; HuggingFace
+  provider confirmed to contain zero ALLOW_EXTERNAL_AI references.
 - What Remains Unverified: local Ollama generation smoke; end-to-end agent invocation;
-  public surface reachability; GitHub repository metadata; repo-rename canonical check.
-- Next Valid Action: apply CRITICAL-1 fix with regression tests, then HIGH-3, in separate
-  reviewable PRs.
+  branch protection on main (and therefore auto-merge exploitability); public surface
+  reachability; GitHub repository metadata; repo-rename canonical check.
+- Next Valid Action: apply CRITICAL-1 fix with explicit expected-value regression tests in
+  both mirrors, then HIGH-2, in separate reviewable PRs.
 ```
