@@ -4,11 +4,13 @@
 - **Commit audited:** `6410ec7`
 - **Scope:** full repository — boundary/policy gates, security layer (Qala/Aegis), sovereignty
   posture, local-model readiness, agent readiness, CI/CD supply chain, dependencies.
-- **Revision:** rev4. Three review rounds incorporated. rev2 corrected ten rev1 claims; rev3 added
-  **two new HIGH findings** (committed credentials, unguarded egress) and **downgraded rev1/rev2's
-  CRITICAL-1 to HIGH** after its runtime reachability was disproven; rev4 **redacts the credential
-  this report had itself reproduced**, widens the egress finding from one path to three, and
-  extends the stale-documentation and agent-readiness findings. See §7 for the full change log.
+- **Revision:** rev5, after four automated review rounds. Net movement across revisions: rev2
+  corrected ten rev1 claims; rev3 added **two new HIGH findings** (committed credentials,
+  unguarded egress) and **downgraded CRITICAL-1 to HIGH** once its runtime reachability was
+  disproven; rev4 **redacted the credential this report had itself printed** and widened the
+  egress finding to three paths; rev5 **widens the credential finding to a second stack**,
+  audits all five Compose files, scopes the agent-orchestration gap to `agent-review.yml`, and
+  removes one over-claimed auto-merge path. See §7 for the full change log.
 
 Every material claim below carries exactly one evidence label. `AGENTS.md` §Core Rule defines the
 base triple — `VERIFIED` (command output / observable repository content), `INFERRED` (reasonable
@@ -79,6 +81,31 @@ Additional verified observations:
 - **Compose networking — `VERIFIED`.** `docker-compose.yml` gives Ollama and llama.cpp
   `expose:` only (no published host ports); `docker-compose.secure.yml` binds every service to
   `127.0.0.1`.
+
+### Dependency-install safety evidence (`.agents/policies/dependency-build-safety.md`)
+
+This audit ran `npm ci` and `pip install -r requirements-agent.txt`. The mandatory policy record
+was omitted from earlier revisions and is supplied here:
+
+- **`LIFECYCLE_SCRIPTS_REVIEWED` — `VERIFIED`.** Two packages in `package-lock.json` carry
+  `hasInstallScript: true`: **`esbuild`** and **`fsevents`**. Both are transitive dependencies of
+  `tsx` (a declared devDependency); both are mainstream, widely-audited packages whose install
+  scripts fetch/link a platform binary (`esbuild`) or build a macOS FSEvents binding (`fsevents`,
+  inert on Linux). No first-party or unrecognised package declares an install script.
+- **Lockfile status — `VERIFIED`.** `package-lock.json` `lockfileVersion: 3`, present and
+  committed; `npm ci` installs exactly the locked tree and fails rather than resolving new
+  versions. The lockfile was **not** modified by this audit.
+- **Contacted domains — `INFERRED`.** `registry.npmjs.org` (npm) and `pypi.org`/`files.pythonhosted.org`
+  (pip), plus the esbuild binary host reached by its install script. Not independently captured —
+  no egress log was recorded during install, so this is derived from the tooling rather than
+  observed. `UNVERIFIED` as a precise list.
+- **Scope — `VERIFIED`.** No dependency was added, upgraded, or removed. The `npm audit fix` for
+  `js-yaml` (MEDIUM-1) is **recommended, not performed** — applying it is a separate reviewable
+  change.
+
+*(Added in round 4. `CLAUDE.md` prohibition #5 requires this review before running install
+lifecycle scripts; recording it after the fact is weaker than recording it before, and is noted
+as such.)*
 
 **Documentation correction — `VERIFIED`.** Both handbooks are stale on this point.
 `CLAUDE.md` records a "Known TS blocker" (`npx tsc --noEmit` failing on `src/runners/agentRunner`),
@@ -200,8 +227,15 @@ patterns too.
    passed*.
 2. `getCombinedStatus()` returns `null` on error, and every subsequent status assertion is
    guarded by `if (combinedStatus && …)` — `null` skips all of them.
-3. The accepted combined-status set is `["success", "pending"]` — CI that has **not finished** is
-   treated as mergeable.
+3. ~~The accepted combined-status set is `["success", "pending"]`.~~ **Corrected in round 4:** an
+   aggregate `pending` does pass the first condition, but line 246 then rejects the PR if *any*
+   status context fails `isSafeStatus` (which accepts only `success`/`expected`), and pending
+   check runs are separately caught as incomplete. So unfinished CI **with** contexts is skipped.
+   An aggregate `pending` with **no** contexts still passes — but that is the zero-evidence case
+   in (1), not a distinct third path.
+
+So the fail-open surface is **two mechanisms** — swallowed API errors, and zero registered checks
+— not three.
 
 The job runs on a 6-hour `schedule` with `contents: write` + `pull-requests: write` and a GitHub
 App token, and `allowedLabels` includes `github_actions`.
@@ -274,6 +308,27 @@ tested.
 `.gitleaks.toml` — at minimum a URI-credential pattern (`://[^:/@]+:[^@/]+@`) and an
 assignment pattern for `PASSWORD` / `PASSWD` / `SECRET` / `TOKEN` keys with a non-placeholder
 value — then re-run the gate across the tree and triage whatever else surfaces.
+
+**More committed credentials exist — `VERIFIED`.** I recommended a tree-wide sweep and then did
+not run one. Doing so finds a second stack:
+
+```
+dev-factory/config/docker-compose.yml:8   POSTGRES_PASSWORD: <REDACTED>
+dev-factory/config/docker-compose.yml:41  MINIO_ROOT_PASSWORD: <REDACTED>
+```
+
+Both are weak literal passwords, and that stack **publishes every service on all interfaces** —
+`'5432:5432'`, `'6379:6379'`, `'9000:9000'`, `'6333:6333'`, `'11434:11434'` — with no
+`127.0.0.1:` prefix, unlike `docker-compose.secure.yml`. Postgres, Redis, MinIO, Qdrant and Ollama
+are therefore reachable from the local network with repository-known credentials whenever this
+stack runs. Development intent does not change the exposure; it changes who is likely to be
+running it.
+
+So the credential inventory is **two stacks, five secrets**, not one stack. The HIGH-3 fix list
+must cover both, or the audit's own remediation would leave the same prohibited class in the tree.
+
+*(Scope corrected in round 4. This is the sweep I prescribed in the previous revision and should
+have performed before publishing it as a recommendation.)*
 
 **Immediate fix (the credential).** Adopt the pattern `docker-compose.secure.yml` already uses —
 required, secret-backed variables (`${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}`) so the
@@ -365,7 +420,12 @@ would already need to alter repository files or deployment environment variables
 application. *(rev1 filed this as HIGH on the strength of the advisory alone; re-scoped.)*
 
 **Immediate fix.** `npm audit fix`, re-run `npm run check` (the `check:service-divergence` step
-must stay green), commit the lockfile. A Dependabot PR for this bump is already open.
+must stay green), commit the lockfile.
+
+A Dependabot branch for this bump appeared to exist — a workflow run titled
+`npm_and_yarn in /. for js-yaml` was observed on `main` at `2026-07-30T21:35:01Z` — but whether an
+open PR currently tracks it is **`UNVERIFIED`**: `gh` was unavailable and repository metadata
+returned 403, so PR state could not be read. Confirm before waiting on it.
 
 ---
 
@@ -430,18 +490,24 @@ languages. Cross-language equality may supplement those assertions but cannot re
 
 **`VERIFIED`.**
 
-- `docker-compose.yml`: `ollama/ollama:latest`, `linuxserver/wireguard:latest`,
-  `ghcr.io/ggerganov/llama.cpp:server` — floating.
-- `docker-compose.secure.yml`: `ollama/ollama:0.12.10`, `qdrant/qdrant:v1.15.3` — explicit
-  versions but still **mutable registry tags**; `postgres:16` and `redis:7` additionally float
-  across minor releases.
+The repository has **five** Compose files, not two:
+
+| File | Images |
+|---|---|
+| `docker-compose.yml` | `ollama/ollama:latest`, `linuxserver/wireguard:latest`, `ghcr.io/ggerganov/llama.cpp:server` — floating |
+| `docker-compose.secure.yml` | `ollama/ollama:0.12.10`, `qdrant/qdrant:v1.15.3` — explicit but still mutable tags; `postgres:16`, `redis:7` float across minors |
+| `dev-factory/config/docker-compose.yml` | `minio/minio:latest`, `qdrant/qdrant:latest`, `ollama/ollama:latest`, `postgres:16`, `redis:7` |
+| `sovereign-connectivity-poc/docker-compose.yml` | `node:22-alpine` |
+| `deploy/qdrant/docker-compose.yml` | `qdrant/qdrant:1.12.6` |
+
+*(rev1–rev4 audited only the first two; scope corrected in round 4.)*
 
 **Impact — `INFERRED`.** Neither file is digest-reproducible. A sovereign runtime that cannot
 attest the exact image it ran cannot attest the model runtime either. *(rev1 called the secure
 compose file correct and proposed its tags as the remediation target; that would have left the
 "secure" runtime unattestable. Both files need the same treatment.)*
 
-**Immediate fix.** Pin every image to a digest (`@sha256:…`) in **both** files. If digest pinning
+**Immediate fix.** Pin every image to a digest (`@sha256:…`) across **all five** files. If digest pinning
 is judged too costly to maintain, narrow the finding explicitly to "avoid `:latest`" and record
 that digest-level attestation is out of scope.
 
@@ -648,9 +714,17 @@ construction"; HIGH-4 disproves that phrasing and it is withdrawn.)*
   `_endpoint_specific_token_contract_marker()` at `pr_review.py:43-47` guards
   `_require_env("BAYYINAH_API_TOKEN")` / `_require_env("MIHWAR_API_TOKEN")` behind `if False:`.
   Neither `MIHWAR_ENDPOINT` nor `BAYYINAH_ENDPOINT` is read anywhere in the file, and no HTTP
-  client is imported. **Configuring all four secrets would still not invoke Mihwar or Bayyinah
-  end-to-end.** Agent activation therefore requires building the orchestration, not just supplying
-  credentials.
+  client is imported. **This applies to `agent-review.yml` specifically, not to agent activation
+  as a whole.**
+- **Other invocation routes do exist and are implemented — `VERIFIED`.**
+  `.github/workflows/mihwar-swe.yml:108-172` issues a real authenticated call
+  (`curl -X POST "${MIHWAR_ENDPOINT}" -H "Authorization: Bearer ${MIHWAR_API_TOKEN}"`) and
+  publishes results to PR comments; `bayyinah-swe.yml:129-223` wires the equivalent
+  `BAYYINAH_ENDPOINT`/`BAYYINAH_API_TOKEN` pair; and `.agents/invoke.py:254` implements
+  `run_pipeline()` — the full Mihwar → Bayyinah loop via `call_mihwar`. These routes are
+  **implemented but runtime-unverified**, pending secrets and a smoke test: `SKIPPED_UNVERIFIED`.
+  *(rev3/rev4 generalised the `pr_review.py` gap into a claim that no route could invoke the
+  agents at all. That was wrong — corrected in round 4.)*
 - **The publication path is missing too — `VERIFIED`.** `.github/workflows/agent-review.yml:83`
   passes `--post-comment`; `pr_review.py:178` registers the flag with `argparse` and **never
   references it again**. `format_github_comment()` is defined at line 143 and **never called**.
@@ -666,8 +740,10 @@ construction"; HIGH-4 disproves that phrasing and it is withdrawn.)*
 
 Ordered by live exposure first, latent defects after.
 
-1. **HIGH-3** — Remove the committed plaintext credential from `docker-compose.yml` and the Go
-   fallback; require secret-backed variables; rotate. Drop `sslmode=disable`. **Then add
+1. **HIGH-3** — Remove the committed plaintext credentials from **both** `docker-compose.yml`
+   (+ the Go fallback) and `dev-factory/config/docker-compose.yml`; require secret-backed
+   variables; rotate all five. Drop `sslmode=disable`, and bind `dev-factory` services to
+   `127.0.0.1` instead of all interfaces. **Then add
    password-shaped rules to `static_audit.py` and `.gitleaks.toml`** — until that lands, the
    secret-scan gate cannot detect this class of credential at all, and a re-run across the tree
    may surface others.
@@ -688,10 +764,10 @@ Ordered by live exposure first, latent defects after.
 10. **LOW-1 / LOW-2 / LOW-4** — Document the two provider layers; extend SHA pinning; drop the
     stale TS-blocker note.
 
-**Separate track — agent activation.** `.agents/pr_review.py` performs neither a model call nor
-result publication (§5). Wiring Mihwar/Bayyinah end-to-end is an implementation task covering
-**both** gaps — invocation *and* publishing findings back to the PR — not a credential task, and
-should be scoped as its own piece of work.
+**Separate track — `agent-review.yml`.** `.agents/pr_review.py` performs neither a model call nor
+result publication (§5). Bringing *that* workflow up to the standard the SWE workflows already
+meet is an implementation task covering both gaps. The `mihwar-swe` / `bayyinah-swe` / `invoke.py`
+routes are already implemented and need only secrets plus a smoke test.
 
 ---
 
@@ -734,6 +810,17 @@ should be scoped as its own piece of work.
 | 21 | `pr_review.py` never publishes results either | **Applied** — `--post-comment` parsed at line 178 and never used; `format_github_comment()` defined at 143 and never called; output is a fixed string at 196. §5 now records two gaps: invocation *and* publication. |
 | 22 | `AGENTS.md` carries the same stale TS blocker plus a stale test count | **Applied** — LOW-4 extended to both handbooks; `AGENTS.md:271` (TS2345/TS18046/TS2352) and `AGENTS.md:268` ("171 tests; 2 skipped" vs measured 405/6). |
 
+### Round 4 (rev4 → rev5) — 6 points, all applied
+
+| # | Point | Disposition |
+|---|---|---|
+| 23 | More hardcoded credentials in `dev-factory/config/docker-compose.yml` | **Applied — my omission.** `POSTGRES_PASSWORD` and `MINIO_ROOT_PASSWORD`, and that stack publishes all five services on **all interfaces** (`'5432:5432'` etc., no `127.0.0.1:`). I prescribed a tree-wide sweep in rev3 and did not run it. HIGH-3 is now two stacks, five secrets. |
+| 24 | Five Compose files, not two | **Applied** — MEDIUM-4 now tables all five; `dev-factory`, `sovereign-connectivity-poc`, `deploy/qdrant` were unaudited. |
+| 25 | Orchestration blocker over-generalised | **Applied — my error.** `mihwar-swe.yml:108-172` issues a real authenticated `curl` to `MIHWAR_ENDPOINT` and publishes to PR comments; `bayyinah-swe.yml:129-223` mirrors it; `invoke.py:254` implements `run_pipeline()`. The gap is specific to `agent-review.yml`; those routes are implemented-but-unverified. |
+| 26 | The `"pending"` fail-open path does not exist | **Applied.** Line 246 rejects any context failing `isSafeStatus`, and pending check runs are caught as incomplete. Aggregate-pending only passes with **zero** contexts — the same zero-evidence case. Fail-open surface is two mechanisms, not three. |
+| 27 | Open Dependabot PR asserted without evidence | **Applied** — downgraded to `UNVERIFIED`, with the observed workflow-run title cited as the only basis. |
+| 28 | Dependency-install safety evidence missing | **Applied** — §2 now carries the `dependency-build-safety.md` record: `esbuild`/`fsevents` as the only install-script packages, lockfile v3 unmodified, contacted domains `INFERRED`. |
+
 **Net effect of round 2 on the verdicts.** Live exposure went **up** (two new HIGH findings, both
 reachable in a real deployment) while the headline PII finding went **down** (real, but dormant).
 The §1 verdicts are unchanged — *partially hardened*, *partially sovereign* — but the reasons
@@ -756,10 +843,11 @@ Execution Verdict:
   blocks branch-protection verification); agent orchestration not implemented in
   .agents/pr_review.py (neither model invocation nor result publication), so end-to-end
   review is unreachable regardless of secrets.
-- Hot Surface Risk: HIGH — docker-compose.yml commits one shared plaintext password (redacted)
-  across Postgres, Redis and DATABASE_URL (with sslmode=disable), duplicated as the Go fallback
-  in mihwar-core/cmd/server/main.go:17, and the repo's own secret-scan rules cannot detect that
-  class at all; three code paths (.agents/mcp/server.py:271,
+- Hot Surface Risk: HIGH — two Compose stacks commit plaintext credentials (redacted here):
+  docker-compose.yml across Postgres/Redis/DATABASE_URL with sslmode=disable plus the Go fallback
+  in mihwar-core/cmd/server/main.go:17, and dev-factory/config/docker-compose.yml which also
+  publishes all five services on every interface; the repo's own secret-scan rules cannot detect
+  that class at all; three code paths (.agents/mcp/server.py:271,
   .agents/providers/local_ollama.py, .agents/providers/local_llama_cpp.py) post full prompts to
   an unvalidated environment-supplied base URL, invisible to the static egress gate;
   .github/workflows/auto-merge-safe-deps.yml fails open on check-run and status API errors.
