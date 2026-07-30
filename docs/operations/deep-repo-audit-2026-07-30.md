@@ -7,10 +7,17 @@
 - **Revision:** rev2. Incorporates automated review feedback on rev1; ten claims corrected or
   re-scoped, one rejected with evidence, one new finding added. See §7 for the change log.
 
-Every material claim below carries exactly one evidence label per `CLAUDE.md`:
-`VERIFIED` (command output / file content), `INFERRED` (derived, not directly proven),
-`UNVERIFIED` (not checked or blocked), `SKIPPED_UNVERIFIED` (blocked by missing secrets),
-`NOT_APPLICABLE`.
+Every material claim below carries exactly one evidence label. `AGENTS.md` §Core Rule defines the
+base triple — `VERIFIED` (command output / observable repository content), `INFERRED` (reasonable
+conclusion, not directly confirmed), `UNVERIFIED` (not checked, or blocked by missing access /
+secrets / network / runtime). `CLAUDE.md:170` refines that with two further labels this report
+also uses: **`SKIPPED_UNVERIFIED`** for checks blocked specifically by missing secrets, and
+**`NOT_APPLICABLE`** when a file or dependency is absent — under the explicit instruction *"Never
+collapse skipped into pass."* Both are established repository vocabulary, appearing in the
+canonical `commander-report-template.md`, `README.md`,
+`docs/launch-evidence/launch-evidence.json` and the three SWE workflows. The two handbooks are
+complementary: AGENTS.md gives the base triple, CLAUDE.md adds precision for two specific
+blocked cases.
 
 ---
 
@@ -30,25 +37,25 @@ judgement; each supporting sub-result carries its own label.
 
 ## 2. What passed
 
-All executed in this worktree. Each row is `VERIFIED` — command run, output observed.
+All executed in this worktree; each row carries its own label.
 
-| Check | Result |
-|---|---|
-| `python3 .agents/validate.py` | PASS — 7 required agent files |
-| `python3 -m pytest -q tests/` | **405 passed, 6 skipped** |
-| `npm run test:node` | **129 pass / 0 fail / 1 skip**, then **12 pass / 0 fail** |
-| `npm run check` (9-step aggregate) | PASS end-to-end |
-| `adr-0001-boundary-gate.sh` | PASS — no forbidden paths, no `autoStart` flag |
-| `modal-boundary-gate.sh` | PASS |
-| `agent-presence-gate.sh` | PASS (secret warnings expected offline) |
-| `public-surface-boundary-gate.sh` | PASS |
-| `qala-audit-integrity-gate.sh` | PASS — chain intact, 10 records, head `764fafbb…` |
-| `qala-egress-residency-gate.sh` | PASS — 0 unapproved hosts, 0 IP literals |
-| `p0-security-test-gate.sh` | PASS — 69 tests |
-| `master-audit-gate.sh` | **PASS failures=0 warnings=2** |
-| `npx tsc --noEmit` | **EXIT 0 — clean** |
-| `git grep` for key/token/PEM shapes | No matches outside docs/tests |
-| `git grep modal.run` in client/public surfaces | **No matches** — Modal stays backend-only |
+| Check | Result | Label |
+|---|---|---|
+| `python3 .agents/validate.py` | PASS — 7 required agent files | `VERIFIED` |
+| `python3 -m pytest -q tests/` | **405 passed, 6 skipped** | `VERIFIED` |
+| `npm run test:node` | **129 pass / 0 fail / 1 skip**, then **12 pass / 0 fail** | `VERIFIED` |
+| `npm run check` (9-step aggregate) | PASS end-to-end | `VERIFIED` |
+| `adr-0001-boundary-gate.sh` | PASS — no forbidden paths, no `autoStart` flag | `VERIFIED` |
+| `modal-boundary-gate.sh` | PASS | `VERIFIED` |
+| `agent-presence-gate.sh` | PASS (secret warnings expected offline) | `VERIFIED` |
+| `public-surface-boundary-gate.sh` | PASS | `VERIFIED` |
+| `qala-audit-integrity-gate.sh` | PASS — chain intact, 10 records, head `764fafbb…` | `VERIFIED` |
+| `qala-egress-residency-gate.sh` | PASS — 0 unapproved hosts, 0 IP literals | `VERIFIED` |
+| `p0-security-test-gate.sh` | PASS — 69 tests | `VERIFIED` |
+| `master-audit-gate.sh` | **PASS failures=0 warnings=2** | `VERIFIED` |
+| `npx tsc --noEmit` | **EXIT 0 — clean** | `VERIFIED` |
+| `git grep` for key/token/PEM shapes | No matches outside docs/tests | `VERIFIED` |
+| `git grep modal.run` in client/public surfaces | **No matches** — Modal stays backend-only | `VERIFIED` |
 
 Additional verified observations:
 
