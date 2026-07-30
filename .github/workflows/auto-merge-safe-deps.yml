@@ -1,0 +1,300 @@
+name: Auto Merge Safe Dependency PRs
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-merge-safe-deps
+  cancel-in-progress: false
+
+jobs:
+  merge-safe-dependency-prs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Harden runner
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.AUTO_MERGE_APP_ID }}
+          private-key: ${{ secrets.AUTO_MERGE_APP_PRIVATE_KEY }}
+
+      - name: Merge safe dependency PRs
+        uses: actions/github-script@v7
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const owner = process.env.REPO_OWNER;
+            const repo = process.env.REPO_NAME;
+
+            const allowedAuthors = new Set([
+              "dependabot[bot]"
+            ]);
+
+            const allowedLabels = new Set([
+              "dependencies",
+              "javascript",
+              "github_actions"
+            ]);
+
+            const maxPrsPerRun = 20;
+
+            function isMajorBump(title) {
+              const match = title.match(/from\s+(\d+)(?:\.[^\s]*)?\s+to\s+(\d+)(?:\.[^\s]*)?/i);
+              if (!match) return false;
+              return match[1] !== match[2];
+            }
+
+            function isSafeConclusion(conclusion) {
+              return ["success", "neutral", "skipped"].includes(String(conclusion || "").toLowerCase());
+            }
+
+            function isSafeStatus(state) {
+              return ["success", "expected"].includes(String(state || "").toLowerCase());
+            }
+
+            async function getOpenPulls() {
+              return await github.paginate(github.rest.pulls.list, {
+                owner,
+                repo,
+                state: "open",
+                per_page: 100
+              });
+            }
+
+            async function getCombinedStatus(ref) {
+              try {
+                const res = await github.rest.repos.getCombinedStatusForRef({
+                  owner,
+                  repo,
+                  ref
+                });
+                return res.data;
+              } catch {
+                return null;
+              }
+            }
+
+            async function getCheckRuns(ref) {
+              try {
+                const res = await github.rest.checks.listForRef({
+                  owner,
+                  repo,
+                  ref,
+                  per_page: 100
+                });
+                return res.data.check_runs || [];
+              } catch {
+                return [];
+              }
+            }
+
+            async function hasReviewsOrRequestedReviewers(prNumber) {
+              const [reviews, requested] = await Promise.all([
+                github.rest.pulls.listReviews({
+                  owner,
+                  repo,
+                  pull_number: prNumber,
+                  per_page: 100
+                }),
+                github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: prNumber
+                })
+              ]);
+
+              const reviewCount = (reviews.data || []).length;
+              const requestedUsers = requested.data.requested_reviewers?.length || 0;
+              const requestedTeams = requested.data.requested_teams?.length || 0;
+
+              return reviewCount > 0 || requestedUsers > 0 || requestedTeams > 0;
+            }
+
+            async function mergeableStateReady(prNumber) {
+              for (let i = 0; i < 6; i++) {
+                const pr = await github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: prNumber
+                });
+
+                const mergeable = pr.data.mergeable;
+                const mergeableState = pr.data.mergeable_state;
+
+                if (mergeable !== null) {
+                  return {
+                    ok: mergeable === true,
+                    mergeable,
+                    mergeableState,
+                    pr: pr.data
+                  };
+                }
+
+                await new Promise(r => setTimeout(r, 2000));
+              }
+
+              const fallback = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber
+              });
+
+              return {
+                ok: fallback.data.mergeable === true,
+                mergeable: fallback.data.mergeable,
+                mergeableState: fallback.data.mergeable_state,
+                pr: fallback.data
+              };
+            }
+
+            async function main() {
+              const pulls = await getOpenPulls();
+              const summary = {
+                scanned: pulls.length,
+                merged: [],
+                skipped: []
+              };
+
+              let processed = 0;
+
+              for (const pr of pulls) {
+                if (processed >= maxPrsPerRun) break;
+                processed++;
+
+                const prNumber = pr.number;
+                const title = pr.title || "";
+                const author = pr.user?.login || "";
+                const labels = (pr.labels || []).map(l => l.name);
+                const headSha = pr.head.sha;
+
+                const skip = (reason) => {
+                  core.info(`#${prNumber} skip: ${reason} :: ${title}`);
+                  summary.skipped.push({ pr: prNumber, reason, title });
+                };
+
+                if (pr.draft) {
+                  skip("draft");
+                  continue;
+                }
+
+                if (!allowedAuthors.has(author)) {
+                  skip(`author not allowed: ${author}`);
+                  continue;
+                }
+
+                if (!labels.some(label => allowedLabels.has(label))) {
+                  skip(`labels not allowed: ${labels.join(",") || "none"}`);
+                  continue;
+                }
+
+                if (isMajorBump(title)) {
+                  skip("major version bump");
+                  continue;
+                }
+
+                const reviewRelated = await hasReviewsOrRequestedReviewers(prNumber);
+                if (reviewRelated) {
+                  skip("has reviews or requested reviewers");
+                  continue;
+                }
+
+                const mergeCheck = await mergeableStateReady(prNumber);
+                if (!mergeCheck.ok) {
+                  skip(`not mergeable: mergeable=${mergeCheck.mergeable}, state=${mergeCheck.mergeableState}`);
+                  continue;
+                }
+
+                const [combinedStatus, checkRuns] = await Promise.all([
+                  getCombinedStatus(headSha),
+                  getCheckRuns(headSha)
+                ]);
+
+                if (combinedStatus && !["success", "pending"].includes(String(combinedStatus.state).toLowerCase())) {
+                  skip(`combined status is ${combinedStatus.state}`);
+                  continue;
+                }
+
+                const incompleteChecks = checkRuns.filter(run => run.status !== "completed");
+                if (incompleteChecks.length > 0) {
+                  skip(`checks still running: ${incompleteChecks.map(c => c.name).join(", ")}`);
+                  continue;
+                }
+
+                const failedChecks = checkRuns.filter(run => !isSafeConclusion(run.conclusion));
+                if (failedChecks.length > 0) {
+                  skip(`failing checks: ${failedChecks.map(c => `${c.name}=${c.conclusion}`).join(", ")}`);
+                  continue;
+                }
+
+                if (combinedStatus && combinedStatus.statuses?.some(s => !isSafeStatus(s.state))) {
+                  skip(`failing status contexts detected`);
+                  continue;
+                }
+
+                try {
+                  await github.rest.pulls.merge({
+                    owner,
+                    repo,
+                    pull_number: prNumber,
+                    merge_method: "squash"
+                  });
+
+                  try {
+                    await github.rest.git.deleteRef({
+                      owner,
+                      repo,
+                      ref: `heads/${pr.head.ref}`
+                    });
+                  } catch (err) {
+                    core.info(`#${prNumber} merged, branch not deleted: ${err.message}`);
+                  }
+
+                  core.info(`#${prNumber} merged successfully`);
+                  summary.merged.push({ pr: prNumber, title });
+                } catch (err) {
+                  skip(`merge failed: ${err.message}`);
+                }
+              }
+
+              const lines = [];
+              lines.push(`Scanned: ${summary.scanned}`);
+              lines.push(`Merged: ${summary.merged.length}`);
+              lines.push(`Skipped: ${summary.skipped.length}`);
+              lines.push("");
+
+              if (summary.merged.length) {
+                lines.push("Merged PRs:");
+                for (const item of summary.merged) {
+                  lines.push(`- #${item.pr} ${item.title}`);
+                }
+                lines.push("");
+              }
+
+              if (summary.skipped.length) {
+                lines.push("Skipped PRs:");
+                for (const item of summary.skipped) {
+                  lines.push(`- #${item.pr} ${item.reason} :: ${item.title}`);
+                }
+              }
+
+              core.summary.addCodeBlock(lines.join("\n"), "text").write();
+            }
+
+            await main();
