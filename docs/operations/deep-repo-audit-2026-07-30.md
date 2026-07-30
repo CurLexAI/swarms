@@ -4,13 +4,15 @@
 - **Commit audited:** `6410ec7`
 - **Scope:** full repository — boundary/policy gates, security layer (Qala/Aegis), sovereignty
   posture, local-model readiness, agent readiness, CI/CD supply chain, dependencies.
-- **Revision:** rev5, after four automated review rounds. Net movement across revisions: rev2
+- **Revision:** rev6, after five automated review rounds. Net movement across revisions: rev2
   corrected ten rev1 claims; rev3 added **two new HIGH findings** (committed credentials,
   unguarded egress) and **downgraded CRITICAL-1 to HIGH** once its runtime reachability was
   disproven; rev4 **redacted the credential this report had itself printed** and widened the
   egress finding to three paths; rev5 **widens the credential finding to a second stack**,
   audits all five Compose files, scopes the agent-orchestration gap to `agent-review.yml`, and
-  removes one over-claimed auto-merge path. See §7 for the full change log.
+  removes one over-claimed auto-merge path; rev6 adds a **new defect** (`bayyinah-swe.yml`
+  publication raises `KeyError`) and repairs three places where an earlier correction was not
+  propagated. See §7 for the full change log.
 
 Every material claim below carries exactly one evidence label. `AGENTS.md` §Core Rule defines the
 base triple — `VERIFIED` (command output / observable repository content), `INFERRED` (reasonable
@@ -309,6 +311,15 @@ tested.
 assignment pattern for `PASSWORD` / `PASSWD` / `SECRET` / `TOKEN` keys with a non-placeholder
 value — then re-run the gate across the tree and triage whatever else surfaces.
 
+**Placeholder exclusions are part of the rule, not an afterthought.** The URI pattern above would
+match this report's own redacted examples, because `<REDACTED>` satisfies `[^@/]+` — the gate
+would fail on the deliberately sanitised evidence documenting the finding. Any such rule needs an
+allowlist for placeholder tokens (`<REDACTED>`, `__SET_IN_SECRET_STORE__`, `${…}`, `***`) before
+it is enabled, or it will be disabled again within a day for false positives. The existing
+`.gitleaks.toml` `[allowlist] paths` covers `docs/.*`, which happens to exempt this file — but
+`static_audit.py` has no equivalent path allowlist, so the two scanners would disagree.
+*(Raised in round 5.)*
+
 **More committed credentials exist — `VERIFIED`.** I recommended a tree-wide sweep and then did
 not run one. Doing so finds a second stack:
 
@@ -486,7 +497,7 @@ languages. Cross-language equality may supplement those assertions but cannot re
 
 ---
 
-### MEDIUM-4 — Container images pinned to mutable tags in both compose files
+### MEDIUM-4 — Container images pinned to mutable tags across all five Compose files
 
 **`VERIFIED`.**
 
@@ -662,7 +673,9 @@ blocker list trains people to ignore it.
   strong inversion, and correct.
 - `runtime-policy.ts` fails closed: public long-context and vision requests are rejected rather
   than escalated to cloud, and stay blocked even after human cloud-egress approval. 8 passing tests.
-- Local inference containers are internal-only (`expose`) or loopback-bound.
+- Local inference containers are internal-only (`expose`) or loopback-bound **in
+  `docker-compose.yml` and `docker-compose.secure.yml`**. This does **not** hold repo-wide — see
+  the weak list. *(rev1–rev5 stated this universally; false, corrected in round 5.)*
 
 **Weak:**
 - **Three paths post full prompts to an unvalidated, environment-supplied base URL** (HIGH-4).
@@ -674,6 +687,10 @@ blocker list trains people to ignore it.
 - The PII detection layer that would make "redact-then-egress" safe is bypassable in the
   platform's own native numeral system (HIGH-0). `VERIFIED` mechanism; currently dormant, so no
   live consequence today, but it gates any future activation of that layer.
+- **`dev-factory/config/docker-compose.yml` publishes Ollama on `11434:11434` across all host
+  interfaces**, alongside Postgres, Redis, MinIO and Qdrant, with committed credentials (HIGH-3).
+  `VERIFIED`. A local-inference runtime reachable off-host is a direct sovereignty exposure, and
+  it contradicted the "internal-only" claim above until round 5.
 - `models.config.json` publishes a contradictory, cloud-first routing table (MEDIUM-6). `VERIFIED`.
 - No local runtime has been smoke-tested in evidence (`LOCAL_GENERATION_NOT_VERIFIED`).
   `SKIPPED_UNVERIFIED`.
@@ -704,8 +721,10 @@ construction"; HIGH-4 disproves that phrasing and it is withdrawn.)*
 - All 7 required agent assets present and valid; catalog, registry, router and validators in
   place; 405 Python + 141 Node tests green; P0 security gate green. `VERIFIED`.
 - Mihwar and Bayyinah profiles are complete (model, tier, context, GPU, tasks). `VERIFIED`.
-- **Gaps — `VERIFIED`:** `Qarar Router` and `Search Agent` render as `Model: ? Size: ? Context: ?`
-  in `invoke.py info`. `agent-presence-gate.sh` warns `Mihwar gate condition not found` in
+- **Gaps — `VERIFIED`:** **four** agents render as `Model: ? Size: ? Context: ? GPU: ?` in
+  `invoke.py info` — `Qarar Router`, `Search Agent`, `Code Agent` and `Audit Agent`
+  (`grep -c 'Model:   ?'` → 4). Only Mihwar and Bayyinah have complete profiles.
+  *(rev1–rev5 listed only the first two; corrected in round 5.)* `agent-presence-gate.sh` warns `Mihwar gate condition not found` in
   `.github/workflows/agent-review.yml`.
 - **The blocker is a missing implementation, not missing secrets — `VERIFIED`.**
   `.github/workflows/agent-review.yml` runs `.agents/pr_review.py`, but that script performs **no
@@ -721,10 +740,22 @@ construction"; HIGH-4 disproves that phrasing and it is withdrawn.)*
   (`curl -X POST "${MIHWAR_ENDPOINT}" -H "Authorization: Bearer ${MIHWAR_API_TOKEN}"`) and
   publishes results to PR comments; `bayyinah-swe.yml:129-223` wires the equivalent
   `BAYYINAH_ENDPOINT`/`BAYYINAH_API_TOKEN` pair; and `.agents/invoke.py:254` implements
-  `run_pipeline()` — the full Mihwar → Bayyinah loop via `call_mihwar`. These routes are
+  `run_pipeline()` — the full Mihwar → Bayyinah loop via `call_mihwar`. Invocation is
   **implemented but runtime-unverified**, pending secrets and a smoke test: `SKIPPED_UNVERIFIED`.
   *(rev3/rev4 generalised the `pr_review.py` gap into a claim that no route could invoke the
   agents at all. That was wrong — corrected in round 4.)*
+- **`bayyinah-swe.yml` publication is broken — `VERIFIED` (new defect).** The "Post review comment
+  to PR" step declares `env:` with `GH_TOKEN`, `ACTOR`, `PR_NUMBER`, `VERDICT`, `REPOSITORY` —
+  **but not `BADGE`**. `BADGE` is assigned only inside the shell body (lines 198-201) with no
+  `export` and no write to `$GITHUB_ENV`, then the quoted heredoc (`<<'PY'`) reads
+  `badge = os.environ["BADGE"]` at line 210. That raises **`KeyError: 'BADGE'`** before
+  `gh pr comment` runs. So once Bayyinah secrets are configured and the endpoint call succeeds,
+  the review is fetched and then **never posted**. `mihwar-swe.yml` does not share the defect —
+  every value it reads comes from its step `env:` block.
+  **Fix:** move `BADGE` into the step `env:`, or `export BADGE`, or write it to `$GITHUB_ENV`.
+  *(rev5 asserted both SWE routes publish results — `VERIFIED`. That was over-claimed: I confirmed
+  the `curl` in `mihwar-swe.yml` and generalised to `bayyinah-swe.yml` without reading its publish
+  step. Corrected in round 5.)*
 - **The publication path is missing too — `VERIFIED`.** `.github/workflows/agent-review.yml:83`
   passes `--post-comment`; `pr_review.py:178` registers the flag with `argparse` and **never
   references it again**. `format_github_comment()` is defined at line 143 and **never called**.
@@ -760,7 +791,9 @@ Ordered by live exposure first, latent defects after.
 7. **MEDIUM-1** — `npm audit fix` for `js-yaml`.
 8. **MEDIUM-6** — Disable external providers in `models.config.json`; repoint task routing.
 9. **MEDIUM-2 / MEDIUM-3 / MEDIUM-4** — Tag-consistency gate; extend divergence pairs and add
-   behavioral PII tests; digest-pin both compose files.
+   behavioral PII tests; digest-pin **all five** Compose files (`docker-compose.yml`,
+   `docker-compose.secure.yml`, `dev-factory/config/`, `sovereign-connectivity-poc/`,
+   `deploy/qdrant/`).
 10. **LOW-1 / LOW-2 / LOW-4** — Document the two provider layers; extend SHA pinning; drop the
     stale TS-blocker note.
 
@@ -821,6 +854,24 @@ routes are already implemented and need only secrets plus a smoke test.
 | 27 | Open Dependabot PR asserted without evidence | **Applied** — downgraded to `UNVERIFIED`, with the observed workflow-run title cited as the only basis. |
 | 28 | Dependency-install safety evidence missing | **Applied** — §2 now carries the `dependency-build-safety.md` record: `esbuild`/`fsevents` as the only install-script packages, lockfile v3 unmodified, contacted domains `INFERRED`. |
 
+### Round 5 (rev5 → rev6) — 6 points, all applied
+
+| # | Point | Disposition |
+|---|---|---|
+| 29 | Four incomplete agent profiles, not two | **Applied** — `Code Agent` and `Audit Agent` also render `Model: ?`; `grep -c` → 4. |
+| 30 | §6 still said "both compose files" | **Applied — internal inconsistency.** I widened §3 to five files in rev5 and left the priority list at two. |
+| 31 | The proposed URI regex would match this report's own `<REDACTED>` examples | **Applied.** `<REDACTED>` satisfies `[^@/]+`, so the rule as written would fail the gate on the sanitised evidence. Placeholder allowlisting is now part of the remediation, plus a note that `.gitleaks.toml` exempts `docs/.*` while `static_audit.py` has no path allowlist. |
+| 32 | §4 "local inference containers internal-only" is false | **Applied — internal inconsistency.** `dev-factory` publishes Ollama on `11434:11434` across all interfaces, which §3 recorded in rev5 while §4 still claimed the universal. Bullet scoped, and the exposure moved into the weak list. |
+| 33 | `bayyinah-swe.yml` publication raises `KeyError` on `BADGE` | **Applied — new defect + my over-claim.** Confirmed: `BADGE` is absent from the step `env:` and never exported. rev5 claimed both SWE routes publish results as `VERIFIED`; I had only read the `mihwar-swe.yml` curl. |
+| 34 | Commander report still globally unreachable | **Applied — internal inconsistency**, same class as 30 and 32. |
+
+**Note on rounds 4-5.** Three of these six (30, 32, 34) are not new discoveries but
+**inconsistencies this report introduced**: a correction applied to one section and not propagated
+to the summary, the priority list, or the commander block. A reader following §6 or the commander
+report alone would have acted on superseded scope. That is a distinct failure mode from the
+under-scoped verification of rounds 1-3, and arguably worse, because the corrected text sat a few
+hundred lines away asserting the opposite.
+
 **Net effect of round 2 on the verdicts.** Live exposure went **up** (two new HIGH findings, both
 reachable in a real deployment) while the headline PII finding went **down** (real, but dormant).
 The §1 verdicts are unchanged — *partially hardened*, *partially sovereign* — but the reasons
@@ -841,8 +892,10 @@ Execution Verdict:
 - Files Touched: docs/operations/deep-repo-audit-2026-07-30.md (new, report only)
 - Blockers: no Ollama runtime in container; no gh CLI; GitHub API 403 (cause UNVERIFIED —
   blocks branch-protection verification); agent orchestration not implemented in
-  .agents/pr_review.py (neither model invocation nor result publication), so end-to-end
-  review is unreachable regardless of secrets.
+  .agents/pr_review.py (neither model invocation nor result publication), so end-to-end review
+  via THAT workflow is unreachable regardless of secrets. mihwar-swe.yml, bayyinah-swe.yml and
+  invoke.py:254 do implement invocation and are SKIPPED_UNVERIFIED pending secrets + smoke;
+  bayyinah-swe.yml's publish step additionally raises KeyError on BADGE.
 - Hot Surface Risk: HIGH — two Compose stacks commit plaintext credentials (redacted here):
   docker-compose.yml across Postgres/Redis/DATABASE_URL with sslmode=disable plus the Go fallback
   in mihwar-core/cmd/server/main.go:17, and dev-factory/config/docker-compose.yml which also
