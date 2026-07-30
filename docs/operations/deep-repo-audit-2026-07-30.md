@@ -243,14 +243,37 @@ credential that is public in the repository, and the Go service falls back to th
 Postgres traffic is unencrypted. This is a committed credential under `CLAUDE.md` absolute
 prohibition #1.
 
-**Why rev1/rev2 missed it — process note.** My credential scan targeted high-entropy shapes
-(`sk-…`, `ghp_…`, `AKIA…`, PEM headers). A dictionary-word password matches none of them, so the
-scan returned clean and I reported "no secrets in tree" without a complementary check for
-low-entropy hardcoded credentials. The §2 row is now scoped to what was actually tested.
+**The repository's own secret scanning cannot detect it — `VERIFIED`.** This is the more important
+half of the finding. `.github/workflows/secret-scan.yml:27` runs `scripts/security/static_audit.py`,
+whose `SECRET_PATTERNS` (lines 10-20) are **11 vendor-prefix / high-entropy shapes only**:
 
-**Immediate fix.** Adopt the pattern `docker-compose.secure.yml` already uses — required,
-secret-backed variables (`${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}`) so the stack
-refuses to start without them. Remove the Go fallback credential in
+```
+openai, anthropic, github, telegram, google, groq, xai, perplexity,
+render deploy hook, PEM private key, bcrypt hash
+```
+
+`.gitleaks.toml` mirrors the same 10 rules. **Neither defines any rule for a hardcoded password in
+a connection string or an env assignment.** There is no `postgres(ql)?://[^:]+:[^@]+@` rule, no
+`(PASSWORD|PASSWD|SECRET)\s*[:=]` rule.
+
+So `POSTGRES_PASSWORD: sovereign` and `postgresql://mihwar:sovereign@…` are invisible to the gate
+by construction — as would be **any** future dictionary-word credential. The gate reports clean and
+always will, which is why this has survived in the tree. That makes it a control gap, not just a
+single leaked value.
+
+**Why rev1/rev2 missed it — process note.** My own scan had the identical blind spot: I searched
+high-entropy shapes (`sk-…`, `ghp_…`, `AKIA…`, PEM headers), got no hits, and reported "no secrets
+in tree" without a complementary low-entropy check. The §2 row is now scoped to what was actually
+tested.
+
+**Immediate fix (control).** Add password-shaped rules to both `static_audit.py` and
+`.gitleaks.toml` — at minimum a URI-credential pattern (`://[^:/@]+:[^@/]+@`) and an
+assignment pattern for `PASSWORD` / `PASSWD` / `SECRET` / `TOKEN` keys with a non-placeholder
+value — then re-run the gate across the tree and triage whatever else surfaces.
+
+**Immediate fix (the credential).** Adopt the pattern `docker-compose.secure.yml` already uses —
+required, secret-backed variables (`${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}`) so the
+stack refuses to start without them. Remove the Go fallback credential in
 `mihwar-core/cmd/server/main.go:17` and fail closed instead. Enable TLS or drop
 `sslmode=disable`. Treat the `sovereign` password as burned and rotate anywhere it was used.
 
@@ -603,7 +626,10 @@ construction"; HIGH-4 disproves that phrasing and it is withdrawn.)*
 Ordered by live exposure first, latent defects after.
 
 1. **HIGH-3** — Remove the committed `sovereign` credential from `docker-compose.yml` and the Go
-   fallback; require secret-backed variables; rotate. Drop `sslmode=disable`.
+   fallback; require secret-backed variables; rotate. Drop `sslmode=disable`. **Then add
+   password-shaped rules to `static_audit.py` and `.gitleaks.toml`** — until that lands, the
+   secret-scan gate cannot detect this class of credential at all, and a re-run across the tree
+   may surface others.
 2. **HIGH-4** — Validate `OLLAMA_BASE_URL` against the loopback allowlist in
    `.agents/mcp/server.py` before any request; fail closed on a non-local host.
 3. **HIGH-2** — Close the three fail-open paths in `auto-merge-safe-deps.yml`; confirm branch
