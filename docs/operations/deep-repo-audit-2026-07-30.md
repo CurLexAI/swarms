@@ -4,8 +4,10 @@
 - **Commit audited:** `6410ec7`
 - **Scope:** full repository — boundary/policy gates, security layer (Qala/Aegis), sovereignty
   posture, local-model readiness, agent readiness, CI/CD supply chain, dependencies.
-- **Revision:** rev2. Incorporates automated review feedback on rev1; ten claims corrected or
-  re-scoped, one rejected with evidence, one new finding added. See §7 for the change log.
+- **Revision:** rev3. Two review rounds incorporated. rev2 corrected ten rev1 claims and added one
+  finding; rev3 adds **two new HIGH findings** (committed credentials, unguarded MCP egress),
+  **downgrades rev1/rev2's CRITICAL-1 to HIGH** after its runtime reachability was disproven, and
+  corrects the agent-readiness blocker. See §7 for the full change log.
 
 Every material claim below carries exactly one evidence label. `AGENTS.md` §Core Rule defines the
 base triple — `VERIFIED` (command output / observable repository content), `INFERRED` (reasonable
@@ -54,7 +56,8 @@ All executed in this worktree; each row carries its own label.
 | `p0-security-test-gate.sh` | PASS — 69 tests | `VERIFIED` |
 | `master-audit-gate.sh` | **PASS failures=0 warnings=2** | `VERIFIED` |
 | `npx tsc --noEmit` | **EXIT 0 — clean** | `VERIFIED` |
-| `git grep` for key/token/PEM shapes | No matches outside docs/tests | `VERIFIED` |
+| `git grep` for **high-entropy** key/token/PEM shapes | No matches outside docs/tests | `VERIFIED` |
+| Low-entropy hardcoded credentials | **Not covered by the above scan — see HIGH-3** | `VERIFIED` (as a gap) |
 | `git grep modal.run` in client/public surfaces | **No matches** — Modal stays backend-only | `VERIFIED` |
 
 Additional verified observations:
@@ -84,7 +87,7 @@ with no diagnostics. The note is stale.
 
 ## 3. Findings
 
-### CRITICAL-1 — Qala KSA-PII detection is bypassed by Arabic-Indic numerals
+### HIGH-0 — Qala KSA-PII detection is bypassed by Arabic-Indic numerals (latent; not currently reachable)
 
 **Files:** `.agents/validators/qala_ksa_pii.py:54-63`, `src/security/qalaKsaPii.ts:34-37`
 (identical defect in both mirrors)
@@ -102,32 +105,45 @@ natid_hyphenated         hits=0  redacted='101-234-5678'      <-- NOT DETECTED
 natid_spaced             hits=0  redacted='1012 345 678'      <-- NOT DETECTED
 ```
 
-**The defect reaches live control logic — `VERIFIED`.** `detect_ksa_pii` is the detection
-primitive; `has_ksa_pii` and `redact_ksa_pii` are thin wrappers over it (`qala_ksa_pii.py:136,144`).
-Two call sites outside tests consume it:
+**Where it sits — `VERIFIED`.** `detect_ksa_pii` is the detection primitive; `has_ksa_pii` and
+`redact_ksa_pii` are thin wrappers over it (`qala_ksa_pii.py:136,144`). Two consumers exist inside
+the designated security layer:
 
-1. **`.agents/validators/qala_input_gate.py:146`** — on any hit, appends a **`CRITICAL`** finding:
-   *"Input contains sovereign KSA identifiers and must be redacted before model invocation"*,
-   which feeds `_resolve_verdict` and the gate's `APPROVE`/`REQUEST_CHANGES`/`BLOCKED` outcome.
-   With Arabic-Indic numerals, `pii_hits` is empty, the CRITICAL finding is never raised, and
-   **the input gate approves the payload.**
+1. **`.agents/validators/qala_input_gate.py:146`** — on any hit, appends a **`CRITICAL`** finding
+   (*"Input contains sovereign KSA identifiers and must be redacted before model invocation"*)
+   feeding `_resolve_verdict` and the gate's `APPROVE`/`REQUEST_CHANGES`/`BLOCKED` outcome.
 2. **`.agents/validators/classification_validator.py:122`** — on any hit, escalates the data
-   classification and records `ksa_pii_detected`. With Arabic-Indic numerals, **no escalation
-   occurs** and the payload retains its default `PUBLIC`/`INTERNAL` classification — which is the
-   input to the sovereignty routing decision.
+   classification and records `ksa_pii_detected`.
 
-`qala_input_gate` is a registered runtime module (`.agents/config/agents.yaml:144`,
-`module: "validators.qala_input_gate"`) and a required file in `master-audit-gate.sh:181`.
+With Arabic-Indic numerals both receive an empty hit list, so the gate raises no finding and no
+escalation occurs — silently, with a clean verdict rather than an error.
 
-**Impact — `INFERRED`.** An identifier written in the numeral system native to Saudi documents
-silently defeats both the input gate and classification escalation. The failure is silent: the
-gate returns a clean verdict rather than an error, so nothing downstream can tell detection was
-skipped. Any PDPL redaction claim resting on this layer is unsupported for Arabic-numeral input.
+**Runtime reachability — `VERIFIED` as NOT currently reachable.** Neither consumer has a
+production caller at `6410ec7`:
 
-*(An automated review asserted this was a standalone-detector defect with no live caller. That
-search covered only `redact_ksa_pii`/`has_ksa_pii`/`redactKsaPii`/`hasKsaPii` and omitted
-`detect_ksa_pii` — the primitive both wrappers call and the one actually wired into the two
-call sites above. The finding stands at CRITICAL.)*
+- `validate_input` (the `qala_input_gate` entrypoint) — `git grep` outside `tests/` returns only
+  its own definition, its `__all__` entry, and an ADR mention. **No caller.**
+- `classification_validator.classify_content` — exported in `.agents/validators/__init__.py` but
+  called by nothing. The one live ingestion caller,
+  `sama_ingestion_swarm/agent_parser.py:19,149`, imports a **different** implementation:
+  `src.policy.sovereign.classification.classify_content`.
+- The registration at `.agents/config/agents.yaml:144` (`module: "validators.qala_input_gate"`) is
+  not an execution path — the adapter discards the `module` field, and `master-audit-gate.sh:181`
+  only asserts the file exists.
+
+**Impact — `INFERRED`.** The defect is real and sits in the module the architecture designates as
+the PII control, but **no production entrypoint currently reaches it**, so nothing is being
+bypassed in live traffic today. It is a latent defect that becomes an active bypass the moment
+either validator is wired up — which is what ADR-0003 describes as the intended design. Fix it
+before wiring, not after. Any PDPL redaction claim resting on this layer is unsupported for
+Arabic-numeral input whenever the layer is activated.
+
+> **Correction.** rev1 and rev2 filed this as CRITICAL on the basis of a "live control bypass."
+> That was wrong: I traced `detect_ksa_pii` to its two callers and stopped, without checking
+> whether *those* callers were themselves reachable. They are not. An automated review caught it.
+> Severity is now HIGH with runtime impact explicitly dormant. rev2's rebuttal — that the review's
+> original search had omitted `detect_ksa_pii` — was accurate about the search, but the review's
+> underlying conclusion about reachability was right and mine was not.
 
 **Immediate fix.**
 1. Normalize before matching, in both mirrors: fold U+0660–U+0669 (Arabic-Indic) and
@@ -208,6 +224,81 @@ Branch protection could not be inspected — the GitHub API returned 403 through
 
 ---
 
+### HIGH-3 — Shared credentials committed in `docker-compose.yml`
+
+**`VERIFIED`.** The non-secure compose stack hardcodes the same password across every service:
+
+```
+docker-compose.yml:15  DATABASE_URL: "postgresql://mihwar:sovereign@postgres:5432/mihwar?sslmode=disable"
+docker-compose.yml:31  POSTGRES_PASSWORD: sovereign
+docker-compose.yml:46  command: redis-server --requirepass sovereign …
+docker-compose.yml:50  test: ["CMD", "redis-cli", "-a", "sovereign", "ping"]
+mihwar-core/cmd/server/main.go:17
+        dbURL := env("DATABASE_URL", "postgresql://mihwar:sovereign@localhost/mihwar?sslmode=disable")
+```
+
+**Impact — `INFERRED`.** Every deployment that uses this compose file shares a database and cache
+credential that is public in the repository, and the Go service falls back to the same value when
+`DATABASE_URL` is unset. The connection string additionally carries `sslmode=disable`, so
+Postgres traffic is unencrypted. This is a committed credential under `CLAUDE.md` absolute
+prohibition #1.
+
+**Why rev1/rev2 missed it — process note.** My credential scan targeted high-entropy shapes
+(`sk-…`, `ghp_…`, `AKIA…`, PEM headers). A dictionary-word password matches none of them, so the
+scan returned clean and I reported "no secrets in tree" without a complementary check for
+low-entropy hardcoded credentials. The §2 row is now scoped to what was actually tested.
+
+**Immediate fix.** Adopt the pattern `docker-compose.secure.yml` already uses — required,
+secret-backed variables (`${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}`) so the stack
+refuses to start without them. Remove the Go fallback credential in
+`mihwar-core/cmd/server/main.go:17` and fail closed instead. Enable TLS or drop
+`sslmode=disable`. Treat the `sovereign` password as burned and rotate anywhere it was used.
+
+*(Surfaced by automated review of rev2.)*
+
+---
+
+### HIGH-4 — MCP server sends prompts to an unvalidated `OLLAMA_BASE_URL`
+
+**File:** `.agents/mcp/server.py:270-293` — `VERIFIED`
+
+```python
+def _call_local_ollama(tool_name, arguments):
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    …
+    prompt = _build_prompt(enriched)          # full task + code + context
+    req = urllib.request.Request(f"{base_url}/api/generate", data=…, method="POST")
+```
+
+The environment value is taken verbatim. There is no `urlparse`, no host allowlist, and no call to
+the `require_sovereign_local_url` validator. `grep` finds only two mentions of the variable in the
+file: the docstring and this line.
+
+**This is the one path that skips the check the rest of the codebase performs — `VERIFIED`:**
+
+- `scripts/ollama/activate-local-models.sh` validates the host against
+  `{localhost, 127.0.0.1, ::1, ollama}` and refuses anything else.
+- `src/policy/sovereign/providers/local_ollama.py` calls `require_sovereign_local_url`.
+- `.agents/mcp/server.py` does neither.
+
+**Impact — `INFERRED`.** A deployment with `OLLAMA_BASE_URL=https://external-host` silently posts
+the complete task, code and context to that host. The static egress-residency gate cannot detect
+it: the gate scans source for literal hosts, and this destination arrives at runtime from the
+environment. No error is raised and no audit record marks the destination as non-local, so
+exfiltration would be indistinguishable from normal operation.
+
+This directly qualifies the §4 claim that the control plane is sovereign *by construction* — for
+this entrypoint, sovereignty depends on an environment variable no code checks.
+
+**Immediate fix.** Call the same loopback validator used by
+`src/policy/sovereign/providers/local_ollama.py` before issuing the request, and fail closed on a
+non-local host. Consider having the egress gate flag environment-derived destinations that reach
+network calls without passing a validator.
+
+*(Surfaced by automated review of rev2.)*
+
+---
+
 ### MEDIUM-1 — `js-yaml` advisory on the agent-config parsing path (dependency hygiene)
 
 **`VERIFIED`.** `npm audit` (with and without `--omit=dev`):
@@ -280,9 +371,9 @@ const pairs = [
 the Qala mirrors `qalaTrace` / `qalaKsaPii` / `qalaAuditSink`. None are in the pair list, and the
 Python↔TypeScript Qala mirrors are covered by no gate at all.
 
-**Scope note — `INFERRED`.** This gate would *not* have caught CRITICAL-1: both mirrors carry the
+**Scope note — `INFERRED`.** This gate would *not* have caught HIGH-0: both mirrors carry the
 same defect, so any equality assertion between them passes. Divergence checking and correctness
-checking are different problems, and CRITICAL-1 is a correctness gap that no equality test can
+checking are different problems, and HIGH-0 is a correctness gap that no equality test can
 detect. *(rev1 implied the divergence gate was the blind spot responsible; that was wrong.)*
 
 **Immediate fix.** Add the four missing `.ts`/`.js` pairs. Separately, add behavioral tests that
@@ -401,12 +492,17 @@ remove the collision.
 
 ### LOW-2 — Most GitHub Actions are referenced by mutable tags
 
-**`VERIFIED`.** 7 of 80 `uses:` references are pinned to full commit SHAs — in
-`qarar-fastconnect-deploy.yml`, `copilot-setup-steps.yml`, `opencode.yml`, `sonarcloud.yml`
-(e.g. `actions/checkout@9c091bb…`, `docker/build-push-action@53b7df9…`,
-`SonarSource/sonarcloud-github-action@ffc3010…`). The remaining 73 use mutable tags, **including
-`actions/github-script@v7` in the write-capable `auto-merge-safe-deps.yml`**. *(rev1 stated no
-workflow pins to a SHA — false; the generating grep excluded SHA-pinned lines by construction.)*
+**`VERIFIED`.** The workflows contain **78 active `uses:` keys** (counting the `- uses:` list form,
+excluding 2 commented-out examples in `codeql.yml:84` and `sonarcloud.yml:73`). Of those, **7 are
+pinned to full commit SHAs** — in `qarar-fastconnect-deploy.yml`, `copilot-setup-steps.yml`,
+`opencode.yml`, `sonarcloud.yml` (e.g. `actions/checkout@9c091bb…`,
+`docker/build-push-action@53b7df9…`, `SonarSource/sonarcloud-github-action@ffc3010…`) — and
+**71 use mutable tags**, including `actions/github-script@v7` in the write-capable
+`auto-merge-safe-deps.yml`.
+
+*(rev1 stated no workflow pins to a SHA — false; the generating grep excluded SHA-pinned lines by
+construction. rev2 then reported 80/7/73 by counting every `uses:` substring, which swept in the
+two commented examples. Comments do not execute; 78/7/71 is the active surface.)*
 
 **Immediate fix.** Extend the existing SHA-pinning convention to the remaining workflows,
 prioritising those with `contents: write`.
@@ -415,12 +511,16 @@ prioritising those with `contents: write`.
 
 - `repo-rename-gate.sh` → `NO-GO: GitHub CLI 'gh' is required`. No `gh` in the audit container.
   `SKIPPED_UNVERIFIED`.
-- `release-readiness-gate.sh` → `BLOCK`, `block_failures=1 hold_flags=4`. The single block failure
-  is the **strict** swarm-presence monitor, whose only `FAILED` entry is
-  `GitHub repository metadata: Forbidden (403)` — the sandbox proxy, not the repo. The four holds
-  are the un-executed Ollama smoke and unset `PUBLIC_SURFACE_ORIGIN`/`PUBLIC_SURFACE_APEX`. Modal
-  holds are correctly classified `LEGACY-OPTIONAL` and do not gate the verdict. `VERIFIED` as an
-  environmental result.
+- `release-readiness-gate.sh` → `BLOCK`, `block_failures=1 hold_flags=4`. `VERIFIED`. The single
+  block failure is the **strict** swarm-presence monitor, whose only `FAILED` entry is
+  `GitHub repository metadata: Forbidden (403)`. The four holds are the un-executed Ollama smoke
+  and unset `PUBLIC_SURFACE_ORIGIN`/`PUBLIC_SURFACE_APEX`. Modal holds are correctly classified
+  `LEGACY-OPTIONAL` and do not gate the verdict.
+  - **The 403 itself is `VERIFIED`; its cause is `UNVERIFIED`.** The monitor records only status
+    and reason. A 403 is equally consistent with an invalid or under-privileged `GITHUB_TOKEN`,
+    repository visibility, or GitHub policy. rev1/rev2 attributed it to the sandbox proxy as
+    though verified — it was not, and asserting the benign cause could mask a real
+    authentication or permissions blocker. Worth confirming independently before dismissing.
 - Branch protection on `main` — `UNVERIFIED` (403). Blocks closing out HIGH-2's impact.
 
 ### LOW-4 — Stale documentation
@@ -443,19 +543,24 @@ blocker list stays credible.
 - Local inference containers are internal-only (`expose`) or loopback-bound.
 
 **Weak:**
-- The redaction layer that makes "redact-then-egress" safe is bypassable in the platform's own
-  native numeral system, and the bypass silently disables both the input gate's CRITICAL finding
-  and classification escalation (CRITICAL-1). `VERIFIED` mechanism, `INFERRED` consequence.
-  Sovereignty of routing without sovereignty of detection is incomplete.
+- **`.agents/mcp/server.py:271` posts full prompts to an unvalidated `OLLAMA_BASE_URL`** (HIGH-4).
+  `VERIFIED`. This is the sharpest gap: for that entrypoint, sovereignty rests on an environment
+  variable no code checks, and the static egress gate structurally cannot see the destination.
 - `ALLOW_EXTERNAL_AI` is not universal — Hugging Face egress sits behind a separate switch, and
   the audit gate's OK message overstates coverage (MEDIUM-5). `VERIFIED`.
+- The PII detection layer that would make "redact-then-egress" safe is bypassable in the
+  platform's own native numeral system (HIGH-0). `VERIFIED` mechanism; currently dormant, so no
+  live consequence today, but it gates any future activation of that layer.
 - `models.config.json` publishes a contradictory, cloud-first routing table (MEDIUM-6). `VERIFIED`.
 - No local runtime has been smoke-tested in evidence (`LOCAL_GENERATION_NOT_VERIFIED`).
   `SKIPPED_UNVERIFIED`.
 
-**Verdict — `INFERRED`: سيادي جزئيًا (partially sovereign).** The control plane is sovereign by
-construction and by test; the detection layer beneath it is not yet sound, and the kill switch is
-not yet universal.
+**Verdict — `INFERRED`: سيادي جزئيًا (partially sovereign).** The declarative policy layer is
+sovereign and proven by test. But sovereignty is **not** guaranteed *by construction*: one
+runtime entrypoint accepts an arbitrary egress destination from the environment without
+validation, the external-AI kill switch does not cover every provider, and the PII control that
+the design depends on is both defective and unwired. *(rev1/rev2 asserted "sovereign by
+construction"; HIGH-4 disproves that phrasing and it is withdrawn.)*
 
 ---
 
@@ -479,47 +584,83 @@ not yet universal.
 - **Gaps — `VERIFIED`:** `Qarar Router` and `Search Agent` render as `Model: ? Size: ? Context: ?`
   in `invoke.py info`. `agent-presence-gate.sh` warns `Mihwar gate condition not found` in
   `.github/workflows/agent-review.yml`.
-- No endpoint or token secrets are set, so no agent has been invoked end-to-end. Activation
-  remains `SKIPPED_UNVERIFIED`.
+- **The blocker is a missing implementation, not missing secrets — `VERIFIED`.**
+  `.github/workflows/agent-review.yml` runs `.agents/pr_review.py`, but that script performs **no
+  model call and no HTTP request**: it applies local regex checks to added diff lines, and its
+  only endpoint-token references sit inside a dead branch —
+  `_endpoint_specific_token_contract_marker()` at `pr_review.py:43-47` guards
+  `_require_env("BAYYINAH_API_TOKEN")` / `_require_env("MIHWAR_API_TOKEN")` behind `if False:`.
+  Neither `MIHWAR_ENDPOINT` nor `BAYYINAH_ENDPOINT` is read anywhere in the file, and no HTTP
+  client is imported. **Configuring all four secrets would still not invoke Mihwar or Bayyinah
+  end-to-end.** Agent activation therefore requires building the orchestration, not just supplying
+  credentials. *(rev1/rev2 recorded activation as `SKIPPED_UNVERIFIED` — "blocked by missing
+  secrets." That mislabelled the blocker; corrected to `UNVERIFIED` with an implementation gap.)*
 
 ---
 
 ## 6. Priority fix order
 
-1. **CRITICAL-1** — Arabic-Indic numeral normalization in both Qala mirrors, with explicit
-   expected-value regression tests.
-2. **HIGH-2** — Close the three fail-open paths in `auto-merge-safe-deps.yml`; confirm branch
+Ordered by live exposure first, latent defects after.
+
+1. **HIGH-3** — Remove the committed `sovereign` credential from `docker-compose.yml` and the Go
+   fallback; require secret-backed variables; rotate. Drop `sslmode=disable`.
+2. **HIGH-4** — Validate `OLLAMA_BASE_URL` against the loopback allowlist in
+   `.agents/mcp/server.py` before any request; fail closed on a non-local host.
+3. **HIGH-2** — Close the three fail-open paths in `auto-merge-safe-deps.yml`; confirm branch
    protection on `main`.
-3. **HIGH-1** — Arabic injection patterns + Unicode normalization in `aegis_gateway.py`.
-4. **MEDIUM-5** — Make `ALLOW_EXTERNAL_AI` universal, or correct the gate's claim.
-5. **MEDIUM-1** — `npm audit fix` for `js-yaml`.
-6. **MEDIUM-6** — Disable external providers in `models.config.json`; repoint task routing.
-7. **MEDIUM-2 / MEDIUM-3 / MEDIUM-4** — Tag-consistency gate; extend divergence pairs and add
+4. **HIGH-0** — Arabic-Indic numeral normalization in both Qala mirrors, with explicit
+   expected-value regression tests. **Must land before either validator is wired up**, since
+   activation converts this latent defect into a live bypass.
+5. **HIGH-1** — Arabic injection patterns + Unicode normalization in `aegis_gateway.py`.
+6. **MEDIUM-5** — Make `ALLOW_EXTERNAL_AI` universal, or correct the gate's claim.
+7. **MEDIUM-1** — `npm audit fix` for `js-yaml`.
+8. **MEDIUM-6** — Disable external providers in `models.config.json`; repoint task routing.
+9. **MEDIUM-2 / MEDIUM-3 / MEDIUM-4** — Tag-consistency gate; extend divergence pairs and add
    behavioral PII tests; digest-pin both compose files.
-8. **LOW-1 / LOW-2 / LOW-4** — Document the two provider layers; extend SHA pinning; drop the
-   stale TS-blocker note.
+10. **LOW-1 / LOW-2 / LOW-4** — Document the two provider layers; extend SHA pinning; drop the
+    stale TS-blocker note.
+
+**Separate track — agent activation.** `.agents/pr_review.py` performs no model call (§5). Wiring
+Mihwar/Bayyinah end-to-end is an implementation task, not a credential task, and should be scoped
+as its own piece of work.
 
 ---
 
-## 7. Revision log (rev1 → rev2)
+## 7. Revision log
 
-Automated review raised 11 points on rev1. Ten were correct and are applied; one was rejected
-with evidence; one new finding was added.
+### Round 1 (rev1 → rev2) — 11 points
 
 | # | Point | Disposition |
 |---|---|---|
 | 1 | Report lacked per-claim evidence labels | **Applied** — labels added throughout |
 | 2 | `.env.example` "all placeholders" false | **Applied** — §2 rescoped to secret-bearing vars |
-| 3 | "No workflow SHA-pins actions" false | **Applied** — LOW-2 now states 7 of 80 pinned |
-| 4 | Model tag drift ≠ runtime failure | **Applied** — HIGH-4 → MEDIUM-2, claim withdrawn |
-| 5 | js-yaml advisory ≠ reachable impact | **Applied** — HIGH-3 → MEDIUM-1, dependency hygiene |
+| 3 | "No workflow SHA-pins actions" false | **Applied** — corrected (refined again in round 2) |
+| 4 | Model tag drift ≠ runtime failure | **Applied** — → MEDIUM-2, claim withdrawn |
+| 5 | js-yaml advisory ≠ reachable impact | **Applied** — → MEDIUM-1, dependency hygiene |
 | 6 | Auto-merge outcome depends on branch protection | **Applied** — impact marked `UNVERIFIED` |
-| 7 | Providers are two contracts, not duplicates | **Applied** — MEDIUM-2 → LOW-1, fix rewritten |
+| 7 | Providers are two contracts, not duplicates | **Applied** — → LOW-1, fix rewritten |
 | 8 | Secure compose also unpinned | **Applied** — MEDIUM-4 now covers both files |
 | 9 | Parity test can't catch a shared defect | **Applied** — MEDIUM-3 rewritten |
-| 10 | Commander `Status` must be one value | **Applied** — see below |
-| 11 | PII bypass has no live caller | **Rejected** — the cited search omitted `detect_ksa_pii`, which is called by `qala_input_gate.py:146` and `classification_validator.py:122`. CRITICAL-1 stands. |
-| + | Hugging Face outside `ALLOW_EXTERNAL_AI` | **Added** as MEDIUM-5 |
+| 10 | Commander `Status` must be one value | **Applied** |
+| 11 | PII bypass has no live caller | **Rejected in rev2, now partly upheld** — see round 2 |
+
+### Round 2 (rev2 → rev3) — 7 points
+
+| # | Point | Disposition |
+|---|---|---|
+| 12 | Committed `sovereign` credentials in `docker-compose.yml` | **Added as HIGH-3** — confirmed at 4 sites plus the Go fallback. Missed by rev1/rev2 because the scan targeted high-entropy shapes only. |
+| 13 | `.agents/mcp/server.py` sends prompts to an unvalidated `OLLAMA_BASE_URL` | **Added as HIGH-4** — confirmed; withdraws the "sovereign by construction" claim in §4. |
+| 14 | `pr_review.py` makes no model call; activation isn't secret-blocked | **Applied** — confirmed `if False:` guard at `pr_review.py:45`; §5 rewritten, activation reclassified `UNVERIFIED` with an implementation gap. |
+| 15 | Qala validators are dormant; no production caller | **Applied — my error.** Confirmed `validate_input` has no caller and the live `classify_content` is a different module. **CRITICAL-1 → HIGH-0** with runtime impact explicitly dormant. |
+| 16 | Action count includes 2 commented examples | **Applied** — 78 active / 7 pinned / 71 mutable, replacing rev2's 80/7/73. |
+| 17 | 403 cause attributed to the sandbox proxy without proof | **Applied** — the 403 stays `VERIFIED`, its cause is now `UNVERIFIED`. |
+| 18 | Use only three evidence labels | **Held** — `CLAUDE.md:170` explicitly mandates `SKIPPED_UNVERIFIED` and `NOT_APPLICABLE` ("Never collapse skipped into pass"), and both appear in the canonical `commander-report-template.md` and 13 other tracked files. The same reviewer verified and accepted this reading in an intervening comment before re-raising it. |
+
+**Net effect of round 2 on the verdicts.** Live exposure went **up** (two new HIGH findings, both
+reachable in a real deployment) while the headline PII finding went **down** (real, but dormant).
+The §1 verdicts are unchanged — *partially hardened*, *partially sovereign* — but the reasons
+shifted materially: the sharpest current risks are a committed credential and an unvalidated
+egress destination, not the PII detector.
 
 ---
 
@@ -533,21 +674,28 @@ Execution Verdict:
   no remediation attempted. Finding remediation status: NOT_STARTED for all findings.
 - Canonical Path: /home/user/swarms
 - Files Touched: docs/operations/deep-repo-audit-2026-07-30.md (new, report only)
-- Blockers: no Ollama runtime in container; no gh CLI; GitHub API 403 via sandbox proxy
-  (blocks branch-protection verification); no agent endpoint/token secrets set.
-- Hot Surface Risk: HIGH — .agents/validators/qala_ksa_pii.py + src/security/qalaKsaPii.ts
-  miss Arabic-Indic PII, silently disabling the qala_input_gate CRITICAL finding and
-  classification escalation; .github/workflows/auto-merge-safe-deps.yml fails open on
-  check-run and status API errors.
+- Blockers: no Ollama runtime in container; no gh CLI; GitHub API 403 (cause UNVERIFIED —
+  blocks branch-protection verification); agent orchestration not implemented in
+  .agents/pr_review.py, so end-to-end invocation is unreachable regardless of secrets.
+- Hot Surface Risk: HIGH — docker-compose.yml commits the shared password "sovereign" across
+  Postgres, Redis and DATABASE_URL (with sslmode=disable), duplicated as the Go fallback in
+  mihwar-core/cmd/server/main.go:17; .agents/mcp/server.py:271 posts full prompts to an
+  unvalidated OLLAMA_BASE_URL, invisible to the static egress gate;
+  .github/workflows/auto-merge-safe-deps.yml fails open on check-run and status API errors.
+  Latent: qala_ksa_pii.py + qalaKsaPii.ts miss Arabic-Indic PII (dormant — no production
+  caller today, live bypass once either validator is wired).
 - What Was Actually Changed: nothing in code, config, or workflows. Audit report only.
 - What Was Actually Verified: 405 pytest + 141 node tests pass; npm run check passes;
-  8 commander gates pass; master-audit-gate PASS failures=0; tsc --noEmit clean; no secrets
-  or modal.run leakage; PII and injection bypasses reproduced with live output; PII call
-  sites traced to qala_input_gate.py:146 and classification_validator.py:122; HuggingFace
-  provider confirmed to contain zero ALLOW_EXTERNAL_AI references.
+  8 commander gates pass; master-audit-gate PASS failures=0; tsc --noEmit clean; no
+  high-entropy secret or modal.run leakage; PII and injection bypasses reproduced with live
+  output; PII validators confirmed to have no production caller (validate_input uncalled,
+  live classify_content is src.policy.sovereign.classification); pr_review.py confirmed to
+  make no model or HTTP call (if False: guard at line 45); huggingface_provider.py confirmed
+  to contain zero ALLOW_EXTERNAL_AI references; .agents/mcp/server.py confirmed to perform no
+  host validation on OLLAMA_BASE_URL; 78 active workflow uses: keys, 7 SHA-pinned.
 - What Remains Unverified: local Ollama generation smoke; end-to-end agent invocation;
-  branch protection on main (and therefore auto-merge exploitability); public surface
-  reachability; GitHub repository metadata; repo-rename canonical check.
-- Next Valid Action: apply CRITICAL-1 fix with explicit expected-value regression tests in
-  both mirrors, then HIGH-2, in separate reviewable PRs.
+  branch protection on main (and therefore auto-merge exploitability); cause of the GitHub
+  API 403; public surface reachability; repo-rename canonical check.
+- Next Valid Action: rotate and remove the committed docker-compose credentials (HIGH-3),
+  then add loopback validation to .agents/mcp/server.py (HIGH-4), in separate reviewable PRs.
 ```
