@@ -4,10 +4,11 @@
 - **Commit audited:** `6410ec7`
 - **Scope:** full repository — boundary/policy gates, security layer (Qala/Aegis), sovereignty
   posture, local-model readiness, agent readiness, CI/CD supply chain, dependencies.
-- **Revision:** rev3. Two review rounds incorporated. rev2 corrected ten rev1 claims and added one
-  finding; rev3 adds **two new HIGH findings** (committed credentials, unguarded MCP egress),
-  **downgrades rev1/rev2's CRITICAL-1 to HIGH** after its runtime reachability was disproven, and
-  corrects the agent-readiness blocker. See §7 for the full change log.
+- **Revision:** rev4. Three review rounds incorporated. rev2 corrected ten rev1 claims; rev3 added
+  **two new HIGH findings** (committed credentials, unguarded egress) and **downgraded rev1/rev2's
+  CRITICAL-1 to HIGH** after its runtime reachability was disproven; rev4 **redacts the credential
+  this report had itself reproduced**, widens the egress finding from one path to three, and
+  extends the stale-documentation and agent-readiness findings. See §7 for the full change log.
 
 Every material claim below carries exactly one evidence label. `AGENTS.md` §Core Rule defines the
 base triple — `VERIFIED` (command output / observable repository content), `INFERRED` (reasonable
@@ -79,9 +80,12 @@ Additional verified observations:
   `expose:` only (no published host ports); `docker-compose.secure.yml` binds every service to
   `127.0.0.1`.
 
-**Documentation correction — `VERIFIED`.** `CLAUDE.md` records a "Known TS blocker"
-(`npx tsc --noEmit` failing on `src/runners/agentRunner`). After `npm ci`, type-checking exits 0
-with no diagnostics. The note is stale.
+**Documentation correction — `VERIFIED`.** Both handbooks are stale on this point.
+`CLAUDE.md` records a "Known TS blocker" (`npx tsc --noEmit` failing on `src/runners/agentRunner`),
+and `AGENTS.md:271` states type-checking *"currently fails with TS2345/TS18046/TS2352 in
+`unifiedAgentAdapter.ts`."* After `npm ci`, `npx tsc --noEmit` exits 0 with no diagnostics.
+`AGENTS.md:268` is also stale on test counts — it says *"171 tests; 2 skipped"* where the measured
+result is **405 passed, 6 skipped**. See LOW-4.
 
 ---
 
@@ -229,12 +233,12 @@ Branch protection could not be inspected — the GitHub API returned 403 through
 **`VERIFIED`.** The non-secure compose stack hardcodes the same password across every service:
 
 ```
-docker-compose.yml:15  DATABASE_URL: "postgresql://mihwar:sovereign@postgres:5432/mihwar?sslmode=disable"
-docker-compose.yml:31  POSTGRES_PASSWORD: sovereign
-docker-compose.yml:46  command: redis-server --requirepass sovereign …
-docker-compose.yml:50  test: ["CMD", "redis-cli", "-a", "sovereign", "ping"]
+docker-compose.yml:15  DATABASE_URL: "postgresql://mihwar:<REDACTED>@postgres:5432/mihwar?sslmode=disable"
+docker-compose.yml:31  POSTGRES_PASSWORD: <REDACTED>
+docker-compose.yml:46  command: redis-server --requirepass <REDACTED> …
+docker-compose.yml:50  test: ["CMD", "redis-cli", "-a", "<REDACTED>", "ping"]
 mihwar-core/cmd/server/main.go:17
-        dbURL := env("DATABASE_URL", "postgresql://mihwar:sovereign@localhost/mihwar?sslmode=disable")
+        dbURL := env("DATABASE_URL", "postgresql://mihwar:<REDACTED>@localhost/mihwar?sslmode=disable")
 ```
 
 **Impact — `INFERRED`.** Every deployment that uses this compose file shares a database and cache
@@ -256,7 +260,7 @@ render deploy hook, PEM private key, bcrypt hash
 a connection string or an env assignment.** There is no `postgres(ql)?://[^:]+:[^@]+@` rule, no
 `(PASSWORD|PASSWD|SECRET)\s*[:=]` rule.
 
-So `POSTGRES_PASSWORD: sovereign` and `postgresql://mihwar:sovereign@…` are invisible to the gate
+So `POSTGRES_PASSWORD: <REDACTED>` and `postgresql://mihwar:<REDACTED>@…` are invisible to the gate
 by construction — as would be **any** future dictionary-word credential. The gate reports clean and
 always will, which is why this has survived in the tree. That makes it a control gap, not just a
 single leaked value.
@@ -275,13 +279,13 @@ value — then re-run the gate across the tree and triage whatever else surfaces
 required, secret-backed variables (`${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}`) so the
 stack refuses to start without them. Remove the Go fallback credential in
 `mihwar-core/cmd/server/main.go:17` and fail closed instead. Enable TLS or drop
-`sslmode=disable`. Treat the `sovereign` password as burned and rotate anywhere it was used.
+`sslmode=disable`. Treat the committed password as burned and rotate it anywhere it was used.
 
 *(Surfaced by automated review of rev2.)*
 
 ---
 
-### HIGH-4 — MCP server sends prompts to an unvalidated `OLLAMA_BASE_URL`
+### HIGH-4 — Three code paths send prompts to an unvalidated, environment-supplied base URL
 
 **File:** `.agents/mcp/server.py:270-293` — `VERIFIED`
 
@@ -297,12 +301,25 @@ The environment value is taken verbatim. There is no `urlparse`, no host allowli
 the `require_sovereign_local_url` validator. `grep` finds only two mentions of the variable in the
 file: the docstring and this line.
 
-**This is the one path that skips the check the rest of the codebase performs — `VERIFIED`:**
+**Three unvalidated paths, not one — `VERIFIED`.** The same gap exists in two provider adapters,
+both exported from `.agents/providers/__init__.py`:
 
-- `scripts/ollama/activate-local-models.sh` validates the host against
-  `{localhost, 127.0.0.1, ::1, ollama}` and refuses anything else.
-- `src/policy/sovereign/providers/local_ollama.py` calls `require_sovereign_local_url`.
-- `.agents/mcp/server.py` does neither.
+| Path | Env var | Validated? |
+|---|---|---|
+| `.agents/mcp/server.py:271` | `OLLAMA_BASE_URL` | **No** |
+| `.agents/providers/local_ollama.py:33-34` → `execute()` at 76-78 | `OLLAMA_BASE_URL` | **No** |
+| `.agents/providers/local_llama_cpp.py:34-35` → 90-94 | `LLAMACPP_BASE_URL` | **No** |
+| `scripts/ollama/activate-local-models.sh` | `OLLAMA_BASE_URL` | Yes — `{localhost, 127.0.0.1, ::1, ollama}` |
+| `src/policy/sovereign/providers/local_ollama.py` | `OLLAMA_BASE_URL` | Yes — `require_sovereign_local_url` |
+
+Each unvalidated path reads the env var, builds the prompt from task + code + metadata, and POSTs
+it to `f"{base_url}/api/generate"` (or `/completion`) with no host check.
+
+Note that `.agents/providers/local_ollama.py`'s module docstring states the `localhost` default
+"deliberately uses `localhost` rather than `127.0.0.1` so the egress residency gate stays green."
+That is true of the **default** and says nothing about an override — a reassuring comment sitting
+directly above the unguarded read. *(rev3 initially claimed the MCP server was the only path
+skipping validation. False — corrected here.)*
 
 **Impact — `INFERRED`.** A deployment with `OLLAMA_BASE_URL=https://external-host` silently posts
 the complete task, code and context to that host. The static egress-residency gate cannot detect
@@ -310,15 +327,19 @@ it: the gate scans source for literal hosts, and this destination arrives at run
 environment. No error is raised and no audit record marks the destination as non-local, so
 exfiltration would be indistinguishable from normal operation.
 
+The same applies to `LLAMACPP_BASE_URL` on the llama.cpp adapter.
+
 This directly qualifies the §4 claim that the control plane is sovereign *by construction* — for
-this entrypoint, sovereignty depends on an environment variable no code checks.
+these entrypoints, sovereignty depends on environment variables no code checks.
 
-**Immediate fix.** Call the same loopback validator used by
-`src/policy/sovereign/providers/local_ollama.py` before issuing the request, and fail closed on a
-non-local host. Consider having the egress gate flag environment-derived destinations that reach
-network calls without passing a validator.
+**Immediate fix.** Apply the loopback validator used by
+`src/policy/sovereign/providers/local_ollama.py` at **all three** call sites before issuing any
+request, and fail closed on a non-local host. Best done as one shared helper so a fourth adapter
+cannot reintroduce the gap. Consider having the egress gate flag environment-derived destinations
+that reach a network call without passing a validator — a static host scan structurally cannot
+cover this class.
 
-*(Surfaced by automated review of rev2.)*
+*(Surfaced by automated review of rev2; scope corrected from one path to three in round 3.)*
 
 ---
 
@@ -546,10 +567,22 @@ prioritising those with `contents: write`.
     authentication or permissions blocker. Worth confirming independently before dismissing.
 - Branch protection on `main` — `UNVERIFIED` (403). Blocks closing out HIGH-2's impact.
 
-### LOW-4 — Stale documentation
+### LOW-4 — Stale documentation in **both** handbooks
 
-`CLAUDE.md` "Known TS blocker" no longer reproduces (§2). `VERIFIED`. Remove it so the real
-blocker list stays credible.
+`VERIFIED`. Three stale claims, all in the canonical validation guidance operators read first:
+
+| Location | Says | Measured |
+|---|---|---|
+| `CLAUDE.md` "Known TS blocker" | `tsc --noEmit` blocked on `src/runners/agentRunner` | exits 0, no diagnostics |
+| `AGENTS.md:271` | *"Currently fails with TS2345/TS18046/TS2352 in `unifiedAgentAdapter.ts`"* | exits 0, no diagnostics |
+| `AGENTS.md:268` | Python tests *"171 tests; 2 skipped"* | **405 passed, 6 skipped** |
+
+**Immediate fix.** Update **both** documents. Correcting only `CLAUDE.md` would leave `AGENTS.md`
+— the handbook `AGENTS.md` itself designates as the first read — still instructing operators that
+a non-existent blocker is live, and under-reporting the test suite by more than half. A stale
+blocker list trains people to ignore it.
+
+*(rev1–rev3 flagged only `CLAUDE.md`; scope corrected in round 3.)*
 
 ---
 
@@ -566,9 +599,10 @@ blocker list stays credible.
 - Local inference containers are internal-only (`expose`) or loopback-bound.
 
 **Weak:**
-- **`.agents/mcp/server.py:271` posts full prompts to an unvalidated `OLLAMA_BASE_URL`** (HIGH-4).
-  `VERIFIED`. This is the sharpest gap: for that entrypoint, sovereignty rests on an environment
-  variable no code checks, and the static egress gate structurally cannot see the destination.
+- **Three paths post full prompts to an unvalidated, environment-supplied base URL** (HIGH-4).
+  `VERIFIED`. The sharpest gap: for these entrypoints sovereignty rests on `OLLAMA_BASE_URL` /
+  `LLAMACPP_BASE_URL`, which no code checks, and the static egress gate structurally cannot see a
+  runtime destination.
 - `ALLOW_EXTERNAL_AI` is not universal — Hugging Face egress sits behind a separate switch, and
   the audit gate's OK message overstates coverage (MEDIUM-5). `VERIFIED`.
 - The PII detection layer that would make "redact-then-egress" safe is bypassable in the
@@ -616,7 +650,14 @@ construction"; HIGH-4 disproves that phrasing and it is withdrawn.)*
   Neither `MIHWAR_ENDPOINT` nor `BAYYINAH_ENDPOINT` is read anywhere in the file, and no HTTP
   client is imported. **Configuring all four secrets would still not invoke Mihwar or Bayyinah
   end-to-end.** Agent activation therefore requires building the orchestration, not just supplying
-  credentials. *(rev1/rev2 recorded activation as `SKIPPED_UNVERIFIED` — "blocked by missing
+  credentials.
+- **The publication path is missing too — `VERIFIED`.** `.github/workflows/agent-review.yml:83`
+  passes `--post-comment`; `pr_review.py:178` registers the flag with `argparse` and **never
+  references it again**. `format_github_comment()` is defined at line 143 and **never called**.
+  The workflow's GitHub-facing output is the fixed string at line 196 —
+  *"## 🛡️ Sovereign PR Review\n\nReview completed. See check status."* So even the existing regex
+  review publishes **no findings** to the PR. Wiring the model call alone would still leave
+  reviewers with nothing; the result-publication path has to be built as well. Two gaps, not one. *(rev1/rev2 recorded activation as `SKIPPED_UNVERIFIED` — "blocked by missing
   secrets." That mislabelled the blocker; corrected to `UNVERIFIED` with an implementation gap.)*
 
 ---
@@ -625,13 +666,14 @@ construction"; HIGH-4 disproves that phrasing and it is withdrawn.)*
 
 Ordered by live exposure first, latent defects after.
 
-1. **HIGH-3** — Remove the committed `sovereign` credential from `docker-compose.yml` and the Go
+1. **HIGH-3** — Remove the committed plaintext credential from `docker-compose.yml` and the Go
    fallback; require secret-backed variables; rotate. Drop `sslmode=disable`. **Then add
    password-shaped rules to `static_audit.py` and `.gitleaks.toml`** — until that lands, the
    secret-scan gate cannot detect this class of credential at all, and a re-run across the tree
    may surface others.
-2. **HIGH-4** — Validate `OLLAMA_BASE_URL` against the loopback allowlist in
-   `.agents/mcp/server.py` before any request; fail closed on a non-local host.
+2. **HIGH-4** — Validate `OLLAMA_BASE_URL` / `LLAMACPP_BASE_URL` against the loopback allowlist at
+   **all three** call sites (`.agents/mcp/server.py`, `.agents/providers/local_ollama.py`,
+   `.agents/providers/local_llama_cpp.py`) via one shared helper; fail closed on a non-local host.
 3. **HIGH-2** — Close the three fail-open paths in `auto-merge-safe-deps.yml`; confirm branch
    protection on `main`.
 4. **HIGH-0** — Arabic-Indic numeral normalization in both Qala mirrors, with explicit
@@ -646,9 +688,10 @@ Ordered by live exposure first, latent defects after.
 10. **LOW-1 / LOW-2 / LOW-4** — Document the two provider layers; extend SHA pinning; drop the
     stale TS-blocker note.
 
-**Separate track — agent activation.** `.agents/pr_review.py` performs no model call (§5). Wiring
-Mihwar/Bayyinah end-to-end is an implementation task, not a credential task, and should be scoped
-as its own piece of work.
+**Separate track — agent activation.** `.agents/pr_review.py` performs neither a model call nor
+result publication (§5). Wiring Mihwar/Bayyinah end-to-end is an implementation task covering
+**both** gaps — invocation *and* publishing findings back to the PR — not a credential task, and
+should be scoped as its own piece of work.
 
 ---
 
@@ -674,13 +717,22 @@ as its own piece of work.
 
 | # | Point | Disposition |
 |---|---|---|
-| 12 | Committed `sovereign` credentials in `docker-compose.yml` | **Added as HIGH-3** — confirmed at 4 sites plus the Go fallback. Missed by rev1/rev2 because the scan targeted high-entropy shapes only. |
-| 13 | `.agents/mcp/server.py` sends prompts to an unvalidated `OLLAMA_BASE_URL` | **Added as HIGH-4** — confirmed; withdraws the "sovereign by construction" claim in §4. |
+| 12 | Committed plaintext credentials in `docker-compose.yml` | **Added as HIGH-3** — confirmed at 4 sites plus the Go fallback. Missed by rev1/rev2 because the scan targeted high-entropy shapes only. |
+| 13 | `.agents/mcp/server.py` sends prompts to an unvalidated `OLLAMA_BASE_URL` | **Added as HIGH-4** — confirmed; withdraws the "sovereign by construction" claim in §4. Scope widened in round 3 to three paths. |
 | 14 | `pr_review.py` makes no model call; activation isn't secret-blocked | **Applied** — confirmed `if False:` guard at `pr_review.py:45`; §5 rewritten, activation reclassified `UNVERIFIED` with an implementation gap. |
 | 15 | Qala validators are dormant; no production caller | **Applied — my error.** Confirmed `validate_input` has no caller and the live `classify_content` is a different module. **CRITICAL-1 → HIGH-0** with runtime impact explicitly dormant. |
 | 16 | Action count includes 2 commented examples | **Applied** — 78 active / 7 pinned / 71 mutable, replacing rev2's 80/7/73. |
 | 17 | 403 cause attributed to the sandbox proxy without proof | **Applied** — the 403 stays `VERIFIED`, its cause is now `UNVERIFIED`. |
 | 18 | Use only three evidence labels | **Held** — `CLAUDE.md:170` explicitly mandates `SKIPPED_UNVERIFIED` and `NOT_APPLICABLE` ("Never collapse skipped into pass"), and both appear in the canonical `commander-report-template.md` and 13 other tracked files. The same reviewer verified and accepted this reading in an intervening comment before re-raising it. |
+
+### Round 3 (rev3 → rev4) — 4 points, all applied
+
+| # | Point | Disposition |
+|---|---|---|
+| 19 | The report printed the committed credential verbatim | **Applied — my policy violation.** `CLAUDE.md` prohibition #1 states that printing credentials counts. I reproduced the value at 7 locations in a tracked document while classifying it as needing rotation. All occurrences replaced with `<REDACTED>`; paths, line numbers and impact retained. |
+| 20 | MCP is not the only unvalidated egress path | **Applied — my error.** `.agents/providers/local_ollama.py:33-34,76-78` and `.agents/providers/local_llama_cpp.py:34-35,90-94` have the identical gap on `OLLAMA_BASE_URL` / `LLAMACPP_BASE_URL`, and both are exported from `.agents/providers/__init__.py`. HIGH-4 widened from one path to three; the fix now calls for one shared validator. |
+| 21 | `pr_review.py` never publishes results either | **Applied** — `--post-comment` parsed at line 178 and never used; `format_github_comment()` defined at 143 and never called; output is a fixed string at 196. §5 now records two gaps: invocation *and* publication. |
+| 22 | `AGENTS.md` carries the same stale TS blocker plus a stale test count | **Applied** — LOW-4 extended to both handbooks; `AGENTS.md:271` (TS2345/TS18046/TS2352) and `AGENTS.md:268` ("171 tests; 2 skipped" vs measured 405/6). |
 
 **Net effect of round 2 on the verdicts.** Live exposure went **up** (two new HIGH findings, both
 reachable in a real deployment) while the headline PII finding went **down** (real, but dormant).
@@ -702,11 +754,14 @@ Execution Verdict:
 - Files Touched: docs/operations/deep-repo-audit-2026-07-30.md (new, report only)
 - Blockers: no Ollama runtime in container; no gh CLI; GitHub API 403 (cause UNVERIFIED —
   blocks branch-protection verification); agent orchestration not implemented in
-  .agents/pr_review.py, so end-to-end invocation is unreachable regardless of secrets.
-- Hot Surface Risk: HIGH — docker-compose.yml commits the shared password "sovereign" across
-  Postgres, Redis and DATABASE_URL (with sslmode=disable), duplicated as the Go fallback in
-  mihwar-core/cmd/server/main.go:17; .agents/mcp/server.py:271 posts full prompts to an
-  unvalidated OLLAMA_BASE_URL, invisible to the static egress gate;
+  .agents/pr_review.py (neither model invocation nor result publication), so end-to-end
+  review is unreachable regardless of secrets.
+- Hot Surface Risk: HIGH — docker-compose.yml commits one shared plaintext password (redacted)
+  across Postgres, Redis and DATABASE_URL (with sslmode=disable), duplicated as the Go fallback
+  in mihwar-core/cmd/server/main.go:17, and the repo's own secret-scan rules cannot detect that
+  class at all; three code paths (.agents/mcp/server.py:271,
+  .agents/providers/local_ollama.py, .agents/providers/local_llama_cpp.py) post full prompts to
+  an unvalidated environment-supplied base URL, invisible to the static egress gate;
   .github/workflows/auto-merge-safe-deps.yml fails open on check-run and status API errors.
   Latent: qala_ksa_pii.py + qalaKsaPii.ts miss Arabic-Indic PII (dormant — no production
   caller today, live bypass once either validator is wired).
@@ -722,6 +777,7 @@ Execution Verdict:
 - What Remains Unverified: local Ollama generation smoke; end-to-end agent invocation;
   branch protection on main (and therefore auto-merge exploitability); cause of the GitHub
   API 403; public surface reachability; repo-rename canonical check.
-- Next Valid Action: rotate and remove the committed docker-compose credentials (HIGH-3),
-  then add loopback validation to .agents/mcp/server.py (HIGH-4), in separate reviewable PRs.
+- Next Valid Action: rotate and remove the committed docker-compose credentials and add
+  password-shaped rules to static_audit.py/.gitleaks.toml (HIGH-3), then add a shared loopback
+  validator across all three egress call sites (HIGH-4), in separate reviewable PRs.
 ```
