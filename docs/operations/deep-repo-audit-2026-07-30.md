@@ -4,7 +4,11 @@
 - **Commit audited:** `6410ec7`
 - **Scope:** full repository — boundary/policy gates, security layer (Qala/Aegis), sovereignty
   posture, local-model readiness, agent readiness, CI/CD supply chain, dependencies.
-- **Revision:** rev6, after five automated review rounds. Net movement across revisions: rev2
+- **Revision:** rev7, after six automated review rounds. **rev7 adds a `CRITICAL` finding**
+  (`agent-review.yml` runs untrusted PR-head code with three live secrets) that rev1–rev6 missed,
+  plus four further defects. rev6 and earlier were merged as PR #456; this revision is follow-up
+  work on top of that.
+- **Superseded phrasing:** rev6, after five automated review rounds. Net movement across revisions: rev2
   corrected ten rev1 claims; rev3 added **two new HIGH findings** (committed credentials,
   unguarded egress) and **downgraded CRITICAL-1 to HIGH** once its runtime reachability was
   disproven; rev4 **redacted the credential this report had itself printed** and widened the
@@ -32,7 +36,7 @@ blocked cases.
 
 | Axis | Verdict | Label |
 |---|---|---|
-| Hardening (التحصين) | **محصّن جزئيًا** — Partially hardened | `INFERRED` |
+| Hardening (التحصين) | **محصّن جزئيًا** — Partially hardened, with one **CRITICAL** open (§CRITICAL-1) | `INFERRED` |
 | Sovereignty (السيادة) | **سيادي جزئيًا** — Partially sovereign | `INFERRED` |
 | Local model readiness | **BLOCKED** (no runtime smoke) | `VERIFIED` |
 | Agent readiness | **PARTIALLY_APPLIED** | `INFERRED` |
@@ -101,6 +105,11 @@ was omitted from earlier revisions and is supplied here:
   (pip), plus the esbuild binary host reached by its install script. Not independently captured —
   no egress log was recorded during install, so this is derived from the tooling rather than
   observed. `UNVERIFIED` as a precise list.
+- **Python tree is unpinned — `VERIFIED`.** The npm side has a lockfile; the Python side does
+  not. `requirements-agent.txt` carries version ranges and the tree contains **no Python
+  lockfile**, so `pip install -r requirements-agent.txt` may resolve a different transitive
+  environment on every run. Python build hooks and contacted domains are therefore
+  `UNVERIFIED` — this record is complete for npm and incomplete for pip.
 - **Scope — `VERIFIED`.** No dependency was added, upgraded, or removed. The `npm audit fix` for
   `js-yaml` (MEDIUM-1) is **recommended, not performed** — applying it is a separate reviewable
   change.
@@ -119,6 +128,61 @@ result is **405 passed, 6 skipped**. See LOW-4.
 ---
 
 ## 3. Findings
+
+### CRITICAL-1 — `agent-review.yml` executes untrusted PR-head code with three live secrets
+
+**File:** `.github/workflows/agent-review.yml:49-83` — `VERIFIED`
+
+The `sovereign-review` job checks out the **pull request's own head revision**:
+
+```yaml
+- name: Checkout PR
+  uses: actions/checkout@v7
+  with:
+    fetch-depth: 0
+    ref: ${{ github.event.pull_request.head.sha }}      # untrusted
+```
+
+and then executes a script **from that checkout** with three secrets in the step environment:
+
+```yaml
+- name: Run Sovereign Review
+  env:
+    GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
+    BAYYINAH_API_TOKEN: ${{ secrets.BAYYINAH_API_TOKEN }}
+    MIHWAR_API_TOKEN:   ${{ secrets.MIHWAR_API_TOKEN }}
+  run: |
+    python .agents/pr_review.py …                        # PR-controlled file
+```
+
+**Impact — `INFERRED`, severity CRITICAL.** Any pull request that edits `.agents/pr_review.py`
+supplies the code that runs with those three tokens in its environment. A two-line change to that
+file reads `os.environ` and exfiltrates the Bayyinah and Mihwar bearer tokens plus a
+workflow-scoped `GITHUB_TOKEN`. No approval gate stands between opening such a PR and the tokens
+being available to it.
+
+**Scope — `VERIFIED`.** The trigger is `pull_request`, not `pull_request_target`, so GitHub
+withholds secrets from **fork** PRs. The exposure is therefore limited to **same-repository branch
+PRs** — which is precisely how this repository operates: every `claude/*`, `copilot/*`, `codex/*`
+and contributor branch PR runs this job with the tokens populated. It is live for exactly the
+pull requests the workflow exists to review, including this one.
+
+**Immediate fix.** Do not execute PR-controlled code with secrets. Either:
+1. check out the **base** revision for the review script and pass the untrusted diff in as data
+   (`ref: ${{ github.base_ref }}`, diff supplied as a file), or
+2. split into an unprivileged job that produces the diff artifact and a privileged job that
+   consumes it, or
+3. remove the endpoint tokens from this job entirely until it actually calls an endpoint — per
+   HIGH-5 it currently makes no model call, so **all three secrets are exposed for no functional
+   benefit whatsoever**.
+
+Option 3 is available today and costs nothing: the tokens are being risked by a script that never
+uses them.
+
+*(Surfaced by automated review of rev6. Missed by rev1–rev6: I read `pr_review.py` for what it
+does and never examined how the workflow invokes it.)*
+
+---
 
 ### HIGH-0 — Qala KSA-PII detection is bypassed by Arabic-Indic numerals (latent; not currently reachable)
 
@@ -205,10 +269,23 @@ en_b64_hint    findings=0     base64-encoded 'ignore all previous instructions'
 en_reveal      findings=1
 ```
 
-**Impact — `VERIFIED` (code path) / `INFERRED` (consequence).** `aegis_gateway.py:241-250` blocks
-`tools/call` on injection findings. An Arabic injection string yields `findings=0` and is allowed
-through the tool boundary. On an Arabic-first platform this leaves the primary working language
-unguarded.
+**Impact — `VERIFIED` (code path); runtime consequence `INFERRED` and currently dormant.**
+`aegis_gateway.py:241-250` blocks `tools/call` on injection findings, so an Arabic injection
+string yields `findings=0` and passes the tool boundary.
+
+**But Aegis is not on the active MCP route — `VERIFIED`.** `AegisMcpGateway` is instantiated only
+by `.agents/mcp/server.py`, while the configured default in `.github/copilot/mcp.json` launches
+**`server_offline.py`**, which never imports Aegis and applies its own Arabic risk-marker check.
+Arabic text reaches the unguarded Aegis path only if an operator explicitly switches servers.
+So the defect is real and the Arabic gap is real, but the consequence is **conditional on
+server selection**, not currently live. *(rev1–rev6 stated the primary working language is
+unguarded, without qualification; corrected in round 6.)*
+
+**Base64 case — scope note.** The `en_b64_hint` reproduction above is **not** addressed by the
+proposed fix: stripping zero-width characters, collapsing whitespace and folding diacritics
+leaves an encoded payload at `findings=0`. Either add bounded encoded-content inspection with its
+own regression test, or drop the Base64 case from this finding's claimed scope. As written the
+fix would close four of the five reproduced bypasses. *(Raised in round 5.)*
 
 **Immediate fix.** Add an Arabic pattern set covering the same five intents (تجاهل/تخطَّ
 التعليمات، اكشف/اطبع مطالبة النظام، أظهر الأسرار/المفاتيح، عطّل الحماية، تصرف كـ…), plus a
@@ -293,7 +370,22 @@ render deploy hook, PEM private key, bcrypt hash
 ```
 
 `.gitleaks.toml` mirrors the same 10 rules. **Neither defines any rule for a hardcoded password in
-a connection string or an env assignment.** There is no `postgres(ql)?://[^:]+:[^@]+@` rule, no
+a connection string or an env assignment.**
+
+**And one of the eleven patterns is itself broken — `VERIFIED`.** The OpenAI rule is
+`sk-(proj|admin)?-[A-Za-z0-9_-]{20,}`. When the optional group is absent the second hyphen is
+still mandatory, so the pattern only matches `sk--…`. A legacy `sk-<token>` key is **not
+detected**:
+
+```
+legacy   sk-abcdefghij1234567890ABCDEFGH        match=False   <-- NOT DETECTED
+proj     sk-proj-abcdefghij1234567890ABCDEFGH   match=True
+admin    sk-admin-abcdefghij1234567890ABCDEFGH  match=True
+```
+
+The same malformed shape is repeated in `.gitleaks.toml` and `.agents/mcp/server_offline.py`, so
+all three scanners share the blind spot. The correct form is `sk-((proj|admin)-)?[A-Za-z0-9_-]{20,}`.
+Add positive tests for both legacy and scoped key formats. There is no `postgres(ql)?://[^:]+:[^@]+@` rule, no
 `(PASSWORD|PASSWD|SECRET)\s*[:=]` rule.
 
 So `POSTGRES_PASSWORD: <REDACTED>` and `postgresql://mihwar:<REDACTED>@…` are invisible to the gate
@@ -409,6 +501,76 @@ cover this class.
 
 ---
 
+### HIGH-5 — `server_offline.py` path check is a string prefix, allowing sibling-directory reads
+
+**File:** `.agents/mcp/server_offline.py:66-71` — `VERIFIED`
+
+```python
+def _safe_path(path: str) -> Path:
+    root = Path.cwd().resolve()
+    target = (root / path).resolve()
+    if not str(target).startswith(str(root)):        # string prefix, not path containment
+        raise ValueError("Path escapes repository root")
+```
+
+From a checkout at `/workspace/swarms`, the sibling `/workspace/swarms-private` satisfies
+`startswith("/workspace/swarms")` and is accepted. `repo_static_audit` then recursively reads that
+outside tree.
+
+**Impact — `INFERRED`.** This is the **default** MCP route (`.github/copilot/mcp.json` launches
+`server_offline.py`), so the weak check is the one actually in service. A `../swarms-private`
+argument escapes the repository-only boundary and can disclose file contents or secret-location
+metadata from an adjacent checkout.
+
+**Immediate fix.** Replace the prefix test with real path containment:
+`if not (target == root or root in target.parents): raise …`.
+
+*(Surfaced by automated review of rev6.)*
+
+---
+
+### MEDIUM-0 — The default MCP server depends on an undeclared package
+
+**`VERIFIED`.** `.agents/mcp/server_offline.py` imports `mcp.server.fastmcp.FastMCP`, but `mcp`
+appears in **no** Python dependency manifest — `grep -n mcp requirements-agent.txt` returns
+nothing. After installing the repository-declared dependencies, launching the configured default
+MCP server can fail immediately with `ModuleNotFoundError`; it works only via an undocumented
+ambient package.
+
+Neither the asset-validation nor the test suites import this entrypoint, so every green check in
+§2 is compatible with the default MCP server being unstartable.
+
+**Immediate fix.** Declare `mcp` in `requirements-agent.txt` with a pinned version, and add a
+startup smoke test that imports the module and exits.
+
+*(Surfaced by automated review of rev6.)*
+
+---
+
+### MEDIUM-7 — `bayyinah-swe.yml` invokes the reviewer on empty evidence
+
+**File:** `.github/workflows/bayyinah-swe.yml:104-127` — `VERIFIED`
+
+```bash
+gh pr diff "${PR_NUMBER}" … > /tmp/pr.diff 2>/dev/null || : > /tmp/pr.diff      # empty diff
+gh pr view … > /tmp/pr-meta.json 2>/dev/null || echo '{}' > /tmp/pr-meta.json   # empty metadata
+```
+
+Both failures are swallowed and replaced with empty evidence. The workflow then invokes Bayyinah
+anyway and accepts whatever verdict comes back — including `APPROVE`.
+
+**Impact — `INFERRED`.** Today the `BADGE` defect (§5) makes the job fail before publishing, which
+accidentally masks this. **Fixing `BADGE` would expose it:** a transient `gh` failure would then
+yield a green job and a posted `✅ APPROVE` comment derived from *no diff at all*. The two defects
+must be fixed together, or fixing one makes the system less safe than leaving both.
+
+**Immediate fix.** Make evidence collection fatal — drop the `||` fallbacks, or assert a non-empty
+diff before invoking the reviewer.
+
+*(Surfaced by automated review of rev6.)*
+
+---
+
 ### MEDIUM-1 — `js-yaml` advisory on the agent-config parsing path (dependency hygiene)
 
 **`VERIFIED`.** `npm audit` (with and without `--omit=dev`):
@@ -491,7 +653,15 @@ same defect, so any equality assertion between them passes. Divergence checking 
 checking are different problems, and HIGH-0 is a correctness gap that no equality test can
 detect. *(rev1 implied the divergence gate was the blind spot responsible; that was wrong.)*
 
-**Immediate fix.** Add the four missing `.ts`/`.js` pairs. Separately, add behavioral tests that
+**Two of the claimed pairs do not exist — `VERIFIED`.** `src/utils/` contains `auditLogger.js`,
+`auditLogger.d.ts`, `logger.js`, `logger.d.ts` — **no `.ts` sources**. So `CLAUDE.md`'s statement
+that `auditLogger` and `logger` "exist as both `.ts` and `.js`" is false; only
+`sovereignCyberRadar` and the three Qala modules form genuine missing pairs. Adding pairs alone
+would leave the handbook claim wrong.
+
+**Immediate fix.** Add the **four** real missing `.ts`/`.js` pairs (`sovereignCyberRadar`,
+`qalaTrace`, `qalaKsaPii`, `qalaAuditSink`), and either correct the `CLAUDE.md` sentence or
+deliberately author the missing `auditLogger.ts` / `logger.ts` sources. Separately, add behavioral tests that
 assert **explicit expected detections and redactions** for each PII/injection corpus case in both
 languages. Cross-language equality may supplement those assertions but cannot replace them.
 
@@ -771,6 +941,11 @@ construction"; HIGH-4 disproves that phrasing and it is withdrawn.)*
 
 Ordered by live exposure first, latent defects after.
 
+0. **CRITICAL-1 — do this first.** Stop `agent-review.yml` executing PR-controlled code with
+   `GITHUB_TOKEN`, `BAYYINAH_API_TOKEN` and `MIHWAR_API_TOKEN`. The zero-cost immediate step is to
+   delete those three `env:` entries: per §5 the script makes no model call, so the tokens are
+   exposed for no benefit. Then rebuild the job to run the base-revision script over the untrusted
+   diff as data. **Treat both endpoint tokens as potentially exposed and rotate them.**
 1. **HIGH-3** — Remove the committed plaintext credentials from **both** `docker-compose.yml`
    (+ the Go fallback) and `dev-factory/config/docker-compose.yml`; require secret-backed
    variables; rotate all five. Drop `sslmode=disable`, and bind `dev-factory` services to
@@ -872,6 +1047,24 @@ report alone would have acted on superseded scope. That is a distinct failure mo
 under-scoped verification of rounds 1-3, and arguably worse, because the corrected text sat a few
 hundred lines away asserting the opposite.
 
+### Round 6 (rev6 → rev7) — 7 points, all applied
+
+| # | Point | Disposition |
+|---|---|---|
+| 35 | `agent-review.yml` runs untrusted PR-head code with three secrets | **Added as CRITICAL-1.** Confirmed: `ref: github.event.pull_request.head.sha` then `python .agents/pr_review.py` with `GITHUB_TOKEN` / `BAYYINAH_API_TOKEN` / `MIHWAR_API_TOKEN` in `env:`. Live for same-repo branch PRs — i.e. every PR this repo actually opens. **Missed by rev1–rev6: I read what `pr_review.py` does and never read how the workflow invokes it.** |
+| 36 | The OpenAI secret pattern is malformed | **Applied.** `sk-(proj|admin)?-…` requires the second hyphen even when the group is absent, so legacy `sk-<token>` keys are undetected by `static_audit.py`, `.gitleaks.toml` and `server_offline.py` alike. HIGH-3's control gap is wider than "no password rules". |
+| 37 | `server_offline.py` path check is a string prefix | **Added as HIGH-5.** `/workspace/swarms-private` passes `startswith("/workspace/swarms")`. This is the **default** MCP route. |
+| 38 | `server_offline.py` depends on undeclared `mcp` | **Added as MEDIUM-0.** Absent from every Python manifest; the default MCP server may not start. No test imports it, so §2's green checks are compatible with it being broken. |
+| 39 | `bayyinah-swe.yml` invokes on empty evidence | **Added as MEDIUM-7.** `gh` failures are swallowed into an empty diff and `{}` metadata, then the reviewer runs anyway and `APPROVE` is accepted. **Fixing `BADGE` alone would make this worse** — the two must be fixed together. |
+| 40 | Aegis Arabic gap is dormant | **Applied.** `AegisMcpGateway` is instantiated only by `server.py`; the configured default is `server_offline.py`, which never imports it. Consequence is conditional on server selection, not live. Also noted that the proposed fix does **not** close the reproduced Base64 bypass. |
+| 41 | `auditLogger` / `logger` have no `.ts` sources | **Applied.** `src/utils/` has only `.js` + `.d.ts`, so `CLAUDE.md`'s both-languages claim is false and only four genuine pairs are missing. Python dependency tree also recorded as unpinned (no lockfile). |
+
+**Note on round 6.** CRITICAL-1 is the most serious finding in this audit and it was found in the
+**sixth** review round, after the report had been merged. It sat one file away from material I read
+repeatedly: I analysed `pr_review.py` in detail across three revisions and never opened the
+workflow that runs it. Reading a script for what it does, without reading how it is invoked and
+with what privileges, is exactly the blind spot that hides supply-chain exposure.
+
 **Net effect of round 2 on the verdicts.** Live exposure went **up** (two new HIGH findings, both
 reachable in a real deployment) while the headline PII finding went **down** (real, but dormant).
 The §1 verdicts are unchanged — *partially hardened*, *partially sovereign* — but the reasons
@@ -896,7 +1089,10 @@ Execution Verdict:
   via THAT workflow is unreachable regardless of secrets. mihwar-swe.yml, bayyinah-swe.yml and
   invoke.py:254 do implement invocation and are SKIPPED_UNVERIFIED pending secrets + smoke;
   bayyinah-swe.yml's publish step additionally raises KeyError on BADGE.
-- Hot Surface Risk: HIGH — two Compose stacks commit plaintext credentials (redacted here):
+- Hot Surface Risk: CRITICAL — .github/workflows/agent-review.yml checks out the untrusted PR
+  head and executes .agents/pr_review.py from it with GITHUB_TOKEN, BAYYINAH_API_TOKEN and
+  MIHWAR_API_TOKEN in the step environment; live for same-repo branch PRs, which is how this
+  repository operates. Rotate both endpoint tokens. Also HIGH — two Compose stacks commit plaintext credentials (redacted here):
   docker-compose.yml across Postgres/Redis/DATABASE_URL with sslmode=disable plus the Go fallback
   in mihwar-core/cmd/server/main.go:17, and dev-factory/config/docker-compose.yml which also
   publishes all five services on every interface; the repo's own secret-scan rules cannot detect
@@ -918,7 +1114,8 @@ Execution Verdict:
 - What Remains Unverified: local Ollama generation smoke; end-to-end agent invocation;
   branch protection on main (and therefore auto-merge exploitability); cause of the GitHub
   API 403; public surface reachability; repo-rename canonical check.
-- Next Valid Action: rotate and remove the committed docker-compose credentials and add
+- Next Valid Action: remove the three secrets from the agent-review.yml review step and rotate
+  the endpoint tokens (CRITICAL-1), then rotate and remove the committed docker-compose credentials and add
   password-shaped rules to static_audit.py/.gitleaks.toml (HIGH-3), then add a shared loopback
   validator across all three egress call sites (HIGH-4), in separate reviewable PRs.
 ```
