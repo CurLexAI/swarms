@@ -49,6 +49,24 @@ Default operating mode for routine repository work: `LOCAL_ONLY`.
 | 5 | PAT-005 + PAT-018 location verification | out-of-scope evidence report with repository references |
 | 6 | MISSING cluster intake | implementation briefs and sequencing for remaining patents |
 
+## Status Update — 2026-08-06
+
+Priority 1 and three Priority 2 items executed; see
+`docs/audits/patent-remediation-evidence-2026-08-06.md` for evidence.
+
+- PAT-001: TruthGate + LLM Bridge + audit integration implemented with
+  tests — STRONG-candidate pending runtime marker.
+- PAT-003: `DataClassification` + `selectProviderByClassification()` +
+  `PERMANENTLY_BLOCKED_PROVIDERS` implemented with tests — MEDIUM.
+- PAT-004: cascade gate (SAFE/WARNING/BLOCKED, 200ms budget, pluggable
+  model slots) implemented with tests — MEDIUM (ML model binding open).
+- PAT-014: `ReasoningChainBuilder` + `DecisionCertificate` (SHA-256 of
+  full chain) implemented with tamper tests — STRONG-candidate pending
+  runtime marker.
+- Priority 3 (PAT-005/PAT-018 location): BLOCKED — no `LexPrim` repo
+  found under the CurLexAI organization as of 2026-08-06.
+- Remaining: PAT-007, PAT-010 (WEAK); MISSING cluster untouched.
+
 ## Governance Notes
 - Keep patent detail documents internal-only.
 - Avoid public claims that all patents are implemented until evidence reaches STRONG per patent.
