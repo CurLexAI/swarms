@@ -2,74 +2,60 @@
 
 **Date:** 2026-08-06  
 **Branch:** `mihwer-verify-trust-center-status`  
-**Scope:** Read-only verification against current worktree (based on main)  
+**Scope:** Verification of Trust Center hardening claims against the current PR branch state  
 **Overall status:** `PARTIALLY_APPLIED`
+
+## Baseline artifact
+
+- **UNVERIFIED** - The comparison baseline was a user-supplied summary in the session on 2026-08-06, not a repository-tracked file. No repository path, commit, or external artifact revision is available for that baseline.
 
 ## Executive verdict
 
-The prior report’s **PARTIALLY_APPLIED** label is correct.  
-Several completion bullets overstate what is actually in the repository.
+The earlier `PARTIALLY_APPLIED` verdict remains correct for the branch as a whole.  
+Some hardening gaps called out during verification have now been closed on this PR branch, but the branch still does not support a live Trust Center upload/scan flow, does not pin `js-yaml` to 5.2.3, and still carries a degraded `public/trust/index.html` file structure.
 
 ## Claim-by-claim
 
-| Claim | Status | Evidence |
+| Claim | Evidence label | Finding |
 |---|---|---|
-| Arabic RTL Trust Center | PARTIAL `VERIFIED` | `public/trust/index.html` has `lang="ar" dir="rtl"` and Arabic copy |
-| States مثبت / مهيأ / غير موصول | **NOT PRESENT** `VERIFIED` | No matches; page uses CONTROL/DATA/AI + VERIFIED/UNVERIFIED |
-| No inline script/style; CSP `script-src/connect-src 'none'` | **NOT DONE** `VERIFIED` | Large inline `<style>`; CDN `<script>`; CSP allows `'self'`, `cdn.example.com`, `unsafe-inline` styles |
-| HSTS + COOP + COEP + CORP | PARTIAL `VERIFIED` | COOP+CORP in `serve-public.mjs`; **no HSTS, no COEP**; `vercel.json` missing most hard headers |
-| js-yaml 5.2.3 + clean audit | MISMATCH `VERIFIED` | Lockfile/`package.json` = **5.2.2**; audit not re-run here |
-| Isolated upload/signed CLEAN worker | **ABSENT** `VERIFIED` | No upload code; ADR-0008 forbids uploads without new ADR |
-| Trust tests 11/11 | OVERSTATED `INFERRED` | Source counts: renderPublic=5, cdn-sri=2, CSP=1 |
-| TS strict 12/12 | `UNVERIFIED` | Not executed; known adapter TS blocker remains documented |
-| HTML production-ready | **DEGRADED** `VERIFIED` | Merge corruption: duplicate titles/CSS/footers, broken `</main>` nesting |
+| Arabic RTL Trust Center UI | `VERIFIED` | `public/trust/index.html` declares `lang="ar"` and `dir="rtl"` and contains Arabic trust-surface copy. |
+| Status labels `مثبت / مهيأ / غير موصول` are present | `VERIFIED` | These exact labels are not present; the page uses `CONTROL / DATA / AI` and `VERIFIED / UNVERIFIED` language instead. |
+| Static Trust Center CSP is hardened to `script-src 'none'` and `connect-src 'none'` | `VERIFIED` | `scripts/render/serve-public.mjs`, `render.yaml`, and `vercel.json` now use a static-surface CSP with `script-src 'none'`, `connect-src 'none'`, `object-src 'none'`, and `frame-src 'none'`. |
+| External Trust Center script dependency has been removed | `VERIFIED` | The `cdn.example.com` trust-page script tag has been removed from `public/trust/index.html`. |
+| HSTS, COEP, COOP, and CORP are configured for the static trust surface | `VERIFIED` | `scripts/render/serve-public.mjs`, `render.yaml`, and `vercel.json` now carry `Strict-Transport-Security`, `Cross-Origin-Embedder-Policy`, `Cross-Origin-Opener-Policy`, and `Cross-Origin-Resource-Policy`. |
+| `js-yaml` is pinned at 5.2.3 | `VERIFIED` | This claim is still false for the current branch. `package.json` pins `js-yaml` as `^5.2.2`. |
+| `npm audit` is clean after the dependency update | `UNVERIFIED` | The branch does not record a fresh `npm audit` run in this session, so the audit-clean claim remains unverified here. |
+| The repository has no file-upload implementation | `VERIFIED` | Narrowed claim: the branch has no inbound Trust Center upload endpoint or signed-CLEAN trust worker flow. The repository does contain unrelated upload/export helpers such as `.agents/drive_service_agent.py`, so a repo-wide "no upload implementation" claim would be false. |
+| Trust-surface tests cover the deployed public surface | `VERIFIED` | Current targeted validation is `tests/renderPublicServer.test.js` (6 tests) plus `tests/cdn-sri-validation.test.js` (2 tests), for 8 targeted trust-surface tests. The previously cited `tests/contentSecurityPolicy.test.js` was not trust-surface coverage and is excluded here. |
+| TypeScript strict validation passed `12/12` | `UNVERIFIED` | No fresh TypeScript strict run was recorded in this session, so that pass-count claim remains unverified here. |
+| `public/trust/index.html` is production-ready | `VERIFIED` | The file remains structurally degraded from an earlier bad merge, with duplicated sections and broken nesting near the footer, so this claim remains false. |
 
-## What is real and useful
+## Evidence summary
 
-- ADR-0008 static SR.BSM trust exception
-- `scripts/render/serve-public.mjs` static adapter + traversal block + `/healthz`
-- Evidence-first trust language (VERIFIED/UNVERIFIED)
-- CDN SRI manifest + local vendor + SRI tests
-- Vercel rewrite `/` → `/trust/`
-- Correct non-claim of live file-scan service
+- **VERIFIED** - ADR-0008 still bounds `public/trust/**`, `scripts/render/serve-public.mjs`, `render.yaml`, and trust-surface tests as the allowed public exception.
+- **VERIFIED** - The trust surface is static and does not expose a live browser-callable upload/scan path.
+- **VERIFIED** - The public trust surface now uses stricter static headers and a stricter CSP than the earlier verification snapshot.
+- **VERIFIED** - The trust-page CDN script exception has been removed from the branch.
+- **UNVERIFIED** - Live Render, Cloudflare, DNS, and TLS state were not revalidated in this session.
+- **UNVERIFIED** - A fresh `npm audit` result and a fresh full TypeScript strict result were not collected in this session.
+- **VERIFIED** - `public/trust/index.html` still needs structural cleanup before it can be treated as a clean production artifact.
 
-## Recommended next path (not executed)
+## Recommended next path
 
-Do **not** announce file scanning as live.  
-If hardening continues in this repo:
+1. Repair `public/trust/index.html` into one coherent static trust document.
+2. If dependency posture matters for this branch, run and record a fresh `npm audit`.
+3. If TypeScript readiness matters for this branch, run and record the strict TypeScript command that the repository treats as canonical.
+4. Keep any real upload, malware scan, or signed-CLEAN worker activation in the independent Qarar product path rather than inside `swarms`.
 
-1. Repair corrupted `public/trust/index.html`
-2. Align CSP/headers in Render adapter + `vercel.json`
-3. Truth-up dependency/version claims and tests
-4. Keep upload/signed worker in independent Qarar app path only
+## Execution Verdict
 
-## COMMANDER REPORT
-
-```text
-VERIFIED:
-- Trust surface exists under public/trust/ (RTL Arabic partial)
-- serve-public.mjs has COOP/CORP + partial CSP, not full claimed hardening
-- js-yaml locked at 5.2.2 not 5.2.3
-- No file-upload/isolated-worker implementation in swarms
-- HTML merge corruption in public/trust/index.html
-- ADR-0008 forbids upload endpoints without new ADR
-
-CHANGED:
-- None (verification-only session)
-
-VALIDATION:
-- Static source inspection VERIFIED
-- Test suites / npm audit / tsc UNVERIFIED (not executed in verification pass)
-
-RISKS:
-- Overclaiming hardened CSP/headers or live scan capability
-- Shipping corrupted trust HTML as production surface
-
-DECISION:
-- PARTIALLY_APPLIED confirmed
-- Accept verification; no remediation applied in this session
-
-NEXT ACTION:
-- Optional: remediate static HTML + headers/CSP + test truth-up on explicit request
-- Product path: independent Qarar app + Nebula worker + E2E signed scan before any live claim
-```
+- Status: `PARTIALLY_APPLIED`
+- Scope: Trust Center verification report plus static trust-surface hardening inside `swarms`
+- Canonical Path: `public/trust/`, `scripts/render/serve-public.mjs`, `render.yaml`, `vercel.json`, `tests/renderPublicServer.test.js`, `tests/cdn-sri-validation.test.js`, `trust-center-verification-2026-08-06.md`
+- Files Touched: `trust-center-verification-2026-08-06.md`, `public/trust/index.html`, `scripts/render/serve-public.mjs`, `scripts/validate-render.mjs`, `tests/renderPublicServer.test.js`, `render.yaml`, `vercel.json`, `package.json`
+- Blockers: degraded `public/trust/index.html`; no repo-tracked baseline artifact for the original summary; `js-yaml` 5.2.3 claim still unmet; fresh `npm audit` and strict TypeScript evidence not collected here
+- Hot Surface Risk: medium - this branch touches the bounded public trust surface and its deployment headers
+- What Was Actually Changed: committed the verification report; hardened static trust headers/CSP; removed the trust-page external script; added a `render.yaml` validator and wired it into repository checks
+- What Was Actually Verified: `npm run test:render-public`; `npm run check:render-config`; `npm run check:cdn-sri`; `public-surface-boundary-gate`; `modal-boundary-gate`
+- What Remains Unverified: live external integrations; baseline artifact provenance; fresh `npm audit`; fresh strict TypeScript result
+- Next Valid Action: clean up `public/trust/index.html`, then collect any additional audit/TypeScript evidence only if the branch needs to claim those outcomes
