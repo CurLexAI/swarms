@@ -11,10 +11,27 @@ const REQUIRED_HEADERS = new Map([
   ['Cross-Origin-Opener-Policy', 'same-origin'],
   ['Cross-Origin-Resource-Policy', 'same-origin'],
 ]);
+const REQUIRED_HEADER_PATH = '/*';
+const LOCKED_DOWN_NONE_DIRECTIVES = ['script-src', 'connect-src', 'object-src', 'frame-src'];
 
 function fail(message) {
   console.error(`render.yaml validation failed: ${message}`);
   process.exit(1);
+}
+
+function parseCsp(csp) {
+  const directives = new Map();
+
+  for (const segment of csp.split(';')) {
+    const trimmed = segment.trim();
+    if (!trimmed) continue;
+
+    const parts = trimmed.split(/\s+/);
+    const [name, ...values] = parts;
+    directives.set(name, values);
+  }
+
+  return directives;
 }
 
 const renderConfig = load(readFileSync(new URL('../render.yaml', import.meta.url), 'utf8'));
@@ -43,22 +60,33 @@ if (service.autoDeploy !== false) {
 }
 
 const headerEntries = Array.isArray(service.headers) ? service.headers : [];
-const headerMap = new Map(headerEntries.map((header) => [header.name, header.value]));
 
 for (const [name, value] of REQUIRED_HEADERS) {
-  if (headerMap.get(name) !== value) {
+  const header = headerEntries.find((entry) => entry?.name === name);
+  if (!header) {
+    fail(`missing header ${name}`);
+  }
+
+  if (header.path !== REQUIRED_HEADER_PATH) {
+    fail(`header ${name} must apply to ${REQUIRED_HEADER_PATH}, found ${header.path ?? 'undefined'}`);
+  }
+
+  if (header.value !== value) {
     fail(`missing or mismatched header ${name}`);
   }
 }
 
-const csp = headerMap.get('Content-Security-Policy');
-if (!csp) {
-  fail('missing Content-Security-Policy header');
-}
+const csp = headerEntries.find((entry) => entry?.name === 'Content-Security-Policy')?.value;
+const cspDirectives = parseCsp(csp ?? '');
 
-for (const directive of ["script-src 'none'", "connect-src 'none'", "object-src 'none'", "frame-src 'none'"]) {
-  if (!csp.includes(directive)) {
+for (const directive of LOCKED_DOWN_NONE_DIRECTIVES) {
+  const values = cspDirectives.get(directive);
+  if (!values) {
     fail(`content-security-policy missing ${directive}`);
+  }
+
+  if (values.length !== 1 || values[0] !== "'none'") {
+    fail(`content-security-policy ${directive} must be exactly 'none'`);
   }
 }
 
