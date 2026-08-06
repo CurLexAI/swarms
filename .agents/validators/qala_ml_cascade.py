@@ -83,6 +83,11 @@ _CODE_WARN_TERMS: Final[tuple[str, ...]] = (
 )
 
 
+def _first_match(terms: tuple[str, ...], lowered: str) -> str | None:
+    """Return the first term contained in ``lowered``, or None."""
+    return next((t for t in terms if t.lower() in lowered), None)
+
+
 class CodeThreatStage:
     """Deterministic default for the ``codebert-code-threat`` slot."""
 
@@ -92,12 +97,12 @@ class CodeThreatStage:
 
     def classify(self, text: str) -> tuple[StageLabel, str]:
         lowered = text.lower()
-        for term in _CODE_THREAT_TERMS:
-            if term in lowered:
-                return ("BLOCK", f"dangerous execution pattern: {term!r}")
-        for term in _CODE_WARN_TERMS:
-            if term in lowered:
-                return ("WARN", f"suspicious execution pattern: {term!r}")
+        blocked = _first_match(_CODE_THREAT_TERMS, lowered)
+        if blocked is not None:
+            return ("BLOCK", f"dangerous execution pattern: {blocked!r}")
+        warned = _first_match(_CODE_WARN_TERMS, lowered)
+        if warned is not None:
+            return ("WARN", f"suspicious execution pattern: {warned!r}")
         return ("PASS", "no code-threat pattern")
 
 
@@ -125,12 +130,12 @@ class PromptInjectionStage:
 
     def classify(self, text: str) -> tuple[StageLabel, str]:
         lowered = text.lower()
-        for term in _INJECTION_BLOCK_TERMS:
-            if term.lower() in lowered:
-                return ("BLOCK", f"prompt-injection phrase: {term!r}")
-        for term in _INJECTION_WARN_TERMS:
-            if term in lowered:
-                return ("WARN", f"instruction-surface reference: {term!r}")
+        blocked = _first_match(_INJECTION_BLOCK_TERMS, lowered)
+        if blocked is not None:
+            return ("BLOCK", f"prompt-injection phrase: {blocked!r}")
+        warned = _first_match(_INJECTION_WARN_TERMS, lowered)
+        if warned is not None:
+            return ("WARN", f"instruction-surface reference: {warned!r}")
         return ("PASS", "no injection phrase")
 
 

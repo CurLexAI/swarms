@@ -147,9 +147,11 @@ class TestChainHashAndAudit(unittest.TestCase):
                     )
                 ],
                 sink=sink,
-                trace_id="trace-1",
-                span_id="span-1",
-                tenant_id="tenant-A",
+                context=truth_gate.AuditContext(
+                    trace_id="trace-1",
+                    span_id="span-1",
+                    tenant_id="tenant-A",
+                ),
             )
             content = sink.sink_path.read_text(encoding="utf-8")
             self.assertIn(report.chain_hash, content)

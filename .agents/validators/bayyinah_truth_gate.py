@@ -141,6 +141,68 @@ def resolve_bridge(bridge: LLMBridge | None = None) -> LLMBridge:
     return bridge if bridge is not None else OfflineLLMBridge()
 
 
+@dataclass(frozen=True)
+class AuditContext:
+    """Trace correlation identifiers for the audit trail."""
+
+    trace_id: str
+    span_id: str
+    tenant_id: str
+
+
+def _claim_findings(idx: int, claim: EvidenceClaim) -> list[TruthFinding]:
+    """Findings for a single claim (fail-closed label discipline)."""
+    findings: list[TruthFinding] = []
+    if not isinstance(claim.statement, str) or not claim.statement.strip():
+        findings.append(
+            TruthFinding(
+                severity="CRITICAL",
+                message="claim statement must be a non-empty string",
+                claim_index=idx,
+            )
+        )
+    if claim.label not in _EVIDENCE_LABELS:
+        findings.append(
+            TruthFinding(
+                severity="CRITICAL",
+                message=(
+                    f"unknown evidence label {claim.label!r}; expected "
+                    "VERIFIED | INFERRED | UNVERIFIED"
+                ),
+                claim_index=idx,
+            )
+        )
+        return findings
+    if claim.label == "VERIFIED" and not claim.source.strip():
+        findings.append(
+            TruthFinding(
+                severity="CRITICAL",
+                message="VERIFIED label requires a citable source artifact",
+                claim_index=idx,
+            )
+        )
+    if claim.label == "UNVERIFIED" and claim.material:
+        findings.append(
+            TruthFinding(
+                severity="HIGH",
+                message=(
+                    "material claim is UNVERIFIED; verdict cannot be "
+                    "APPROVE until evidence exists"
+                ),
+                claim_index=idx,
+            )
+        )
+    return findings
+
+
+def _verdict_from(findings: Sequence[TruthFinding]) -> TruthVerdict:
+    if any(f.severity == "CRITICAL" for f in findings):
+        return "BLOCKED"
+    if any(f.severity in {"HIGH", "MEDIUM"} for f in findings):
+        return "REQUEST_CHANGES"
+    return "APPROVE"
+
+
 def _chain_hash(claims: Sequence[EvidenceClaim], verdict: str) -> str:
     """Deterministic SHA-256 over the canonical claim set + verdict."""
     canonical = json.dumps(
@@ -185,82 +247,33 @@ class TruthGate:
         self._resolved_bridge = resolve_bridge(self.bridge)
 
     def evaluate(self, claims: Sequence[EvidenceClaim]) -> TruthGateReport:
-        findings: list[TruthFinding] = []
-
         if not claims:
-            findings.append(
-                TruthFinding(
-                    severity="CRITICAL",
-                    message="claim set is empty; nothing to verify",
-                )
+            empty = TruthFinding(
+                severity="CRITICAL",
+                message="claim set is empty; nothing to verify",
             )
-            return self._report("BLOCKED", findings, ())
+            return self._report("BLOCKED", [empty], ())
 
+        findings: list[TruthFinding] = []
         for idx, claim in enumerate(claims):
-            if not isinstance(claim.statement, str) or not claim.statement.strip():
-                findings.append(
-                    TruthFinding(
-                        severity="CRITICAL",
-                        message="claim statement must be a non-empty string",
-                        claim_index=idx,
-                    )
-                )
-            if claim.label not in _EVIDENCE_LABELS:
-                findings.append(
-                    TruthFinding(
-                        severity="CRITICAL",
-                        message=(
-                            f"unknown evidence label {claim.label!r}; expected "
-                            "VERIFIED | INFERRED | UNVERIFIED"
-                        ),
-                        claim_index=idx,
-                    )
-                )
-                continue
-            if claim.label == "VERIFIED" and not claim.source.strip():
-                findings.append(
-                    TruthFinding(
-                        severity="CRITICAL",
-                        message=(
-                            "VERIFIED label requires a citable source artifact"
-                        ),
-                        claim_index=idx,
-                    )
-                )
-            if claim.label == "UNVERIFIED" and claim.material:
-                findings.append(
-                    TruthFinding(
-                        severity="HIGH",
-                        message=(
-                            "material claim is UNVERIFIED; verdict cannot be "
-                            "APPROVE until evidence exists"
-                        ),
-                        claim_index=idx,
-                    )
-                )
+            findings.extend(_claim_findings(idx, claim))
 
         challenge_notes = self._resolved_bridge.challenge(
             [c.statement for c in claims]
         )
-        for note in challenge_notes:
-            findings.append(TruthFinding(severity="MEDIUM", message=note))
+        findings.extend(
+            TruthFinding(severity="MEDIUM", message=note)
+            for note in challenge_notes
+        )
 
-        if any(f.severity == "CRITICAL" for f in findings):
-            verdict: TruthVerdict = "BLOCKED"
-        elif any(f.severity in {"HIGH", "MEDIUM"} for f in findings):
-            verdict = "REQUEST_CHANGES"
-        else:
-            verdict = "APPROVE"
-        return self._report(verdict, findings, claims)
+        return self._report(_verdict_from(findings), findings, claims)
 
     def evaluate_and_audit(
         self,
         claims: Sequence[EvidenceClaim],
         *,
         sink: Any,
-        trace_id: str,
-        span_id: str,
-        tenant_id: str,
+        context: AuditContext,
     ) -> TruthGateReport:
         """Evaluate then append the decision to the Qal'a audit trail.
 
@@ -272,9 +285,9 @@ class TruthGate:
         report = self.evaluate(claims)
         result = sink.append(
             event="policy_decision",
-            trace_id=trace_id,
-            span_id=span_id,
-            tenant_id=tenant_id,
+            trace_id=context.trace_id,
+            span_id=context.span_id,
+            tenant_id=context.tenant_id,
             payload=self.audit_payload(report),
         )
         if not result.ok:
@@ -315,6 +328,7 @@ class TruthGate:
 
 
 __all__ = [
+    "AuditContext",
     "EvidenceClaim",
     "EvidenceLabel",
     "LLMBridge",

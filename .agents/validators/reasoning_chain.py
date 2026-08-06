@@ -118,20 +118,20 @@ class ReasoningChainBuilder:
 
     def record(
         self,
-        fn: Callable[..., Any],
-        *args: Any,
+        fn: Callable[[], Any],
+        *,
         actor: str,
         action: str,
-        **kwargs: Any,
     ) -> Any:
         """Middleware form: run ``fn`` and record it as one step.
 
-        The step's rationale carries the outcome class only (``ok`` or the
-        exception type) — never raw return values, so sensitive material
-        cannot leak into certificates by default.
+        ``fn`` takes no arguments — bind any with ``functools.partial``
+        or a lambda. The step's rationale carries the outcome class only
+        (``ok`` or the exception type) — never raw return values, so
+        sensitive material cannot leak into certificates by default.
         """
         try:
-            result = fn(*args, **kwargs)
+            result = fn()
         except Exception as exc:
             self.add_step(
                 actor=actor,
