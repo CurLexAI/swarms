@@ -95,6 +95,24 @@ def test_frontend_sri_workflow_uses_lockfile_install() -> None:
     assert (REPO_ROOT / "package-lock.json").is_file()
 
 
+def test_pdpl_ingestion_uses_separate_endpoint_tokens_and_responses() -> None:
+    """Ensure the manual PDPL smoke path preserves endpoint token isolation."""
+
+    text = read_workflow("pdpl-article22-ingestion.yml")
+
+    assert "workflow_dispatch:" in text
+    assert "RAG_INGEST_API_TOKEN: ${{ secrets.RAG_INGEST_API_TOKEN }}" in text
+    assert "RAG_VERIFY_API_TOKEN: ${{ secrets.RAG_VERIFY_API_TOKEN }}" in text
+    assert 'endpoint_label in (' in text
+    assert '("ingest_endpoint", "pdpl-ingest")' in text
+    assert '("verify_endpoint", "pdpl-verify")' in text
+    assert 'Bearer $RAG_INGEST_API_TOKEN' in text
+    assert 'Bearer $RAG_VERIFY_API_TOKEN' in text
+    assert "ingestion_response.json" in text
+    assert "verification_response.json" in text
+    assert "FAILED_AT_PHASE_SEMANTIC_HITS" in text
+
+
 def test_swarm_presence_monitor_no_network_json_is_nonblocking() -> None:
     """Ensure no-network presence evidence stays JSON-serializable and check-friendly."""
 
