@@ -44,6 +44,26 @@ test('SR.BSM public server maps root to the trust center', async (t) => {
   assert.match(await response.text(), /LexPrim Trust Center/);
 });
 
+test('SR.BSM public server emits hardened static security headers', async (t) => {
+  const publicRoot = await mkdtemp(join(tmpdir(), 'sr-bsm-public-'));
+  await import('node:fs/promises').then(({ mkdir }) => mkdir(join(publicRoot, 'trust'), { recursive: true }));
+  await writeFile(join(publicRoot, 'trust', 'index.html'), '<h1>LexPrim Trust Center</h1>');
+  const baseUrl = await withServer(t, publicRoot);
+
+  const response = await fetch(`${baseUrl}/`);
+  const csp = response.headers.get('content-security-policy');
+
+  assert.equal(response.headers.get('cross-origin-embedder-policy'), 'require-corp');
+  assert.equal(response.headers.get('cross-origin-opener-policy'), 'same-origin');
+  assert.equal(response.headers.get('cross-origin-resource-policy'), 'same-origin');
+  assert.equal(response.headers.get('x-frame-options'), 'DENY');
+  assert.equal(response.headers.get('strict-transport-security'), 'max-age=63072000; includeSubDomains; preload');
+  assert.ok(csp);
+  assert.match(csp, /script-src 'none'/);
+  assert.match(csp, /connect-src 'none'/);
+  assert.ok(!csp.includes('cdn.example.com'));
+});
+
 test('SR.BSM public server returns JSON 404 for missing public files', async (t) => {
   const publicRoot = await mkdtemp(join(tmpdir(), 'sr-bsm-public-'));
   const baseUrl = await withServer(t, publicRoot);
