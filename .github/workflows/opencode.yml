@@ -74,7 +74,7 @@ jobs:
 
       - name: Run OpenCode
         if: steps.trust.outputs.secret_gate == 'true'
-        uses: anomalyco/opencode/github@4473fc3c9055046183990a965d68df3db7ea6f62
+        uses: anomalyco/opencode/github@d7b115f623760e68a4749d16508a9eca350f246f
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
