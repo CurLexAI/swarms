@@ -38,7 +38,7 @@
     "ollama:verify-local": "OLLAMA_PULL=0 bash scripts/ollama/activate-local-models.sh"
   },
   "dependencies": {
-    "js-yaml": "^5.2.2",
+    "js-yaml": "^5.3.0",
     "uuid": "^14.0.1"
   },
   "devDependencies": {
